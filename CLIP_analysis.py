@@ -1,21 +1,30 @@
+import matplotlib as mpl
+mpl.use('Agg')    
 import pybedtools
 import numpy as np
 from optparse import OptionParser
 import os
 import sys
-import filter
-import random
 import pickle
 import random
+from subprocess import Popen, call, PIPE
+import pylab
+
+host = Popen(["hostname"], stdout=PIPE).communicate()[0].strip()
+if "optiputer" in host or "compute" in host:
+    basedir = "/nas/nas0"
+elif "tcc" in host or "triton" in host:
+    basedir = "/projects"    
+print "basedir: %s" %(basedir)
 
 
 import subprocess
 from bx.bbi.bigwig_file import BigWigFile
 import pysam
 try:
-    pybedtools.set_tempdir("/nas3/scratch/lovci/pybedtools_tmp")
+    pybedtools.set_tempdir(basedir + "/scratch/lovci/pybedtools_tmp")
 except:
-    pybedtools.set_tempdir("/projects/lovci/projects/tmp/pybedtools_tmp")
+    pybedtools.set_tempdir(basedir + "/lovci/projects/tmp/pybedtools_tmp")
 
 def CLIP_QC_figure(reads_in_clusters, reads_out_clusters, cluster_lengths, reads_per_cluster, premRNA, mRNA, exondist, introndist, genomic_locs, clusters_locs, genomic_types, clusters_types, zscores, homer_location, kmer_box_params, phastcons_values):
     import matplotlib as mpl
@@ -26,6 +35,7 @@ def CLIP_QC_figure(reads_in_clusters, reads_out_clusters, cluster_lengths, reads
     import numpy as np
     import random
     mpl.rcParams['interactive']=False
+
     fig = pylab.figure(figsize=(20,20), facecolor='white')
     gs1 = gridspec.GridSpec(6,4)
     ax_pie_inout = pylab.subplot(gs1[0, 0], title = "Reads in Clusters", aspect=1)
@@ -79,7 +89,6 @@ def CLIP_QC_figure(reads_in_clusters, reads_out_clusters, cluster_lengths, reads
 
     bins=20
     for n in range(6):
-        print n
         ax_cons.hold(True)        
         heights1, edges1 = np.histogram(reals[n], normed=True, bins=bins)
         heights2, edges2 = np.histogram(rands[n], normed=True, bins=bins)
@@ -172,9 +181,7 @@ def CLIP_QC_figure(reads_in_clusters, reads_out_clusters, cluster_lengths, reads
     #ax_pie_exontypes.pie(clusters_types, labels=["CE", "SE", "MXE", "A5E", "A3E"], colors=["darkred", "navy", "purple", "green", "orange"])
     ax_hist_zscores = pylab.subplot(gs1[2,2:4], title="Motif Z-scores")
     motif_boxplots(*kmer_box_params, subplot=ax_hist_zscores) # * expands the list into individual args
-    ax_hist_zscores.set_xscale('symlog', linthreshx=10)
-    ax_hist_zscores.axvline(x=-4)
-    ax_hist_zscores.axvline(x=4)
+
     #ax_hist_zscores.hist(zscores, bins=100, fc=None)
     #ax_hist_zscores.set_ylabel("Frequency")
     #ax_hist_zscores.set_xlabel("Z-score")
@@ -217,9 +224,9 @@ def adjust_offsets(tool, offsets=None):
     l = list()
     for x in tool:
         try:
-            chr, start, stop, name, score, strand, tstart, tstop = x.__str__().split("\t")
+            chr, start, stop, name, score, strand, tstart, tstop = x.__str__().strip().split("\t")
         except:
-            chr, start, stop, name, score, strand = x.__str__().split("\t")
+            chr, start, stop, name, score, strand = x.__str__().strip().split("\t")
             tstart=0
             tstop=0
         start, stop, tstart, tstop = map(int, (start, stop, tstart, tstop))
@@ -254,7 +261,7 @@ def build_AS_STRUCTURE_dict(species):
     info = dict()
     Gtypes = dict()
     for chr in chrs:
-        ASfile = "/nas3/yeolab/Genome/ensembl/AS_STRUCTURE/" + species + "data4/" + species + ".tx." + chr + ".AS.STRUCTURE"
+        ASfile = basedir+ "/yeolab/Genome/ensembl/AS_STRUCTURE/" + species + "data4/" + species + ".tx." + chr + ".AS.STRUCTURE"
         f = open(ASfile, "r")
         for line in f.readlines():
             if not line.startswith(">"):
@@ -305,10 +312,10 @@ def build_AS_STRUCTURE_dict(species):
 def assign_to_regions(tool, species="hg19", nrand = 3, getseq=False):
     speciesFA = ""
     if species =="hg19" or species == "mm9" or species =="hg18":
-        speciesFA = "/nas3/yeolab/Genome/ucsc/" +species + "/chromosomes/all.fa"
+        speciesFA = basedir + "/yeolab/Genome/ucsc/" +species + "/chromosomes/all.fa"
     else:
         raise Exception, "Unknown species"
-    root = "/nas3/lovci/projects/ucscBED/" + species
+    root = basedir + "/lovci/projects/ucscBED/" + species
     UTR3File=os.path.join(root, "UTR3_"+species+"_frea_sorted.withscore")
     UTR3 = pybedtools.BedTool(UTR3File)
     G_UTR3_size = UTR3.total_coverage()
@@ -334,7 +341,9 @@ def assign_to_regions(tool, species="hg19", nrand = 3, getseq=False):
     tool = adjust_offsets(tool, of)
     Gsizes = [G_exon_size, G_UTR3_size, G_UTR5_size, G_proxintron_size, G_distintron_size]
     sizes = [0, 0, 0, 0, 0]
+
     print "There are a total of %d clusters I'll examine" %(tool.__len__())
+
     for j, region in enumerate(all_regions):
         no_overlapping, only_overlapping =intersection(tool, B = all_bedtracks[j])  #portions of the regions that overlap with a genic region
         only_overlapping = pybedtools.BedTool(str(only_overlapping.filter(eliminate_invalid_bed12)), from_string=True)
@@ -403,11 +412,11 @@ def build_assigned_from_existing(assigned_dir, clusters, regions, nrand):
     try:
         sizes = pickle.load(open(os.path.join(assigned_dir, "%s.sizes.pickle" %(clusters)), 'rb'))
     except:
-        sizes=0
+        sizes=[1,1,1,1,1]
     try:
-        Gsizes = pickle.load(open(os.path.join(assigned_dir, "Gsizes.pickle", 'rb')))
+        Gsizes = pickle.load(open(os.path.join(assigned_dir, "Gsizes.pickle"), 'rb'))
     except:
-        Gsizes=0
+        Gsizes=[1,1,1,1,1]
 
 
     
@@ -580,11 +589,17 @@ def plot_motif_dist(assigned_clusters, motifFILE, figure, nrand=3, color = "red"
     all_rand.extend(rand_proxintron)    
 
     ax_all = figure.add_subplot(321, title="All Clusters")
+    ax_all.set_yscale('log')
     ax_UTR5 = figure.add_subplot(322, title="5'UTR")
+    ax_UTR5.set_yscale('log')
     ax_exon = figure.add_subplot(323, title="Exon")
+    ax_exon.set_yscale('log')    
     ax_UTR3 = figure.add_subplot(324, title="3'UTR")
+    ax_UTR3.set_yscale('log')
     ax_proxintron = figure.add_subplot(325, title="Proximal Intron")
+    ax_proxintron.set_yscale('log')
     ax_distintron = figure.add_subplot(326, title="Distal Intron")
+    ax_distintron.set_yscale('log')
 
     all_hist, all_edges = np.histogram(all, bins=50, range=(-150, 150))
     all_hist = all_hist/(allsize/1000.)        
@@ -713,11 +728,11 @@ def run_kmerdiff(clustersFA, backgroundFA, k=6, outfile=None):
     if outfile is None:
         outfile = clustersFA + ".k" + str(k) + ".kmerdiff"
     print "Running Kmer analysis"
-    subprocess.call(["/nas3/yeolab/Software/generalscripts/kmerdiff.pl", "-file1", clustersFA, "-file2", backgroundFA, "-k", str(k), "-o", outfile])
+    subprocess.call(["perl", (basedir + "/yeolab/Software/generalscripts/kmerdiff.pl"), "-file1", clustersFA, "-file2", backgroundFA, "-k", str(k), "-o", outfile])
     srtout = outfile + ".sort"
     srt = open(srtout, 'w')
     print "Sorting Results..."
-    subprocess.call(["perl", "/nas3/yeolab/Software/generalscripts/sortkmerdiff.pl", outfile], stdout=srt)
+    subprocess.call(["perl", (basedir + "/yeolab/Software/generalscripts/sortkmerdiff.pl"), outfile], stdout=srt)
     print "Kmer analysis done, output here: %s" %(srtout)
     srt.close()
     return srtout
@@ -771,7 +786,7 @@ def motif_boxplots(kmerloc, filename, klengths, highlight_motifs, subplot=None):
             ak[i,j] = kmers[region][kmer]
     
     showme=False
-    if subplot is None: #for debugging
+    if subplot is None: #
         showme=True
         x = pylab.figure()
         subplot = x.add_subplot(111)
@@ -790,14 +805,23 @@ def motif_boxplots(kmerloc, filename, klengths, highlight_motifs, subplot=None):
             else:
                 label=None
             subplot.plot(ak[ind,:], y, 'o', color=colorcycle[i], label=label, markersize=10)
+    subplot.set_xscale('symlog', linthreshx=10)
+    subplot.axvline(x=-4)
+    subplot.axvline(x=4)
+    
 
-    if showme is True:
-        pylab.show()
     subplot.legend(frameon=False,loc=0, numpoints=1)
+    
     subplot.set_xlabel("Z-score")
+    if showme is True:
+        pylab.show()    
 
     return ak, all_kmers
-
+def bedlengths(tool):
+    x = list()
+    for line in tool:
+        x.append(line.length)
+    return x
 
 def get_phastcons(bedtool, species=None, index=None):
     """
@@ -807,9 +831,9 @@ def get_phastcons(bedtool, species=None, index=None):
         print "Error, must select species or index"
     if species is not None and index is None:
         if species == "mm9":
-            index= "/nas3/yeolab/Conservation/phastCons/mm9_30way/euarchontoglires/mm9_phastcons.bw"
+            index= basedir + "/yeolab/Conservation/phastCons/mm9_30way/euarchontoglires/mm9_phastcons.bw"
         elif species == "hg19":
-            index = "/nas3/yeolab/Conservation/phastCons/hg19_46way/placentalMammals/reformat/hg19_phastcons.bw"
+            index = basedir + "/yeolab/Conservation/phastCons/hg19_46way/placentalMammals/reformat/hg19_phastcons.bw"
     f = open(index, 'r')
     bw = BigWigFile(file=f)
     data = np.ndarray(len(bedtool))
@@ -828,22 +852,21 @@ def get_phastcons(bedtool, species=None, index=None):
 
 def main(options):
     
-    
-    import pylab
+
+
     
     #
     from subprocess import Popen, PIPE
     host = Popen(["hostname"], stdout=PIPE).communicate()[0].strip()
     #print host
     #print mpl.get_backend()
-    if "compute" in host or "tcc" in host:
-        import matplotlib as mpl
-        mpl.use('Agg')
+
     #print mpl.get_backend()
     
     clusters = options.clusters
     species = options.species
     CLUSTERS = pybedtools.BedTool(clusters)
+
     clusters = str.replace(clusters, ".BED", "")
     options.k= map(int, options.k)
     outdir = options.outdir
@@ -958,7 +981,7 @@ def main(options):
         
     print "done, there were %d" %(total_reads)
     print "Gathering bed lengths...",
-    cluster_lengths = filter.bedlengths(CLUS_regions['all']['real'])
+    cluster_lengths = bedlengths(CLUS_regions['all']['real'])
     print "done"
 ##     
     mRNA_positions = list()
@@ -1027,8 +1050,8 @@ def main(options):
             print ("%s..." %(region)),
             samplesize=1000
             if len(CLUS_regions[region]['real']) > samplesize:
-                #R1 = CLUS_regions[region]['real']                
-                R1 = random.sample(CLUS_regions[region]['real'], samplesize)
+                R1 = CLUS_regions[region]['real']                
+                # R1 = random.sample(CLUS_regions[region]['real'], samplesize)
             else:
                 R1 = CLUS_regions[region]['real']
                 
@@ -1038,8 +1061,8 @@ def main(options):
             randPhast=list()
             for i in range(options.nrand):
                 if len(CLUS_regions[region]['rand'][i]) > samplesize:
-                    #R2 = CLUS_regions[region]['rand'][i]                    
-                    R2 = random.sample(CLUS_regions[region]['rand'][i], samplesize)
+                    R2 = CLUS_regions[region]['rand'][i]                    
+                    #R2 = random.sample(CLUS_regions[region]['rand'][i], samplesize)
                 else:
                     R2 = CLUS_regions[region]['rand'][i]
                 print ("getting rand %d" %(i)),
@@ -1053,6 +1076,7 @@ def main(options):
         pickout = open(os.path.join(misc_dir, "%s.phast.pickle" %(clusters)), 'w')
         pickle.dump(phast_values, file = pickout)
     Zscores = None  #old. remove
+
     QCfig_params = [reads_in_clusters, (total_reads - reads_in_clusters), cluster_lengths, reads_per_cluster, premRNA_positions, mRNA_positions, exon_positions, intron_positions, Gsizes, sizes, Gtype_count, type_count, Zscores, homerout, kmer_box_params, phast_values]
 
     pickout = open(os.path.join(outdir, "misc", "%s.qcfig_params.pickle" %(clusters)), 'w')
@@ -1064,7 +1088,7 @@ def main(options):
                     
 ###
     motifs = list(options.motif)
-    motifBASE  = "/nas3/lovci/projects/ucscBED"
+    motifBASE  = basedir + "/lovci/projects/ucscBED"
     if motifs is not None:
         fig = pylab.figure(figsize=(8.5, 11))
         colors = ["red", "orange", "green", "blue", "purple", "brown", "black", "pink", "gray", "cyan", "magenta"]

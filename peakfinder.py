@@ -1,3 +1,5 @@
+
+
 import pysam
 import optparse
 from optparse import OptionParser, SUPPRESS_HELP
@@ -18,6 +20,11 @@ import time
 import pybedtools
 from random import sample as rs
 from seqTools import *
+
+
+
+
+
 
 host = Popen(["hostname"], stdout=PIPE).communicate()[0].strip()
 if "optiputer" in host or "compute" in host:
@@ -269,7 +276,7 @@ def call_peaks(loc, gene_length, bam_fileobj=None, bam_file=None, trim=False, ma
     #peakDict['loc'] = loc
     tx_start, tx_end = map(int, [tx_start, tx_end])
     subset_reads = bam_fileobj.fetch(reference=chrom, start=tx_start,end=tx_end)
-    wiggle, jxns, pos_counts, lengths =readsToWiggle_pysam(subset_reads,tx_start, tx_end, keepstrand=signstrand, trim=trim)
+    wiggle, jxns, pos_counts, lengths, allreads =readsToWiggle_pysam(subset_reads,tx_start, tx_end, keepstrand=signstrand, trim=trim)
     nreads_in_gene = sum(pos_counts)
     gene_threshold = get_FDR_cutoff_mean(lengths, gene_length)
     if gene_threshold == "error":
@@ -594,7 +601,9 @@ def main(options):
     plotit = options.plotit
     poisson_cutoff = options.poisson_cutoff
 
-    g = options.gene ##         
+    g = options.gene ##
+    
+    
     if options.serial is True:
         print "WARNING: not using transcriptome-based cutoff because you decided to supply a list of genes"
         bamfileobj = pysam.Samfile(bamfile, 'rb')
@@ -605,6 +614,9 @@ def main(options):
         try:
             if g.__len__() > 0:
                 genelist = g
+                print "Trying these genes:"
+                for gene in g:
+                    print gene
 
         except:
             genelist = genes.keys()
@@ -638,7 +650,8 @@ def main(options):
                     min_pval = min([corrected_SloP_pval, corrected_Gene_pval])
                     allpeaks[i] = min_pval
                 else:
-                    print "Failed Gene Pvalue: %s Failed SloP Pvalue: %s for cluster %s" %(corrected_Gene_pval, corrected_SloP_pval, i)
+                    #print "Failed Gene Pvalue: %s Failed SloP Pvalue: %s for cluster %s" %(corrected_Gene_pval, corrected_SloP_pval, i)
+                    pass
             t=time.strftime('%X %x %Z')
             print geneinfo+ " finished:"+str(t)
         outbed = options.outfile + ".BED"
@@ -700,7 +713,8 @@ def main(options):
                             print "Transcriptome P is NaN, transcriptome_reads = %d, cluster reads = %d, transcriptome_size = %d, cluster_size = %d" %(transcriptome_reads, gener['clusters'][cluster]['Nreads'], transcriptome_size, gener['clusters'][cluster]['size'])
 
                         if transcriptomeP > poisson_cutoff:
-                            print "%s\n Failed Transcriptome cutoff with %s reads, pval: %s" %(cluster, gener['clusters'][cluster]['Nreads'], transcriptomeP)
+                            #print "%s\n Failed Transcriptome cutoff with %s reads, pval: %s" %(cluster, gener['clusters'][cluster]['Nreads'], transcriptomeP)
+                            
                             continue
                         min_pval = 1
 
@@ -711,7 +725,8 @@ def main(options):
                         if corrected_SloP_pval < poisson_cutoff or corrected_Gene_pval < poisson_cutoff:
                             min_pval = min([corrected_SloP_pval, corrected_Gene_pval])
                         else:
-                            print "Failed Gene Pvalue: %s and failed SloP Pvalue: %s for cluster %s" %(corrected_Gene_pval, corrected_SloP_pval, i)
+                            #print "Failed Gene Pvalue: %s and failed SloP Pvalue: %s for cluster %s" %(corrected_Gene_pval, corrected_SloP_pval, i)
+                            pass
                             continue
 
 
@@ -767,12 +782,14 @@ if __name__ == "__main__":
     parser.add_option("--superlocal", action = "store_true", dest="SloP", default=False, help="Use super-local p-values, counting reads in a 1KB window around peaks")
     parser.add_option("--color", dest="color", default="0,0,0", help="R,G,B Color for BED track output, default:black (0,0,0)")
     parser.add_option("--start", dest="start", default=False, action="store_true", help=SUPPRESS_HELP) #private, don't use
-    parser.add_option("--save-pickle", dest="save_pickle", default=False, help="Save a pickle file containing the analysis")
+    parser.add_option("--save-pickle", dest="save_pickle", default=False, action = "store_true", help="Save a pickle file containing the analysis")
     (options,args) = parser.parse_args()
     check_for_index(options.bam)
     if options.serial is True:
+        print "Starting serial computation"        
         main(options)
     else:
+
         if options.start is True:
             dtm.start(main, options)
         else:
