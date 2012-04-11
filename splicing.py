@@ -1,3 +1,4 @@
+import re
 import pysam
 from seqTools import *
 import sys
@@ -37,6 +38,7 @@ def assign_reads(gene, splicedict=None, bam_file=None, alignment_slop=10, flip=T
         elif usestrand == -1:
             signstrand = "-"
     subset_reads = bam_fileobj.fetch(reference=chrom, start=tx_start,end=tx_end)
+
     #import code
     #code.interact(local=locals())
     wig, jxns, nrCounts, readLengths, reads = readsToWiggle_pysam(subset_reads, (tx_start-1000), (tx_end+1000), keepstrand=signstrand)
@@ -262,8 +264,8 @@ def retrieve_splicing(species):
                         if not loc in info[gene][splicingType]: 
                             info[gene][splicingType][loc] = {}                           
                             info[gene][splicingType][loc]['jxns'] = {}
-                            info[gene][splicingType][loc]["rangestart"] = 100000000
-                            info[gene][splicingType][loc]["rangeend"] = -100000000                            
+                            info[gene][splicingType][loc]["rangestart"] = 100000000000
+                            info[gene][splicingType][loc]["rangeend"] = -100000000000                            
 
                         versions = labels.rstrip("|").split("|")
                         for v in versions:
@@ -333,7 +335,7 @@ if __name__ == "__main__":
     parser.add_option("--start", dest="start", action="store_true", default=False, help=SUPPRESS_HELP)
     parser.add_option("--prefix", dest="prefix", default=os.getcwd(), help="output location")
     parser.add_option("--job_name", dest="job_name", default="splice", help="job name")
-    parser.add_option("--processors",  dest="np", type="int", default=30, help="number of processors to use")
+    parser.add_option("--processors",  dest="np", type="int", default=32, help="number of processors to use")
     parser.add_option("--notify",  dest="notify", default=None, help="email")
     parser.add_option("--wait_to_exit", dest="wait", default=False, action ="store_true")
     parser.add_option("--splicetypes", dest="splicetypes", default=None, action="append")
@@ -380,19 +382,21 @@ if __name__ == "__main__":
 
             shScript.write("let np=$PBS_NUM_NODES*$PBS_NUM_PPN\ncd $PBS_O_WORKDIR\n"); 
             shScript.write("/opt/openmpi/bin/mpirun --mca btl_tcp_if_include myri0 -v -machinefile $PBS_NODEFILE -np $np python %s --start\n" %(" ".join(sys.argv)))
-
-        jobID = re.findall(r'\d+', Popen(["qsub", scriptName], stdout=PIPE).communicate[0].strip())[0] #call qsub and catch the job identifier
+            if options.wait is True:
+                shScript.write("x=$PBS_JOBID\nJOB_ID=`echo $x | perl -lane '@a = split(/\./,$_); print $a[0]'`\n")
+        if options.wait is True:
+            shScript.write("touch $JOB_ID.JOBDONE\n")
+        shScript.close()                                             
+        jobID = re.findall(r'\d+', (Popen(["qsub", scriptName], stdout=PIPE).communicate()[0].strip()))[0] #call qsub and catch the job identifier
         jobDone = "%s.JOBDONE" %(jobID)
-        shScript.write("touch \n" %(jobDone))
-                      
-        shScript.close()                                 
+        
         st = "_".join(options.splicetypes)
         if options.outfile is  None:
             outfile = os.path.join(options.prefix, (options.bam.replace(".bam", ".splices.") + st + ".pickle"))
         else:
             outfile = options.outfile
         out = os.path.join(options.prefix, outfile)
-        print "Job submitted.  Output will be here: %s" %(out)
+        print "Job %s submitted.  Output will be here: %s" %(jobID ,out)
         if options.wait is True:
             import spin
             spin.spin(jobDone)
