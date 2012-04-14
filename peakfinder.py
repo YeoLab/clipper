@@ -40,7 +40,7 @@ def check_for_index(bamfile):
         process = call(["samtools", "index", str(bamfile)])
         return 1
 
-def get_FDR_cutoff_mode(readlengths, genelength, iterations=1000, mincut = 2):
+def get_FDR_cutoff_mode(readlengths, genelength, iterations=1000, mincut = 2, alpha=.05):
     """
     Find randomized method, as in FOX2ES NSMB paper.
     """
@@ -51,7 +51,7 @@ def get_FDR_cutoff_mode(readlengths, genelength, iterations=1000, mincut = 2):
     tries=0
     while bad == 1 and tries < 5:
         try:
-            process = Popen([cmd, "-f", "stdin", "-L",str(genelength),"-r", str(iterations)], stdin=PIPE, stdout=PIPE)
+            process = Popen([cmd, "-f", "stdin", "-L",str(genelength),"-r", str(iterations), "-a", str(alpha)], stdin=PIPE, stdout=PIPE)
             results, err = process.communicate("\n".join(map(str, readlengths)))
             return_val = process.wait()
             bad=0
@@ -185,6 +185,7 @@ def plotSpline(spline, data, xvals, threshold=None):
     if threshold is not None:
         ax1.axhline(y=threshold)
     f.show()
+    
     pass
 
 def find_univariateSpline(x, xdata, ydata, k, weight=None, resid=True):
@@ -257,7 +258,7 @@ def poissonP(reads_in_gene, reads_in_peak, gene_length, peak_length):
     except:
         return 1
 
-def call_peaks(loc, gene_length, bam_fileobj=None, bam_file=None, trim=False, margin=25,
+def call_peaks(loc, gene_length, bam_fileobj=None, bam_file=None, trim=False, margin=25, FDR_alpha=0.05,user_threshold=None,
                minreads=20, poisson_cutoff=0.05, plotit=False, quiet=False, outfile=None, w_cutoff=10, windowsize=1000, SloP = False, correct_P = False):
     chrom, gene_name, tx_start, tx_end, signstrand = loc.split("|")
     if bam_file is None and bam_fileobj is None:
@@ -278,7 +279,11 @@ def call_peaks(loc, gene_length, bam_fileobj=None, bam_file=None, trim=False, ma
     subset_reads = bam_fileobj.fetch(reference=chrom, start=tx_start,end=tx_end)
     wiggle, jxns, pos_counts, lengths, allreads =readsToWiggle_pysam(subset_reads,tx_start, tx_end, keepstrand=signstrand, trim=trim)
     nreads_in_gene = sum(pos_counts)
-    gene_threshold = get_FDR_cutoff_mean(lengths, gene_length)
+    if user_threshold is None:
+        gene_threshold = get_FDR_cutoff_mean(lengths, gene_length, alpha=FDR_alpha)
+    else:
+        gene_threshold = user_threshold
+    
     if gene_threshold == "error":
         print "I had a hard time with this one: %s.  I think I'll use a threshold of 50" %(loc)
         threshold=50
@@ -291,7 +296,7 @@ def call_peaks(loc, gene_length, bam_fileobj=None, bam_file=None, trim=False, ma
     tmpsect = {}
     if quiet is not True:
         print "Testing %s" %(loc)
-        print "Theshold is: %d" %(gene_threshold)
+        print "Threshold is: %d" %(gene_threshold)
     sections = find_sections(wiggle, margin)
     if plotit is True:
         plotSections(wiggle, sections, gene_threshold)
@@ -308,11 +313,13 @@ def call_peaks(loc, gene_length, bam_fileobj=None, bam_file=None, trim=False, ma
         sect_read_lengths = rs(lengths, Nreads) #not exactly the right way to do this but it should be very close.
         peakDict['sections'][sect] ={}
         threshold=int()
-        if SloP is True:
-            threshold = get_FDR_cutoff_mean(sect_read_lengths, sect_length)
-
+        if user_threshold is None:
+            if SloP is True:
+                threshold = get_FDR_cutoff_mean(sect_read_lengths, sect_length, alpha=FDR_alpha)
+            else:
+                threshold= gene_threshold
         else:
-            threshold= gene_threshold
+            threshold= user_threshold
 
         peakDict['sections'][sect]['threshold'] = threshold
         peakDict['sections'][sect]['nreads'] = Nreads
@@ -399,6 +406,9 @@ def call_peaks(loc, gene_length, bam_fileobj=None, bam_file=None, trim=False, ma
                     if thick_stop > g_stop:
                         thick_stop = g_stop
                     peak_length = g_stop-g_start+1
+                    if peak_length > 300:
+                        import code
+                        code.interact(local=locals())
                     if peak_length < w_cutoff:#skip really small peaks
                         continue
                     peak_name = gene_name + "_" + str(peakn) + "_" + str(int(Nreads_in_peak))
@@ -636,8 +646,8 @@ def main(options):
             t=time.strftime('%X %x %Z')
             print geneinfo+ " started:"+str(t)
             trim=options.trim
-            gene_peaks = call_peaks( geneinfo, genelen, bam_fileobj=bamfileobj, bam_file=None, trim=trim,
-                                     margin=margin, minreads=minreads, poisson_cutoff=poisson_cutoff,plotit=plotit, quiet=quiet,outfile=None, SloP=options.SloP)
+            gene_peaks = call_peaks( geneinfo, genelen, bam_fileobj=bamfileobj, bam_file=None, trim=trim, user_threshold = options.threshold,
+                                     margin=margin, minreads=minreads, poisson_cutoff=poisson_cutoff,plotit=plotit, quiet=quiet,outfile=None, SloP=options.SloP, FDR_alpha = options.FDR_alpha)
             n_clusters = gene_peaks['Nclusters']
 
             for i in gene_peaks['clusters'].keys():
@@ -650,16 +660,16 @@ def main(options):
                     min_pval = min([corrected_SloP_pval, corrected_Gene_pval])
                     allpeaks[i] = min_pval
                 else:
-                    #print "Failed Gene Pvalue: %s Failed SloP Pvalue: %s for cluster %s" %(corrected_Gene_pval, corrected_SloP_pval, i)
+                    print "Failed Gene Pvalue: %s Failed SloP Pvalue: %s for cluster %s" %(corrected_Gene_pval, corrected_SloP_pval, i)
                     pass
             t=time.strftime('%X %x %Z')
             print geneinfo+ " finished:"+str(t)
         outbed = options.outfile + ".BED"
         color=options.color
-        tool = pybedtools.BedTool(allpeaks.keys().__iter__()).sort().saveas(outbed, trackline="track name=\"%s\" visibility=2 colorByStrand=\"%s %s\"" %(outbed, color, color))
+        tool = pybedtools.BedTool("\n".join(allpeaks.keys()), from_string=True).sort().saveas(outbed, trackline="track name=\"%s\" visibility=2 colorByStrand=\"%s %s\"" %(outbed, color, color))
         print tool
-#        import code
-#        code.interact(local=locals())
+        import code
+        code.interact(local=locals())
     else:
         if quiet is False:
             print "quiet required for parallel runs"
@@ -690,8 +700,8 @@ def main(options):
             transcriptome_size += lengths[i]
         print "trying %d genes" %(gl.__len__())
         trim=options.trim
-        results = dtm.map(call_peaks, gl, ll, bam_file=bamfile, bam_fileobj=None, trim=trim, margin=margin,
-                          minreads=minreads, poisson_cutoff=poisson_cutoff, plotit=False, quiet=True, outfile=None, SloP=options.SloP)
+        results = dtm.map(call_peaks, gl, ll, bam_file=bamfile, bam_fileobj=None, trim=trim, margin=margin, user_threshold = options.threshold,
+                          minreads=minreads, poisson_cutoff=poisson_cutoff, plotit=False, quiet=True, outfile=None, SloP=options.SloP, FDR_alpha=options.FDR_alpha)
         print "finished with calling peaks"
         if options.save_pickle is True:
             pickle_file = open(options.outfile + ".pickle", 'w')
@@ -742,9 +752,10 @@ def main(options):
                 pass
         outbed = options.outfile + ".BED"
         color=options.color
-        tool = pybedtools.BedTool(allpeaks.keys().__iter__()).sort().saveas(outbed, trackline="track name=\"%s\" visibility=2 colorByStrand=\"%s %s\"" %(outbed, color, color))
+        tool = pybedtools.BedTool("\n".join(allpeaks.keys()), from_string=True).sort().saveas(outbed, trackline="track name=\"%s\" visibility=2 colorByStrand=\"%s %s\"" %(outbed, color, color))
 
         print "wrote peaks to %s" %(options.outfile)
+
         return 1
 
 if __name__ == "__main__":
@@ -773,6 +784,8 @@ if __name__ == "__main__":
     parser.add_option("--trim", dest="trim", action="store_true", default=False, help="Trim reads with the same start/stop to count as 1")
     parser.add_option("--premRNA", dest="premRNA", action="store_true", help="use premRNA length cutoff, default:%default", default=False)
     parser.add_option("--poisson-cutoff", dest="poisson_cutoff", type="float", help="p-value cutoff for poisson test, Default:%default", default=0.05, metavar="P")
+    parser.add_option("--FDR", dest="FDR_alpha", type="float", default=0.05, help="FDR cutoff for significant height estimation, default=%default")
+    parser.add_option("--threshold", dest="threshold", type="int", default=None, help="Skip FDR calculation and set a threshold yourself")
 
     parser.add_option("--serial", dest="serial", action="store_true", help="run genes in sequence (not parallel)")
     parser.add_option("--maxgenes", dest="maxgenes", default=None, help="stop computation after this many genes, for testing", metavar="NGENES")
