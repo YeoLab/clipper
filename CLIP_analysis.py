@@ -521,7 +521,7 @@ def get_offsets(clusters, motif, slop=500):
     del ov
     return distances
     
-def plot_motif_dist(assigned_clusters, motifFILE, figure, nrand=3, color = "red", label=None, species="mm9", slopsize=0):
+def plot_motif_dist(assigned_clusters, motifFILE, figure, nrand=3, color = "red", label=None, species="mm9", slopsize=0, scale='linear'):
 
     motifBed = pybedtools.BedTool(motifFILE)
     if label is None:
@@ -589,17 +589,17 @@ def plot_motif_dist(assigned_clusters, motifFILE, figure, nrand=3, color = "red"
     all_rand.extend(rand_proxintron)    
 
     ax_all = figure.add_subplot(321, title="All Clusters")
-    ax_all.set_yscale('log')
+    ax_all.set_yscale(scale)
     ax_UTR5 = figure.add_subplot(322, title="5'UTR")
-    ax_UTR5.set_yscale('log')
+    ax_UTR5.set_yscale(scale)
     ax_exon = figure.add_subplot(323, title="Exon")
-    ax_exon.set_yscale('log')    
+    ax_exon.set_yscale(scale)
     ax_UTR3 = figure.add_subplot(324, title="3'UTR")
-    ax_UTR3.set_yscale('log')
+    ax_UTR3.set_yscale(scale)
     ax_proxintron = figure.add_subplot(325, title="Proximal Intron")
-    ax_proxintron.set_yscale('log')
+    ax_proxintron.set_yscale(scale)
     ax_distintron = figure.add_subplot(326, title="Distal Intron")
-    ax_distintron.set_yscale('log')
+    ax_distintron.set_yscale(scale)
 
     all_hist, all_edges = np.histogram(all, bins=50, range=(-150, 150))
     all_hist = all_hist/(allsize/1000.)        
@@ -1118,7 +1118,7 @@ if __name__== "__main__":
     parser.add_option("--old_motifs", dest="reMotif", action="store_false", default=True, help="use old motif files")
     parser.add_option("--species", dest="species", help = "genome version")
     parser.add_option("--motif", dest="motif", action="append", help="Files of motif locations", default=None)
-    parser.add_option("--homer", dest="homer", action="store_true", default=True)
+    parser.add_option("--homer", dest="homer", action="store_true", default=False)
     parser.add_option("--conservation", dest="cons", action="store_true")
     parser.add_option("--structure", dest="structure", action="store_true")
     parser.add_option("--nrand", dest="nrand", default=3, type="int")
