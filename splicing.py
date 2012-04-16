@@ -16,7 +16,8 @@ elif "tcc" in host or "triton" in host:
     basedir = "/projects"
 else:
     print "Where am I?"
-    raise Exception
+    #raise Exception
+    basedir = "~/gscripts"
 
 def assign_reads(gene, splicedict=None, bam_file=None, alignment_slop=10, flip=True, splicetypes=None):
     if splicedict is None or bam_file is None:

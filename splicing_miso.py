@@ -39,10 +39,11 @@ def assign_reads(gene, splicedict=None, bam_file=None, alignment_slop=10, flip=T
             signstrand = "-"
     subset_reads = bam_fileobj.fetch(reference=chrom, start=tx_start,end=tx_end)
 
-    #import code
-    #code.interact(local=locals())
+
     wig, jxns, nrCounts, readLengths, reads = readsToWiggle_pysam(subset_reads, (tx_start-1000), (tx_end+1000), keepstrand=signstrand)
     data["descriptor"] = gene
+    import code
+    code.interact(local=locals())
     if "SE" in splicedict[gene] and "SE" in splicetypes:
         data["SE"] = {}
         for loc in splicedict[gene]["SE"]:
@@ -128,7 +129,7 @@ def retrieve_splicing(species):
         chrs.append("Y")        
     info = dict()
     for chr in chrs:
-        ASfile = basedir + "/yeolab/Genome/ensembl/AS_STRUCTURE/" + species + "data4/" + species + ".tx." + chr + ".AS.STRUCTURE"
+        ASfile = basedir + "/yeolab/Genome/ensembl/AS_STRUCTURE/" + species + "data4/" + species + ".tx." + chr + ".AS.STRUCTURE.flanks"
         f = open(ASfile, "r")
         annotline = f.next()
         eof = False
@@ -193,20 +194,18 @@ def retrieve_splicing(species):
 
 
                                 try:
-                                    info[gene][splicingType][loc][inorout]["j" + locUpy + ":" + str(int(exstart)+1)] += 1#upstream jxn
+                                    info[gene][splicingType][loc][inorout]["jup" + locUpy + ":" + str(int(exstart)+1)] += 1#upstream jxn
                                 except:
-                                    info[gene][splicingType][loc][inorout]["j" + locUpy + ":" + str(int(exstart)+1)] = 1#upstream jxn
+                                    info[gene][splicingType][loc][inorout]["jup" + locUpy + ":" + str(int(exstart)+1)] = 1#upstream jxn
                                 try:
-                                    info[gene][splicingType][loc][inorout]["j" + exstop + ":" + str(int(locDownx)+1)] += 1#dnstream jxn
+                                    info[gene][splicingType][loc][inorout]["jdn" + exstop + ":" + str(int(locDownx)+1)] += 1#dnstream jxn
                                 except:
-                                    info[gene][splicingType][loc][inorout]["j" + exstop + ":" + str(int(locDownx)+1)] = 1 #dnstream jxn
+                                    info[gene][splicingType][loc][inorout]["jdn" + exstop + ":" + str(int(locDownx)+1)] = 1 #dnstream jxn
                             else:
-                                #import code
-                                #code.interact(local=locals())
                                 try:
-                                    info[gene][splicingType][loc][inorout]["j" + locUpy + ":" + str(int(locDownx)+1)] += 1
+                                    info[gene][splicingType][loc][inorout]["jex" + locUpy + ":" + str(int(locDownx)+1)] += 1
                                 except:
-                                    info[gene][splicingType][loc][inorout]["j" + locUpy + ":" + str(int(locDownx)+1)] = 1
+                                    info[gene][splicingType][loc][inorout]["jex" + locUpy + ":" + str(int(locDownx)+1)] = 1
                         if int(strand) == 1:
                             signstrand = "+"
                         else:
@@ -238,13 +237,13 @@ def retrieve_splicing(species):
                                     info[gene][splicingType][loc]["A"]["b" + locIn] = 1#body
                                 exstart, exstop = locIn.split("-")
                                 try:
-                                    info[gene][splicingType][loc]["A"]["j" + locUp + ":" + str(int(exstart)+1)] += 1#upstream jxn
+                                    info[gene][splicingType][loc]["A"]["jup" + locUp + ":" + str(int(exstart)+1)] += 1#upstream jxn
                                 except:
-                                    info[gene][splicingType][loc]["A"]["j" + locUp + ":" + str(int(exstart)+1)] = 1 #upstream jxn
+                                    info[gene][splicingType][loc]["A"]["jup" + locUp + ":" + str(int(exstart)+1)] = 1 #upstream jxn
                                 try:
-                                    info[gene][splicingType][loc]["A"]["j" + exstop + ":" + str(int(locDown)+1)] +=1 #dnstream jxn
+                                    info[gene][splicingType][loc]["A"]["jdn" + exstop + ":" + str(int(locDown)+1)] +=1 #dnstream jxn
                                 except:
-                                    info[gene][splicingType][loc]["A"]["j" + exstop + ":" + str(int(locDown) +1)] =1 #dnstream jxn
+                                    info[gene][splicingType][loc]["A"]["jdn" + exstop + ":" + str(int(locDown) +1)] =1 #dnstream jxn
                                 pass
                             else:
                                 try:
@@ -253,13 +252,13 @@ def retrieve_splicing(species):
                                     info[gene][splicingType][loc]["B"]["b" + locIn] = 1#body
                                 exstart, exstop = locIn.split("-")
                                 try:
-                                    info[gene][splicingType][loc]["B"]["j" + locUp + ":" + str(int(exstart)+1)] +=1#upstream jxn
+                                    info[gene][splicingType][loc]["B"]["jup" + locUp + ":" + str(int(exstart)+1)] +=1#upstream jxn
                                 except:
-                                    info[gene][splicingType][loc]["B"]["j" + locUp + ":" + str(int(exstart)+1)] =1#upstream jxn
+                                    info[gene][splicingType][loc]["B"]["jup" + locUp + ":" + str(int(exstart)+1)] =1#upstream jxn
                                 try:
-                                    info[gene][splicingType][loc]["B"]["j" + exstop + ":" + str(int(locDown)+1)] +=1#dnstream jxn
+                                    info[gene][splicingType][loc]["B"]["jdn" + exstop + ":" + str(int(locDown)+1)] +=1#dnstream jxn
                                 except:
-                                    info[gene][splicingType][loc]["B"]["j" + exstop + ":" + str(int(locDown)+1)] =1#dnstream jxn
+                                    info[gene][splicingType][loc]["B"]["jdn" + exstop + ":" + str(int(locDown)+1)] =1#dnstream jxn
                         if int(strand) == 1:
                             signstrand = "+"
                         else:
@@ -267,6 +266,7 @@ def retrieve_splicing(species):
                         info[gene][splicingType][loc]["bedTrack"] = "\t".join([("chr" + chr), str(info[gene][splicingType][loc]["rangestart"]), str(info[gene][splicingType][loc]["rangeend"]), (gene), "1", signstrand])                                    
 
                     elif "A5E" in splicingType or "A3E" in splicingType:
+                        #not working yet... DANGER!
                         if not loc in info[gene][splicingType]: 
                             info[gene][splicingType][loc] = {}                           
                             info[gene][splicingType][loc]['jxns'] = {}
@@ -281,7 +281,7 @@ def retrieve_splicing(species):
                             info[gene][splicingType][loc]["rangestart"] = min(info[gene][splicingType][loc]["rangestart"], int(locUp))
                             info[gene][splicingType][loc]["rangeend"] = max(info[gene][splicingType][loc]["rangeend"], int(locDown))                                                        
                             exstart, exstop = locIn.split("-")                            
-                            jxns = [("j" + locUp + ":" + str(int(exstart)+1)), ("j" + exstop + ":" + str(int(exstop)+1))]
+                            jxns = [("jup" + locUp + ":" + str(int(exstart)+1)), ("jdn" + exstop + ":" + str(int(exstop)+1))]
                             for jxn in jxns:
                                 try:
                                     info[gene][splicingType][loc]['jxns'][jxn] +=1
