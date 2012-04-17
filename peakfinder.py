@@ -372,20 +372,41 @@ def call_peaks(loc, gene_length, bam_fileobj=None, bam_file=None, trim=False, ma
                 plotSpline(spline, data, xvals, threshold)
             def thresh(threhold):
                 return threshold
+            #starts = xvals[diff(sign(spline(xvals) - spline(xvals+1))) < 0]
             starts = xvals[diff(sign(spline(xvals) - thresh(xvals))) > 0]
-            stops = xvals[diff(sign(spline(xvals) - thresh(xvals))) < 0]
+            stops = xvals[diff(sign(spline(xvals) - (xvals))) < 0]
             ### important note: for getting values x->y [inclusive] you must index an array as ar[x:(y+1)]|                     or else you end up with one-too-few values, the second index is non-inclusive
-            if spline(0) > threshold:# add a 0 to the beginning of "starts"
-                l = list() ## this is HACKED... i couldn't figure out a clean way to do it.
+            #append local minima:
+            local_minima = xvals[diff(sign(spline(xvals) - spline(xvals+1))) < 0]
+
+            if any(local_minima >= threshold):
+                startlist = list(starts)
+                stoplist = list(stops)                
+                for val in local_minima:
+                    if spline(val) >= threshold:
+                        startlist.append(val)
+                        stoplist.append(val)
+                starts = array(sorted(startlist))
+                stops = array(sorted(stoplist))
+
+            
+            if spline(xvals)[0] > threshold:# add a 0 to the beginning of "starts"
+                l = list(starts) ## this is HACKED... i couldn't figure out a clean way to do it.
                 l.append(0)
                 for i in starts:
                     l.append(i)
                 starts = array(l)
+
+            starts = array(sorted(set(starts)))
+            stops = array(sorted(set(stops)))
+            #plt.plot(starts)
+            #plt.plot(stops)
+            #plt.draw()
             for p_start in starts: #subsections that are above threshold
                 try:
                     p_stop = stops[stops > p_start][0]
                 except:
-                    p_stop = sectstop -1
+                    p_stop = sect_length -1
                 try:
                     peaks = map(lambda x: x+p_start, xvals[diff(sign(diff(spline(xvals[p_start:(p_stop+1)]))))<0])  #peaks with-in this subsection, indexed from section (not subsection) start
                 except:
@@ -406,9 +427,7 @@ def call_peaks(loc, gene_length, bam_fileobj=None, bam_file=None, trim=False, ma
                     if thick_stop > g_stop:
                         thick_stop = g_stop
                     peak_length = g_stop-g_start+1
-                    if peak_length > 300:
-                        import code
-                        code.interact(local=locals())
+
                     if peak_length < w_cutoff:#skip really small peaks
                         continue
                     peak_name = gene_name + "_" + str(peakn) + "_" + str(int(Nreads_in_peak))
@@ -460,7 +479,9 @@ def call_peaks(loc, gene_length, bam_fileobj=None, bam_file=None, trim=False, ma
 
                     peakn += 1
                 else:  #there are more than one peaks in this window
+
                     valleys = array(map(lambda x:x+p_start, xvals[diff(sign(diff(spline(xvals[p_start:p_stop+1]))))>0]))#local minima in subsection, relative to section start
+
                     for subpeak in peaks:
                         subpeak_start = int()
                         subpeak_stop = int()
@@ -656,9 +677,13 @@ def main(options):
                 corrected_SloP_pval = gene_peaks['clusters'][i]['SloP']
                 corrected_Gene_pval = gene_peaks['clusters'][i]['GeneP']                
 
+                (chrom, g_start, g_stop, peak_name, geneP, signstrand, thick_start, thick_stop) = i.split("\t")                            
+
                 if corrected_SloP_pval < poisson_cutoff or corrected_Gene_pval < poisson_cutoff:
                     min_pval = min([corrected_SloP_pval, corrected_Gene_pval])
-                    allpeaks[i] = min_pval
+
+                    bedline = "%s\t%d\t%d\t%s\t%s\t%s\t%d\t%d" %(chrom, int(g_start), int(g_stop), peak_name, min_pval, signstrand, int(thick_start), int(thick_stop))
+                    allpeaks[bedline] = 1
                 else:
                     print "Failed Gene Pvalue: %s Failed SloP Pvalue: %s for cluster %s" %(corrected_Gene_pval, corrected_SloP_pval, i)
                     pass
@@ -666,6 +691,9 @@ def main(options):
             print geneinfo+ " finished:"+str(t)
         outbed = options.outfile + ".BED"
         color=options.color
+
+        
+        
         tool = pybedtools.BedTool("\n".join(allpeaks.keys()), from_string=True).sort().saveas(outbed, trackline="track name=\"%s\" visibility=2 colorByStrand=\"%s %s\"" %(outbed, color, color))
         print tool
         import code

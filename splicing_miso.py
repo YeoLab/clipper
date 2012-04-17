@@ -161,6 +161,8 @@ def retrieve_splicing(species):
                     
 #I know the "pass" statements are verbose.
                     if "SE" in splicingType:
+                        import code
+                        code.interact(local=locals())
                         if not loc in info[gene][splicingType]:
                             info[gene][splicingType][loc] = {}
                             info[gene][splicingType][loc]["rangestart"] = 10000000000000
@@ -169,6 +171,8 @@ def retrieve_splicing(species):
 
                             info[gene][splicingType][loc]["IN"] = {}
                             info[gene][splicingType][loc]["EX"] = {}
+
+                            
                         seen = {}
                         versions = labels.rstrip("|").split("|")
                         for v in versions:
@@ -177,7 +181,7 @@ def retrieve_splicing(species):
                             if int(vstrand) == -1:
                                 locDown, locUp = locUp, locDown
 
-                            exstart, exstop = map(str, locIn.split("-"))
+
                             locUpx, locUpy = map(str, locUp.split("-"))
                             locDownx, locDowny = map(str, locDown.split("-"))                                                                
 
@@ -187,6 +191,7 @@ def retrieve_splicing(species):
                             info[gene][splicingType][loc]["DownExon"]=locDown
                                                                                    
                             if "IN" in inorout:
+                                exstart, exstop = map(str, locIn.split("-"))                                
                                 try:
                                     info[gene][splicingType][loc][inorout]["b" + locIn] += 1
                                 except:
@@ -210,6 +215,7 @@ def retrieve_splicing(species):
                             signstrand = "+"
                         else:
                             signstrand = "-"
+                        #refine bed track
                         info[gene][splicingType][loc]["bedTrack"] = "\t".join([("chr" + chr), str(info[gene][splicingType][loc]["rangestart"]), str(info[gene][splicingType][loc]["rangeend"]), (gene), "1", signstrand])
                     
                     elif "MXE" in splicingType:
@@ -227,46 +233,56 @@ def retrieve_splicing(species):
                             if int(vstrand) == -1:
                                 locDown, locUp = locUp, locDown
                                 pass
-                            info[gene][splicingType][loc]["rangestart"] = min(info[gene][splicingType][loc]["rangestart"], int(locUp))
-                            info[gene][splicingType][loc]["rangeend"] = max(info[gene][splicingType][loc]["rangeend"], int(locDown))                            
+
+                            locUpx, locUpy = map(str, locUp.split("-"))
+                            locDownx, locDowny = map(str, locDown.split("-"))                                                                
+                            info[gene][splicingType][loc]["rangestart"] = min(info[gene][splicingType][loc]["rangestart"], int(locUpx))
+                            info[gene][splicingType][loc]["rangeend"] = max(info[gene][splicingType][loc]["rangeend"], int(locDowny))                            
 
                             if "IN" in inorout:
+                                exstart, exstop = map(str, locIn.split("-"))                                
                                 try:
                                     info[gene][splicingType][loc]["A"]["b" + locIn] += 1#body
                                 except:
                                     info[gene][splicingType][loc]["A"]["b" + locIn] = 1#body
                                 exstart, exstop = locIn.split("-")
                                 try:
-                                    info[gene][splicingType][loc]["A"]["jup" + locUp + ":" + str(int(exstart)+1)] += 1#upstream jxn
+                                    info[gene][splicingType][loc]["A"]["jup" + locUpy + ":" + str(int(exstart)+1)] += 1#upstream jxn
                                 except:
-                                    info[gene][splicingType][loc]["A"]["jup" + locUp + ":" + str(int(exstart)+1)] = 1 #upstream jxn
+                                    info[gene][splicingType][loc]["A"]["jup" + locUpy + ":" + str(int(exstart)+1)] = 1 #upstream jxn
                                 try:
-                                    info[gene][splicingType][loc]["A"]["jdn" + exstop + ":" + str(int(locDown)+1)] +=1 #dnstream jxn
+                                    info[gene][splicingType][loc]["A"]["jdn" + exstop + ":" + str(int(locDownx)+1)] +=1 #dnstream jxn
                                 except:
-                                    info[gene][splicingType][loc]["A"]["jdn" + exstop + ":" + str(int(locDown) +1)] =1 #dnstream jxn
+                                    info[gene][splicingType][loc]["A"]["jdn" + exstop + ":" + str(int(locDownx) +1)] =1 #dnstream jxn
                                 pass
                             else:
+                                #simply the other exon, but IN/EX designations like SE persist.
+                                exstart, exstop = map(str, locIn.split("-"))
                                 try:
                                     info[gene][splicingType][loc]["B"]["b" + locIn] += 1#body
                                 except:
                                     info[gene][splicingType][loc]["B"]["b" + locIn] = 1#body
                                 exstart, exstop = locIn.split("-")
                                 try:
-                                    info[gene][splicingType][loc]["B"]["jup" + locUp + ":" + str(int(exstart)+1)] +=1#upstream jxn
+                                    info[gene][splicingType][loc]["B"]["jup" + locUpy + ":" + str(int(exstart)+1)] +=1#upstream jxn
                                 except:
-                                    info[gene][splicingType][loc]["B"]["jup" + locUp + ":" + str(int(exstart)+1)] =1#upstream jxn
+                                    info[gene][splicingType][loc]["B"]["jup" + locUpy + ":" + str(int(exstart)+1)] =1#upstream jxn
                                 try:
-                                    info[gene][splicingType][loc]["B"]["jdn" + exstop + ":" + str(int(locDown)+1)] +=1#dnstream jxn
+                                    info[gene][splicingType][loc]["B"]["jdn" + exstop + ":" + str(int(locDownx)+1)] +=1#dnstream jxn
                                 except:
-                                    info[gene][splicingType][loc]["B"]["jdn" + exstop + ":" + str(int(locDown)+1)] =1#dnstream jxn
+                                    info[gene][splicingType][loc]["B"]["jdn" + exstop + ":" + str(int(locDownx)+1)] =1#dnstream jxn
                         if int(strand) == 1:
                             signstrand = "+"
                         else:
                             signstrand = "-"
+
+                            # refine bed track
+                           
                         info[gene][splicingType][loc]["bedTrack"] = "\t".join([("chr" + chr), str(info[gene][splicingType][loc]["rangestart"]), str(info[gene][splicingType][loc]["rangeend"]), (gene), "1", signstrand])                                    
 
                     elif "A5E" in splicingType or "A3E" in splicingType:
                         #not working yet... DANGER!
+                        continue
                         if not loc in info[gene][splicingType]: 
                             info[gene][splicingType][loc] = {}                           
                             info[gene][splicingType][loc]['jxns'] = {}
@@ -309,9 +325,9 @@ def main(options):
         if not options.maxgenes > len(genes):
             genes = random.sample(genes, options.maxgenes)
 
-    #for gene in genes:
-    #    x = assign_reads(gene, splicedict=splicing, bam_file=bamfile)
-    data = dtm.map(assign_reads, genes, splicedict=splicing, bam_file=bamfile, splicetypes = splicetypes)
+    for gene in genes:
+        x = assign_reads(gene, splicedict=splicing, bam_file=bamfile)
+    #data = dtm.map(assign_reads, genes, splicedict=splicing, bam_file=bamfile, splicetypes = splicetypes)
     st = "_".join(splicetypes)
     if options.outfile is None:
         outfile = os.path.join(options.prefix, (bamfile.replace(".bam", ".splices.pickle") + "." + st))
@@ -346,8 +362,8 @@ if __name__ == "__main__":
     parser.add_option("--wait_to_exit", dest="wait", default=False, action ="store_true")
     parser.add_option("--splicetypes", dest="splicetypes", default=None, action="append")
     (options,args) = parser.parse_args()
-    #main(options)
-    #exit()
+    main(options)
+    exit()
     if options.start is True:
         dtm.start(main, options)
     else:
