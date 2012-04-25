@@ -161,8 +161,7 @@ def retrieve_splicing(species):
                     
 #I know the "pass" statements are verbose.
                     if "SE" in splicingType:
-                        import code
-                        code.interact(local=locals())
+
                         if not loc in info[gene][splicingType]:
                             info[gene][splicingType][loc] = {}
                             info[gene][splicingType][loc]["rangestart"] = 10000000000000
@@ -330,7 +329,7 @@ def main(options):
     #data = dtm.map(assign_reads, genes, splicedict=splicing, bam_file=bamfile, splicetypes = splicetypes)
     st = "_".join(splicetypes)
     if options.outfile is None:
-        outfile = os.path.join(options.prefix, (bamfile.replace(".bam", ".splices.pickle") + "." + st))
+        outfile = os.path.join(options.prefix, (bamfile.replace(".bam", ".splices2.pickle") + "." + st))
     else:
         outfile = options.outfile
     pickle.dump(data, file=open(outfile, 'w'))

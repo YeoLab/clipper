@@ -5,6 +5,9 @@ import numpy as np
 from splicing import retrieve_splicing
 
 
+
+
+
 def mergeSamples(samples, splicetypes=["SE"]):
     
     data = {}
@@ -32,8 +35,7 @@ def mergeSamples(samples, splicetypes=["SE"]):
 def main(options):
     samples = options.samples
     spliceData = mergeSamples(samples, splicetypes=options.splicetype)
-    #import code
-    #code.interact(local=locals())
+
     pval_cutoff = options.pval
 
     if options.species is None:
@@ -55,11 +57,12 @@ def main(options):
 
             s1_inlabel = "_".join([s1_label, "IN"])
             s1_exlabel = "_".join([s1_label, "EX"])
-
+            s1_psilabel = "_".join([s1_label, "psi"])
+            
             s2_inlabel = "_".join([s2_label, "IN"])
             s2_exlabel = "_".join([s2_label, "EX"])            
-            
-            header= "\t".join(["Gene", "Exonloc", "p-value", "Test", "Testdetails", "significant?", "direction", s1_inlabel, s1_exlabel, s2_inlabel, s2_exlabel]) + "\n"
+            s2_psilabel = "_".join([s2_label, "psi"])
+            header= "\t".join(["Gene", "Exonloc", "p-value", "Test", "Testdetails", "significant?", "direction", s1_inlabel, s1_exlabel, s2_inlabel, s2_exlabel, s1_psilabel, s2_psilabel]) + "\n"
 
                 
             SEout.write(header)
@@ -98,7 +101,18 @@ def main(options):
                         bedline = "\t".join([chr, start, stop, gene, sci_pval, strand, start, stop, color]) + "\n"
                         SEbed.write(bedline)
                     wholeLoc = start + "-" + stop
-                    line = "\t".join(map(str, [gene, (chr + ":" + wholeLoc + "|" + strand), loc, p, test, testdetails, issig, direction, sample1_IN, sample1_EX, sample2_IN, sample2_EX]))
+
+                    
+                    if sample1_IN < 5 or sample1_EX < 5:
+                        psi1 = float('NaN')
+                    else:
+                        psi1 = float(sample1_IN) / (sample1_IN + sample1_EX)
+                    if sample2_IN < 5 or sample2_EX < 5:
+                        psi2 = float('NaN')
+                    else:
+                        psi2 = float(sample2_IN) / (sample2_IN + sample2_EX)
+                    
+                    line = "\t".join(map(str, [gene, (chr + ":" + wholeLoc + "|" + strand), loc, p, test, testdetails, issig, direction, sample1_IN, sample1_EX, sample2_IN, sample2_EX, "%1.2f" %(psi1), "%1.2f" %(psi2)]))
                     SEout.write(line + "\n")
             SEout.close()
 
@@ -115,11 +129,13 @@ def main(options):
 
             s1_inlabel = "_".join([s1_label, "A"])
             s1_exlabel = "_".join([s1_label, "B"])
-
+            s1_psilabel = "_".join([s1_label, "psi"])
+            
             s2_inlabel = "_".join([s2_label, "A"])
             s2_exlabel = "_".join([s2_label, "B"])            
-            
-            header= "\t".join(["Gene", "Eventloc", "Exonloc", "p-value", "Test", "Testdetails", "significant?", "direction", s1_inlabel, s1_exlabel, s2_inlabel, s2_exlabel]) + "\n"
+            s2_psilabel = "_".join([s2_label, "psi"])            
+
+            header= "\t".join(["Gene", "Eventloc", "Exonloc", "p-value", "Test", "Testdetails", "significant?", "direction", s1_inlabel, s1_exlabel, s2_inlabel, s2_exlabel, s1_psilabel, s2_psilabel ]) + "\n"
 
                 
             MXEout.write(header)
@@ -161,7 +177,19 @@ def main(options):
                         MXEbed.write(bedline)
 
                     wholeLoc = start + "-" + stop
-                    line = "\t".join(map(str, [gene, (chr + ":" + wholeLoc + "|" + strand), loc, p, test, testdetails, issig, direction, sample1_IN, sample1_EX, sample2_IN, sample2_EX]))
+
+
+                    if sample1_IN < 5 or sample1_EX < 5:
+                        psi1 = float('NaN')
+                    else:
+                        psi1 = float(sample1_IN) / (sample1_IN + sample1_EX)
+
+                    if sample2_IN < 5 or sample2_EX < 5:
+                        psi2 = float('NaN')
+                    else:
+                        psi2 = float(sample2_IN) / (sample2_IN + sample2_EX)
+
+                    line = "\t".join(map(str, [gene, (chr + ":" + wholeLoc + "|" + strand), loc, p, test, testdetails, issig, direction, sample1_IN, sample1_EX, sample2_IN, sample2_EX, "%1.2f" %(psi1), "%1.2f", (psi2)]))
 
 
                     MXEout.write(line + "\n")                    
