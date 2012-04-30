@@ -345,7 +345,10 @@ def assign_to_regions(tool, species="hg19", nrand = 3, getseq=False):
     print "There are a total of %d clusters I'll examine" %(tool.__len__())
 
     for j, region in enumerate(all_regions):
-        no_overlapping, only_overlapping =intersection(tool, B = all_bedtracks[j])  #portions of the regions that overlap with a genic region
+        try:
+            no_overlapping, only_overlapping =intersection(tool, B = all_bedtracks[j])  #portions of the regions that overlap with a genic region
+        except:
+            continue
         only_overlapping = pybedtools.BedTool(str(only_overlapping.filter(eliminate_invalid_bed12)), from_string=True)
         no_overlapping = pybedtools.BedTool(str(no_overlapping.filter(eliminate_invalid_bed12)), from_string=True)
         noCT = no_overlapping.__len__()
@@ -354,20 +357,33 @@ def assign_to_regions(tool, species="hg19", nrand = 3, getseq=False):
         both = last + noCT
         print "For region: %s I found %d that overlap and %d that don't, making a total of %d" %(region, onlyCT, noCT, both)
         bed_dict[region]= {}
-        bed_dict[region]['real'] = only_overlapping.sort()
+        bed_dict[region]['real'] = None
+        try:
+            bed_dict[region]['real'] = only_overlapping.sort()
+        except:
+            continue
         try:
             bed_dict['all']['real'] = pybedtools.BedTool(str(bed_dict['all']['real']) + str(bed_dict[region]['real']), from_string=True)
         except:
             bed_dict['all']= {}
             bed_dict['all']['rand']= {}
             bed_dict['all']['real'] = bed_dict[region]['real']
-        sizes[j] = bed_dict[region]['real'].total_coverage()
+        try:
+            sizes[j] = bed_dict[region]['real'].total_coverage()
+        except:
+            continue
         if getseq is True:
-            bed_dict[region]['real'].sequence(fi=speciesFA, s=True)
+            try:
+                bed_dict[region]['real'].sequence(fi=speciesFA, s=True)
+            except:
+                pass
         ofdic = get_offsets_bed12(only_overlapping)
         bed_dict[region]['rand'] = {}
         for i in range(nrand):
-            ri = bed_dict[region]['real'].shuffle(genome=species, incl=all_regionfiles[j]).sort()
+            try:
+                ri = bed_dict[region]['real'].shuffle(genome=species, incl=all_regionfiles[j]).sort()
+            except:
+                continue
             ri = adjust_offsets(ri, ofdic)
             if getseq is True:
                 ri.sequence(fi=speciesFA, s=True)
@@ -928,22 +944,31 @@ def main(options):
 
         for region in all_regions:
             of = clusters + "." + region+ ".real.BED"
-            CLUS_regions[region]['real'].saveas(os.path.join(assigned_dir, of))
+            try:
+                CLUS_regions[region]['real'].saveas(os.path.join(assigned_dir, of))
+            except:
+                continue
             for n in range(options.nrand):
-                of = clusters + "." + region+ ".rand." + str(n) + ".BED"            
-                CLUS_regions[region]['rand'][n].saveas(os.path.join(assigned_dir, of))
+                of = clusters + "." + region+ ".rand." + str(n) + ".BED"
+                try:
+                    CLUS_regions[region]['rand'][n].saveas(os.path.join(assigned_dir, of))
+                except:
+                    continue
                 
         print "done"
 
         for region in all_regions:
-            real_fa = fa_file(clusters, region=region, type="real")
-            rand_fa = fa_file(clusters, region=region, type="random")
-            CLUS_regions[region]['real'].save_seqs(real_fa)
-            l = list()#list of randoms
-            for n in CLUS_regions[region]['rand'].keys():
-                l.append(CLUS_regions[region]['rand'][n])
-            write_seqs(rand_fa, l)        
+            try:
+                real_fa = fa_file(clusters, region=region, type="real")
+                rand_fa = fa_file(clusters, region=region, type="random")
+                CLUS_regions[region]['real'].save_seqs(real_fa)
 
+                l = list()#list of randoms
+                for n in CLUS_regions[region]['rand'].keys():
+                    l.append(CLUS_regions[region]['rand'][n])
+                write_seqs(rand_fa, l)        
+            except:
+                continue            
                                    
     print "Counting reads in clusters...",
     reads_in_clusters = 0
@@ -1020,17 +1045,19 @@ def main(options):
     if options.reMotif is True:
        
         for region in all_regions:
-            real_fa = fa_file(clusters, region=region, type="real")
-            rand_fa = fa_file(clusters, region=region, type="random")
-            if options.k is not None:
-                if options.homer is True:
-                    region_homer_out = os.path.join(homerout, region)
-                    run_homer(real_fa, rand_fa, options.k,  outloc=region_homer_out)
-                for k in options.k:                    
-                    kmerfile = clusters + ".k" + str(k) + "." + region + ".kmerdiff"
-                    kmerfile = os.path.join(kmerout, kmerfile)
-                    kmer_sorted_output = run_kmerdiff(real_fa, rand_fa, outfile=kmerfile, k=k)
-
+            try:
+                real_fa = fa_file(clusters, region=region, type="real")
+                rand_fa = fa_file(clusters, region=region, type="random")
+                if options.k is not None:
+                    if options.homer is True:
+                        region_homer_out = os.path.join(homerout, region)
+                        run_homer(real_fa, rand_fa, options.k,  outloc=region_homer_out)
+                    for k in options.k:                    
+                        kmerfile = clusters + ".k" + str(k) + "." + region + ".kmerdiff"
+                        kmerfile = os.path.join(kmerout, kmerfile)
+                        kmer_sorted_output = run_kmerdiff(real_fa, rand_fa, outfile=kmerfile, k=k)
+            except:
+                continue
 
     motifs = list(options.motif)
     kmer_box_params = [kmerout, clusters, options.k, motifs]
@@ -1048,27 +1075,30 @@ def main(options):
         print "Fetching Phastcons Scores...",
         for region in all_regions[1:]:#skip "all" combine them later
             print ("%s..." %(region)),
-            samplesize=1000
-            if len(CLUS_regions[region]['real']) > samplesize:
-                R1 = CLUS_regions[region]['real']                
-                # R1 = random.sample(CLUS_regions[region]['real'], samplesize)
-            else:
-                R1 = CLUS_regions[region]['real']
-                
-            #realPhast = get_phastcons(CLUS_regions[region]['real'], species=options.species)
-            print "getting real...",
-            realPhast = get_phastcons(R1, species=options.species)
-            randPhast=list()
-            for i in range(options.nrand):
-                if len(CLUS_regions[region]['rand'][i]) > samplesize:
-                    R2 = CLUS_regions[region]['rand'][i]                    
-                    #R2 = random.sample(CLUS_regions[region]['rand'][i], samplesize)
+            try:
+                samplesize=1000
+                if len(CLUS_regions[region]['real']) > samplesize:
+                    R1 = CLUS_regions[region]['real']                
+                    # R1 = random.sample(CLUS_regions[region]['real'], samplesize)
                 else:
-                    R2 = CLUS_regions[region]['rand'][i]
-                print ("getting rand %d" %(i)),
-                randPhast.extend(get_phastcons(R2, species=options.species).tolist())
-            phast_values.append(realPhast)
-            phast_values.append(randPhast)
+                    R1 = CLUS_regions[region]['real']
+
+                #realPhast = get_phastcons(CLUS_regions[region]['real'], species=options.species)
+                print "getting real...",
+                realPhast = get_phastcons(R1, species=options.species)
+                randPhast=list()
+                for i in range(options.nrand):
+                    if len(CLUS_regions[region]['rand'][i]) > samplesize:
+                        R2 = CLUS_regions[region]['rand'][i]                    
+                        #R2 = random.sample(CLUS_regions[region]['rand'][i], samplesize)
+                    else:
+                        R2 = CLUS_regions[region]['rand'][i]
+                    print ("getting rand %d" %(i)),
+                    randPhast.extend(get_phastcons(R2, species=options.species).tolist())
+                phast_values.append(realPhast)
+                phast_values.append(randPhast)
+            except:
+                continue
         all_real = np.concatenate(phast_values[::2])
         all_rand = np.concatenate(phast_values[1::2])
         phast_values.insert(0,all_rand)
