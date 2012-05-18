@@ -206,6 +206,7 @@ def readsToWiggle_pysam(reads, tx_start, tx_end, keepstrand=None, trim=False, us
     allreads = {}
     jxns = {}
     lengths = list()
+    seenreads = {}
     for read in reads:
         if read.is_reverse is True and keepstrand is "+":
             continue
@@ -216,9 +217,11 @@ def readsToWiggle_pysam(reads, tx_start, tx_end, keepstrand=None, trim=False, us
             continue # skip reads that fall outside the gene bounds
         readpos = str(aligned_positions[0]) +"-" + str(aligned_positions[-1])
         read_start = aligned_positions[0]
-        read_stop = aligned_positions[-1]        
-        if trim is True and readpos in reads:
+        read_stop = aligned_positions[-1]
+        
+        if trim is True and readpos in seenreads:
             continue
+        seenreads[readpos] = 1
         lengths.append(read.qlen)        
         try:
             if usePos == "center":

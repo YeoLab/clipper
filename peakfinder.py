@@ -1,4 +1,4 @@
-
+#!/nas3/yeolab/Software/Python_dependencies/bin/python
 
 import pysam
 import optparse
@@ -121,7 +121,11 @@ def get_FDR_cutoff_mean(readlengths, genelength, iterations=1000, mincut = 2, al
     return int(round(cutoff, 0))
 
 def build_geneinfo(BED):
-    bedfile = open(BED, "r")
+    try:
+        import gzip
+        bedfile = gzip.open(BED, "rb")
+    except:
+        bedfile = open(BED, "r")
     GI = dict()
     for line in bedfile.readlines():
         chr, start, stop, name, score, signstrand = line.strip().split("\t")
@@ -277,6 +281,7 @@ def call_peaks(loc, gene_length, bam_fileobj=None, bam_file=None, trim=False, ma
     #peakDict['loc'] = loc
     tx_start, tx_end = map(int, [tx_start, tx_end])
     subset_reads = bam_fileobj.fetch(reference=chrom, start=tx_start,end=tx_end)
+    print loc
     wiggle, jxns, pos_counts, lengths, allreads =readsToWiggle_pysam(subset_reads,tx_start, tx_end, keepstrand=signstrand, trim=trim)
     nreads_in_gene = sum(pos_counts)
     if user_threshold is None:
@@ -374,7 +379,7 @@ def call_peaks(loc, gene_length, bam_fileobj=None, bam_file=None, trim=False, ma
                 return threshold
             #starts = xvals[diff(sign(spline(xvals) - spline(xvals+1))) < 0]
             starts = xvals[diff(sign(spline(xvals) - thresh(xvals))) > 0]
-            stops = xvals[diff(sign(spline(xvals) - (xvals))) < 0]
+            stops = xvals[diff(sign(spline(xvals) - thresh(xvals))) < 0]
             ### important note: for getting values x->y [inclusive] you must index an array as ar[x:(y+1)]|                     or else you end up with one-too-few values, the second index is non-inclusive
             #append local minima:
             local_minima = xvals[diff(sign(spline(xvals) - spline(xvals+1))) < 0]
@@ -399,6 +404,8 @@ def call_peaks(loc, gene_length, bam_fileobj=None, bam_file=None, trim=False, ma
 
             starts = array(sorted(set(starts)))
             stops = array(sorted(set(stops)))
+            import code
+            code.interact(local=locals())
             #plt.plot(starts)
             #plt.plot(stops)
             #plt.draw()
@@ -591,15 +598,15 @@ def main(options):
         par["premRNA"] = premrna
         return par
     species_parameters["hg19"] = add_species("hg19", [range(1,22), "X", "Y"],
-                                             os.path.join(basedir, "lovci/projects/ucscBED/hg19/", "hg19.AS.STRUCTURE_genes.BED"),
+                                             os.path.join(basedir, "lovci/projects/ucscBED/hg19/", "hg19.AS.STRUCTURE_genes.BED.gz"),
                                              os.path.join(basedir, "lovci/projects/ucscBED/hg19/", "hg19.AS.STRUCTURE_mRNA.lengths"),
                                              os.path.join(basedir, "lovci/projects/ucscBED/hg19/", "hg19.AS.STRUCTURE_premRNA.lengths"))
     species_parameters["hg18"] = add_species("hg18", [range(1,22), "X", "Y"],
-                                             os.path.join(basedir, "lovci/projects/ucscBED/hg18/", "hg18.AS.STRUCTURE_genes.BED"),
+                                             os.path.join(basedir, "lovci/projects/ucscBED/hg18/", "hg18.AS.STRUCTURE_genes.BED.gz"),
                                              os.path.join(basedir, "lovci/projects/ucscBED/hg18/", "hg18.AS.STRUCTURE_mRNA.lengths"),
                                              os.path.join(basedir, "lovci/projects/ucscBED/hg18/", "hg18.AS.STRUCTURE_premRNA.lengths"))
     species_parameters["mm9"] = add_species("mm9", [range(1,19), "X", "Y"],
-                                            os.path.join(basedir, "lovci/projects/ucscBED/mm9/", "mm9.AS.STRUCTURE_genes.BED"),
+                                            os.path.join(basedir, "lovci/projects/ucscBED/mm9/", "mm9.AS.STRUCTURE_genes.BED.gz"),
                                             os.path.join(basedir, "lovci/projects/ucscBED/mm9/", "mm9.AS.STRUCTURE_mRNA.lengths"),
                                             os.path.join(basedir, "lovci/projects/ucscBED/mm9/", "mm9.AS.STRUCTURE_premRNA.lengths"))
     acceptable_species = ",".join(species_parameters.keys())
