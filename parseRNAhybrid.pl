@@ -58,22 +58,6 @@ while (<STDIN>)
 	 }
       }
       $miRNAseq = reverse(join("", @matched));
-
-
-
-
-
-
-      #print $targetseq."\t".$miRNAseq."\n";
-
-
-
-      
-
-
-
-
       print join("\t", $target, $lengthtarget, $position, $miRNA, $lengthmiR, $mfe, $pvalue, $targetseq, $miRNAseq)."\n";
    }
-
 }
