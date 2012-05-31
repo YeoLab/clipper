@@ -24,7 +24,7 @@ import pysam
 try:
     pybedtools.set_tempdir(basedir + "/scratch/lovci/pybedtools_tmp")
 except:
-    pybedtools.set_tempdir(basedir + "/lovci/projects/tmp/pybedtools_tmp")
+    pybedtools.set_tempdir(basedir + "/lovci/projects/tmp/python_tmp")
 
 def CLIP_QC_figure(reads_in_clusters, reads_out_clusters, cluster_lengths, reads_per_cluster, premRNA, mRNA, exondist, introndist, genomic_locs, clusters_locs, genomic_types, clusters_types, zscores, homer_location, kmer_box_params, phastcons_values):
     import matplotlib as mpl
@@ -839,6 +839,22 @@ def bedlengths(tool):
         x.append(line.length)
     return x
 
+
+
+def chop(chr, start,end, wsize=5):
+    file = open("phastcons.txt", 'w')
+    i = start
+    while i < end:
+        x = pybedtools.Interval(chr, i, (i+wsize))
+        p = get_phastcons(x, species="hg19")
+        file.write("\t".join(map(str, [chr, i, (i+wsize-1), p])) + "\n")
+        i += wsize
+    file.close()
+ 
+
+
+
+
 def get_phastcons(bedtool, species=None, index=None):
     """
     Get phastcons scores for intervals in a bed tool
@@ -847,22 +863,36 @@ def get_phastcons(bedtool, species=None, index=None):
         print "Error, must select species or index"
     if species is not None and index is None:
         if species == "mm9":
-            index= basedir + "/yeolab/Conservation/phastCons/mm9_30way/euarchontoglires/mm9_phastcons.bw"
+            index= basedir + "/yeolab/Conservation/phastCons/mm9_30way/placental/mm9_phastcons.bw"
         elif species == "hg19":
             index = basedir + "/yeolab/Conservation/phastCons/hg19_46way/placentalMammals/reformat/hg19_phastcons.bw"
     f = open(index, 'r')
     bw = BigWigFile(file=f)
-    data = np.ndarray(len(bedtool))
-    for i, bedline in enumerate(bedtool):
-        vals = bw.get(bedline.chrom, bedline.start, bedline.stop)
+
+    try:
+        type(bedtool)
+        v = bedtool.chrom #is a single interval
+        vals = bw.get(bedtool.chrom, bedtool.start, bedtool.stop)
         consvals = list(v[-1] for v in vals)
         if len(consvals) > 0:
             mean_phastcons = np.mean(consvals)
         else:
             mean_phastcons=0
-        data[i] = mean_phastcons
+        data = mean_phastcons
+
+
+    except:
+        for i, bedline in enumerate(bedtool):
+            data = np.ndarray(len(bedtool))        
+            vals = bw.get(bedline.chrom, bedline.start, bedline.stop)
+            consvals = list(v[-1] for v in vals)
+            if len(consvals) > 0:
+                mean_phastcons = np.mean(consvals)
+            else:
+                mean_phastcons=0
+            data[i] = mean_phastcons
     return data
-            
+
 
 
 

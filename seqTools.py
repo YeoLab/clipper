@@ -272,3 +272,30 @@ def readsToWiggle_pysam(reads, tx_start, tx_end, keepstrand=None, trim=False, us
                 print "junction parsing broke"
                 pass
     return wiggle, jxns, pos_counts, lengths, allreads
+
+
+def revcom(seq):
+    import string
+    return seq[::-1].translate(string.maketrans("tgcaTGCA", "acgtACGT"))
+
+
+def fetchseq(species, chr, start, stop, strand):
+    p = Popen([basedir + "/yeolab/Software/bin/fetchseq", "-s", species, "-c", str(chr), "-f", str(start), "-t", str(stop), "-h", basedir], stdout = PIPE)
+    seq = p.communicate()[0].split("\n")
+    sequence = "".join(seq[1:])
+    if strand == "+":
+        return(sequence)
+    elif strand == "-":
+        return revcom(sequence)
+    else:
+        raise Exception
+
+def chop(sequence, chunkSize=50, chunkOverlap=.2):
+    """Chop input sequence into smaller bits (size=chunkSize).  if chunkOverlap is > 0 then it the smaller bits will overlap. The last element will likely be shorter"""
+    i=0
+    chunkstep = int(chunkSize*(1-chunkOverlap))
+    while (i < len(sequence)):
+        start = i
+        stop = start + chunkSize
+        yield (start, sequence[start:stop])
+        i+=chunkstep
