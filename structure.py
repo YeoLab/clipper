@@ -61,7 +61,8 @@ def build_bed(filename, outfile = "test.bed",    proxLen = 500):
         uI_length = int(uI_stop) - int(uI_start)
         dI_start , dI_stop = downstream_intron.split('-')
         dI_length = int(dI_stop) - int(dI_start)
-        exon = "\t".join([chrom , exstart, exstop, "%".join(["exon", shortLine, id, type]), "1", strand])        
+        exon = "\t".join([chrom , exstart, exstop, "%".join(["exon", shortLine, id, type]), "1", strand])
+        out.write(exon +"\n")
         if uI_length < proxLen:
             #print "upstream intron too short, skipping upstream distal class for %s" %(line)
             uI = "\t".join([chrom , uI_start, uI_stop, "%".join(["ui", shortLine, id, type]), "1", strand])
@@ -300,9 +301,10 @@ def parse_event_detail(tool, tmpdir= "structure_tmp/", skip=True, findMe=None):
 
 def build_db(species, outfile="event_detail.BED", tmpdir="structure_tmp/"):
     try:
-        regions = pybedtools.BedTool("event_detail.BED")
+        regions = pybedtools.BedTool(outfile)
         regions = regions.remove_invalid()
     except:
+        print "make a new db"
         regions = build_bed(base + "/yeolab/Genome/ensembl/AS_STRUCTURE/" + species + "data4/" + species + ".internal_exons.with_intron_flanks.table", outfile = outfile)        
     try:
         os.mkdir("structure_tmp")
