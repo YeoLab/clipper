@@ -199,7 +199,7 @@ def find_univariateSpline(x, xdata, ydata, k, weight=None, resid=True):
     """
     try:
         v=x
-        spline = scipy.interpolate.UnivariateSpline(xdata, ydata, s=v,k=3, w=weight)
+        spline = scipy.interpolate.UnivariateSpline(xdata, ydata, s=v,k=k, w=weight)
         #plotSpline(spline, ydata, xdata, 33)        
         if resid is True:
             #knots = spline.get_knots()
@@ -271,18 +271,22 @@ def call_peaks(loc, gene_length, bam_fileobj=None, bam_file=None, trim=False, ma
         exit()
     elif bam_fileobj is None:
         bam_fileobj = pysam.Samfile(bam_file, 'rb')
+    tx_start, tx_end = map(int, [tx_start, tx_end])
+    subset_reads = bam_fileobj.fetch(reference=chrom, start=tx_start,end=tx_end)
+
+    wiggle, jxns, pos_counts, lengths, allreads =readsToWiggle_pysam(subset_reads,tx_start, tx_end, keepstrand=signstrand, trim=trim)
+    r = peaks_from_info(wiggle,pos_counts, lengths, loc)
+    return r
 
 
+def peaks_from_info(wiggle, pos_counts, lengths, loc);
     peakDict = {}
     #peakDict['clusters'] = {}
     #peakDict['sections'] = {}
     #peakDict['nreads'] = int()
     #peakDict['threshold'] = int()
     #peakDict['loc'] = loc
-    tx_start, tx_end = map(int, [tx_start, tx_end])
-    subset_reads = bam_fileobj.fetch(reference=chrom, start=tx_start,end=tx_end)
-    print loc
-    wiggle, jxns, pos_counts, lengths, allreads =readsToWiggle_pysam(subset_reads,tx_start, tx_end, keepstrand=signstrand, trim=trim)
+    chrom, gene_name, tx_start, tx_end, signstrand = loc.split("|")
     nreads_in_gene = sum(pos_counts)
     if user_threshold is None:
         gene_threshold = get_FDR_cutoff_mean(lengths, gene_length, alpha=FDR_alpha)
@@ -290,7 +294,7 @@ def call_peaks(loc, gene_length, bam_fileobj=None, bam_file=None, trim=False, ma
         gene_threshold = user_threshold
     
     if gene_threshold == "error":
-        print "I had a hard time with this one: %s.  I think I'll use a threshold of 50" %(loc)
+                        print "I had a hard time with this one: %s.  I think I'll use a threshold of 50" %(loc)
         threshold=50
     peakDict['clusters'] = {}
     peakDict['sections'] = {}
@@ -339,7 +343,7 @@ def call_peaks(loc, gene_length, bam_fileobj=None, bam_file=None, trim=False, ma
             fo = True #output information about the fitting optimization
             if quiet is True:
                 fo=False
-            #for very large windows with many reads a large smoothing parameter is required.  test 4 different
+            #for very large windows with many reads a large smoothing parameter is required.  test several different options to determine a reasonable inital estimate
             x1=(sectstop-sectstart+1)
             x0=x1
             useme = 1
@@ -357,11 +361,11 @@ def call_peaks(loc, gene_length, bam_fileobj=None, bam_file=None, trim=False, ma
                 tries =0
                 while cutoff <5:# shouldn't get smoothing coef's this small.. increase the initial estimate and try again. WARNING: BLACK MAGIC
                     tries += 1
-                    if tries == 2: # increasing this may improve accuracy, but at the cost of running time.
+                    if tries == 3: # increasing this may improve accuracy, but at the cost of running time.
                         break
                     sp = scipy.optimize.minimize(find_univariateSpline, x0, args=(xvals, data, degree, weights),
                                                  options={'disp':fo}, full_output=True, method="Powell")
-                    #fit a smoothing spline using an optimal parameter for smoothing and with weights proportional to the number of reads aligned at each position
+                    #fit a smoothing spline using an optimal parameter for smoothing and with weights proportional to the number of reads aligned at each position if weights is set
                     try:
                         cutoff = sp[0]
                     except:
@@ -555,7 +559,7 @@ def call_peaks(loc, gene_length, bam_fileobj=None, bam_file=None, trim=False, ma
             print "spline fitting failed for %s" %(loc)
     if correct_P is True:            
         for peak in peakDict['clusters']:
-            peakDict['clusters'][peak]['p'] = peakDict['clusters'][peak]['p'] * peakn  #correct p-value for MHT
+            peakDict['clusters'][peak]['p'] = peakDict['clusters'][peak]['p'] * peakn  #bonferroni correct p-value for MHT
         
         
 
