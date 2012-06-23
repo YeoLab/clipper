@@ -11,9 +11,6 @@ if "optiputer" in host or "compute" in host:
     base = "/nas/nas0"
 elif "tcc" in host or "triton" in host:
     base = "/projects"    
-    
-
-
 
 try:
     pybedtools.set_tempdir(base + "/scratch/lovci/pybedtools_tmp")
@@ -24,8 +21,12 @@ except:
         print "No valid pybedtools tmp directory"
         exit()
 
+
 RNAhybridcmd = base + "/yeolab/Software/RNAhybrid/bin/RNAhybrid"
+#test RNAhybridcmd
+#test perl
 RNAhybrid_parser = base + "/lovci/gscripts/parseRNAhybrid.pl"
+#test RNAhybrid_parser
 
 def RNAhybrid_hits(query, target, mfe_cutoff=-40):
     xi, theta = map(str, [-20, 10])
@@ -37,7 +38,6 @@ def RNAhybrid_hits(query, target, mfe_cutoff=-40):
         results[i] = r.split("\t")
     return results
 
-
 def build_bed(filename, outfile = "test.bed",    proxLen = 500):
     try:
         f = open(filename, 'r')
@@ -46,7 +46,6 @@ def build_bed(filename, outfile = "test.bed",    proxLen = 500):
         exit()
     data = list()
     out = open(outfile, 'w')
-
     for line in f.readlines():
         id, type, wholeLoc, exonLoc  = line.strip().split("\t")
         shortLine = wholeLoc
@@ -154,8 +153,7 @@ def matched_positions(query, target, querychunks=70, targetchunks=10000, mfe_cut
                     Tgenome_start = Tgenome_stop - tMatchLen + 1
                     Qgenome_stop = query.stop - j
                     Qgenome_start = Qgenome_stop - len(Q)
-                    #import code
-                    #code.interact(local=locals())
+                    
                 if Qgenome_start< Tgenome_start:
                     color= "255,0,0"
                 else:
@@ -173,9 +171,7 @@ def matched_positions(query, target, querychunks=70, targetchunks=10000, mfe_cut
     return matches
 
 
-def run_fold(picklefile, dir=None, eventName=None, outfile=None, mfe_cutoff=-40, species = "hg19"):
-
-    
+def run_fold(picklefile, dir=None, eventName=None, outfile=None, mfe_cutoff=-40, species = "hg19"):    
     if eventName ==None:#if a colloquial name is not given, get it from the filename
         eventNameF = picklefile.replace(".pickle", "").split("/")[-1] 
         eventName=eventNameF
@@ -184,22 +180,26 @@ def run_fold(picklefile, dir=None, eventName=None, outfile=None, mfe_cutoff=-40,
         raise Exception
     
     info = pickle.load(open(picklefile, 'r'))
-    print "loaded file %s" %(picklefile)
+    #print "loaded file %s" %(picklefile)
 
     if not "SE" in  info['type']:
-        print "skipping %s because it is of type: %s" %(picklefile)
+        #print "skipping %s because it is of type: %s" %(picklefile, info['type'])
         return
-    
-    di = info['di']
-    ui = info['ui']
-    diProx = info['diProx']
-    uiProx = info['uiProx']
-    diDist = info['diDist']
-    uiDist = info['uiDist']    
+    matches =list()    
+    try:
+        di = info['di']
+        ui = info['ui']
+        diProx = info['diProx']
+        uiProx = info['uiProx']
+        diDist = info['diDist']
+        uiDist = info['uiDist']
+    except:
+        #print "skipping %s because it is missing parts" %(picklefile)
+        return matches
 
     print "mfe_cutoff = %f" %(mfe_cutoff)
 
-    matches =list()
+
     try:
         matches.extend([i.replace("bedline", (eventName + "%diProx_diDist")) for i in matched_positions(diProx, diDist, mfe_cutoff=mfe_cutoff, species=species)])
     except:
@@ -236,40 +236,62 @@ def fold_a_dir(eventName, dir="structure_tmp/", outdir = "beds", rewrite=False, 
     from pybedtools import BedTool as BT
     import glob
     x = ""
-
     out = list()
-    
-    if os.path.exists(os.path.join(outdir, (eventName + ".RNAlinks.bed"))) and not rewrite:
-        return(BT(os.path.join(outdir, (eventName + ".RNAlinks.bed"))))
-
-    files =glob.glob(dir + "*%s*.pickle" %(eventName));
-
+    #if os.path.exists(os.path.join(outdir, (eventName + ".RNAlinks.bed"))) and not rewrite:
+    #    #file exists and user has not specificed a rewrite
+    #    return(BT(os.path.join(outdir, (eventName + ".RNAlinks.bed"))))
+    if os.path.exists(os.path.join(outdir, (eventName + ".RNAlinks.bed"))): #this may lead to a race and data collision in the unlikely circumstance that two computers are running structure.py on the same set of genes to the same output directory
+        #check whether the file contains "empty" indicating that the job was killed before a bed-file can be written or whether it shuold be re-tried
+        f = open(os.path.join(outdir, (eventName + ".RNAlinks.bed")), 'r');
+        if str(f.readline()).startswith("empty"):
+            #print "removing existing files, probably corrupt intermediates"
+            #[os.remove(i) for i in glob.glob(os.path.join(outdir, (eventName + "*.RNAlinks.bed")))]#did not finish, partial files are probably corrupt
+            pass
+        else:
+            f.close() #this is a legit bed file, i'll leave it be
+            return(BT(os.path.join(outdir, (eventName + ".RNAlinks.bed"))))
+        #the file was opened previously, but never finished
+        f.close() #this is a legit bed file, i'll leave it be        
+    f = open(os.path.join(outdir, (eventName + ".RNAlinks.bed")), 'w');
+    f.write("empty\n")
+    f.close()   #reserve this event and go on.
+    files =glob.glob(dir + "*%s*.pickle" %(eventName))
     if len (files) ==0:
         print "Nothing to be done for %s" %(eventName)
-
     if len(files) > 1:
         print "You have multiple files, I'll merge the output"
-
+        pass
     for file in files:
+        print file
         try:
             outfile = os.path.join(outdir, "%s" %(file.split("/")[-1].replace(".pickle", ".RNAlinks.bed")))
             if os.path.exists(outfile) and not rewrite:
                 out.append(BT(outfile))
                 continue
-            tool = run_fold(file, outfile=outfile,mfe_cutoff=mfe_cutoff, species=species)
             #import code
             #code.interact(local=locals())
+            tool = run_fold(file, outfile=outfile,mfe_cutoff=mfe_cutoff, species=species)
             out.append(tool)
         except:
             print "problem with %s" %(file)
-
     if len(out) ==1:
-        tool = out[0]
+        print "using a single event"
+        tool = out[0].saveas(os.path.join(outdir, (eventName + ".RNAlinks.bed")), trackline="track_name='%s.RNAlinks' itemRgb=On" %(eventName))
     else:
         import operator
         print "Merging multiple events"
-        tool = pybedtools.BedTool(reduce(operator.add, [i+"\n" for i in "\n".join([str(i) for i in out if len(i)>0]).split("\n") if i.startswith("chr")]), from_string=True).saveas(os.path.join(outdir, (eventName + ".RNAlinks.bed")), trackline="track_name='%s.RNAlinks' itemRgb=On" %(eventName)) #merge all bed lines into one and save with a track linee
-
+        nCmps = len(out)
+        for i in out:
+            if i is None:
+                nCmps = nCmps-1
+                
+        if nCmps > 0:
+            try:
+                tool = BT(reduce(operator.add, [i+"\n" for i in "\n".join([str(i) for i in out if i is not None and len(i)>0]).split("\n") if i.startswith("chr")]), from_string=True).saveas(os.path.join(outdir, (eventName + ".RNAlinks.bed")), trackline="track_name='%s.RNAlinks' itemRgb=On" %(eventName)) #merge all bed lines into one and save with a track linee
+            except:
+                tool = None
+        else:
+            tool = None
     return tool
 
 def parse_event_detail(tool, tmpdir= "structure_tmp/", skip=True, findMe=None):
@@ -311,9 +333,6 @@ def build_db(species, outfile="event_detail.BED", tmpdir="structure_tmp/"):
     except:
         print "WARNING: couldn't make structure_tmp... it may already exist"
 
-
-
-
     events = parse_event_detail(regions)
     return(events)
         
@@ -329,17 +348,17 @@ def get_names(db):
         
 def main(options):
 
-    options.gene =  x = list(map(str.strip, open(base + "/lovci/projects/FOX2/FOX2_human_brain/CLIP/analysis_gsnap/bound_genes.slop.p05.t0.intron_only.txt").readlines()))[:-1]
 
     if options.gene is None:
-        print "which genes to run?... this will take awhile"
-        genelist = get_names(options.db)
+        options.gene =  x = list(map(str.strip, open(base + "/lovci/projects/FOX2/FOX2_human_brain/CLIP/analysis_gsnap/bound_genes.slop.p05.t0.intron_only.txt").readlines()))[:-1]        
+        #print "which genes to run?... this will take awhile"
+        #genelist = get_names(options.db)
+    genelist = options.gene
+    if options.serial is True:
+        for gene in genelist:
+            fold_a_dir(gene, rewrite=options.rewrite, mfe_cutoff=options.mfe_cutoff, dir=options.dbdir, species=options.species)
     else:
-        genelist = options.gene
-
-        
-    dtm.map(fold_a_dir, genelist, rewrite=options.rewrite, mfe_cutoff=options.mfe_cutoff, dir=options.dbdir, species=options.species)
-
+        dtm.map(fold_a_dir, genelist, rewrite=options.rewrite, mfe_cutoff=options.mfe_cutoff, dir=options.dbdir, species=options.species)
 
 
 if __name__ == "__main__":
@@ -350,24 +369,26 @@ if __name__ == "__main__":
     usage = "None"
     description = "None"
     parser = OptionParser(usage=usage, description=description)
-    parser.add_option("--db", dest="db", default="event_detail.BED")
-    parser.add_option("--rewrite", dest="rewrite", action="store_true", default=False)    
-    parser.add_option("--mfe_cutoff", dest="mfe_cutoff", default=-45)
-    parser.add_option("--dbdir", dest="dbdir", default="structure_tmp/")
-    parser.add_option("--gene", dest="gene", action="append", default=None)
-    parser.add_option("--prefix", dest="prefix",default=os.getcwd())
-    parser.add_option("--start", dest="start", default=False, action="store_true", help=SUPPRESS_HELP) #private, don't use
-    parser.add_option("--species", dest="species", default="hg19")
-    parser.add_option("--serial", dest="serial", action="store_true", help="run genes in sequence (not parallel)")
-    parser.add_option("--job_name", dest="job_name", default="STRUC", help="name for submitted job. Not used with --serial.  default:%default", metavar="NAME")
-    parser.add_option("--processors", dest="np", default=32, help="number of processors to use. Not used with --serial.  default:%default", type="int", metavar="NP")
-    parser.add_option("--notify", dest="notify", default=None, help="email address to notify of start, errors and completion", metavar="EMAIL")
-    parser.add_option("--wait_to_exit", dest="wait", default=False, action ="store_true")    
+    parser.add_option("--db",         dest="db",        default="event_detail.BED")
+    parser.add_option("--rewrite",    dest="rewrite",   default=False,  action="store_true")    
+    parser.add_option("--mfe_cutoff", dest="mfe_cutoff",default=-45)
+    parser.add_option("--dbdir",      dest="dbdir",     default="structure_tmp/")
+    parser.add_option("--gene",       dest="gene",      default=None,   action="append")
+    parser.add_option("--prefix",     dest="prefix",    default=os.getcwd())
+    parser.add_option("--start",      dest="start",     default=False,  action="store_true", help=SUPPRESS_HELP) #private, don't use
+    parser.add_option("--species",    dest="species",   default="hg19")
+    parser.add_option("--serial",     dest="serial",                    action="store_true", help="run genes in sequence (not parallel)")
+    parser.add_option("--job_name",   dest="job_name",  default="STRUC", help="name for submitted job. Not used with --serial.  default:%default", metavar="NAME")
+    parser.add_option("--processors", dest="np",        default=32, help="number of processors to use. Not used with --serial.  default:%default", type="int", metavar="NP")
+    parser.add_option("--notify",     dest="notify",    default=None, help="email address to notify of start, errors and completion", metavar="EMAIL")
+    parser.add_option("--wait_to_exit", dest="wait",    default=False, action ="store_true")    
     (options,args) = parser.parse_args()
 
 
+    if options.serial is True:
+        main(options)
+        exit()
     if options.start is True:
-
         dtm.start(main, options)
     else:       
         if os.path.exists(options.db):
