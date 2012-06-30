@@ -275,11 +275,15 @@ def call_peaks(loc, gene_length, bam_fileobj=None, bam_file=None, trim=False, ma
     subset_reads = bam_fileobj.fetch(reference=chrom, start=tx_start,end=tx_end)
 
     wiggle, jxns, pos_counts, lengths, allreads =readsToWiggle_pysam(subset_reads,tx_start, tx_end, keepstrand=signstrand, trim=trim)
-    r = peaks_from_info(wiggle,pos_counts, lengths, loc)
+    r = peaks_from_info(wiggle,pos_counts, lengths, loc, gene_length, trim, margin, FDR_alpha,user_threshold,minreads, poisson_cutoff, plotit, quiet, outfile, w_cutoff, windowsize, SloP, correct_P)
+
     return r
 
 
-def peaks_from_info(wiggle, pos_counts, lengths, loc);
+def peaks_from_info(wiggle, pos_counts, lengths, loc, gene_length, trim=False, margin=25, FDR_alpha=0.05,user_threshold=None,
+                                   minreads=20, poisson_cutoff=0.05, plotit=False, quiet=False, outfile=None, w_cutoff=10, windowsize=1000, SloP = False, correct_P = False):
+
+
     peakDict = {}
     #peakDict['clusters'] = {}
     #peakDict['sections'] = {}
@@ -294,7 +298,7 @@ def peaks_from_info(wiggle, pos_counts, lengths, loc);
         gene_threshold = user_threshold
     
     if gene_threshold == "error":
-                        print "I had a hard time with this one: %s.  I think I'll use a threshold of 50" %(loc)
+        print "I had a hard time with this one: %s.  I think I'll use a threshold of 50" %(loc)
         threshold=50
     peakDict['clusters'] = {}
     peakDict['sections'] = {}
@@ -307,6 +311,9 @@ def peaks_from_info(wiggle, pos_counts, lengths, loc);
         print "Testing %s" %(loc)
         print "Threshold is: %d" %(gene_threshold)
     sections = find_sections(wiggle, margin)
+    import code
+    code.interact(local=locals())
+
     if plotit is True:
         plotSections(wiggle, sections, gene_threshold)
     bed = list()
@@ -334,8 +341,10 @@ def peaks_from_info(wiggle, pos_counts, lengths, loc);
         peakDict['sections'][sect]['nreads'] = Nreads
 
         if Nreads < minreads:
+            print "not enough reads, stopping"
             continue
         if max(data) < threshold:
+            print "data not high enough, stopping"
             continue
         try:
             degree=3 #cubic spline
@@ -704,11 +713,12 @@ def main(options):
         color=options.color
 
         
+        import code
+        code.interact(local=locals())
         
         tool = pybedtools.BedTool("\n".join(allpeaks.keys()), from_string=True).sort().saveas(outbed, trackline="track name=\"%s\" visibility=2 colorByStrand=\"%s %s\"" %(outbed, color, color))
         print tool
-        import code
-        code.interact(local=locals())
+
     else:
         if quiet is False:
             print "quiet required for parallel runs"
