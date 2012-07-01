@@ -715,10 +715,14 @@ def main(options):
         
         import code
         code.interact(local=locals())
-        
-        tool = pybedtools.BedTool("\n".join(allpeaks.keys()), from_string=True).sort().saveas(outbed, trackline="track name=\"%s\" visibility=2 colorByStrand=\"%s %s\"" %(outbed, color, color))
-        print tool
 
+        #gracefully fails on zero case, needs a bit 
+        tool = pybedtools.BedTool("\n".join(allpeaks.keys()), from_string=True)
+        if len(allpeaks.keys()) > 0:
+            tool = tool.sort()
+            
+        tool.saveas(outbed, trackline="track name=\"%s\" visibility=2 colorByStrand=\"%s %s\"" %(outbed, color, color))   
+        print tool
     else:
         if quiet is False:
             print "quiet required for parallel runs"
