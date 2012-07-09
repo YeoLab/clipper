@@ -275,6 +275,7 @@ def call_peaks(loc, gene_length, bam_fileobj=None, bam_file=None, trim=False, ma
     subset_reads = bam_fileobj.fetch(reference=chrom, start=tx_start,end=tx_end)
 
     wiggle, jxns, pos_counts, lengths, allreads =readsToWiggle_pysam(subset_reads,tx_start, tx_end, keepstrand=signstrand, trim=trim)
+
     r = peaks_from_info(wiggle,pos_counts, lengths, loc, gene_length, trim, margin, FDR_alpha,user_threshold,minreads, poisson_cutoff, plotit, quiet, outfile, w_cutoff, windowsize, SloP, correct_P)
 
     return r
@@ -291,6 +292,7 @@ def peaks_from_info(wiggle, pos_counts, lengths, loc, gene_length, trim=False, m
     #peakDict['threshold'] = int()
     #peakDict['loc'] = loc
     chrom, gene_name, tx_start, tx_end, signstrand = loc.split("|")
+    tx_start, tx_end = map(int, [tx_start, tx_end])    
     nreads_in_gene = sum(pos_counts)
     if user_threshold is None:
         gene_threshold = get_FDR_cutoff_mean(lengths, gene_length, alpha=FDR_alpha)
@@ -309,10 +311,9 @@ def peaks_from_info(wiggle, pos_counts, lengths, loc, gene_length, trim=False, m
     tmpsect = {}
     if quiet is not True:
         print "Testing %s" %(loc)
-        print "Threshold is: %d" %(gene_threshold)
+        print "Gene threshold is: %d" %(gene_threshold)
     sections = find_sections(wiggle, margin)
-    import code
-    code.interact(local=locals())
+
 
     if plotit is True:
         plotSections(wiggle, sections, gene_threshold)
@@ -332,6 +333,8 @@ def peaks_from_info(wiggle, pos_counts, lengths, loc, gene_length, trim=False, m
         if user_threshold is None:
             if SloP is True:
                 threshold = get_FDR_cutoff_mean(sect_read_lengths, sect_length, alpha=FDR_alpha)
+                if quiet is not True:
+                    print "Using super-local threshold %d" %(threshold)
             else:
                 threshold= gene_threshold
         else:
@@ -341,10 +344,15 @@ def peaks_from_info(wiggle, pos_counts, lengths, loc, gene_length, trim=False, m
         peakDict['sections'][sect]['nreads'] = Nreads
 
         if Nreads < minreads:
-            print "not enough reads, stopping"
+            if quiet is not True:
+                print "%d is not enough reads, skipping section: %s" %(Nreads, sect)
             continue
+        else:
+            if quiet is not True:
+                print "Analyzing section %s with %d reads" %(sect, Nreads)
         if max(data) < threshold:
-            print "data not high enough, stopping"
+            if quiet is not True:
+                print "data not high enough, stopping"
             continue
         try:
             degree=3 #cubic spline
@@ -363,6 +371,7 @@ def peaks_from_info(wiggle, pos_counts, lengths, loc, gene_length, trim=False, m
                 if err < error:
                     x0 = x2
                     useme = i
+
             if quiet is not True:
                 print "I'm using (region length) * %d as the initial estimate for the smoothing parameter" %(useme)            
             try:
@@ -373,16 +382,17 @@ def peaks_from_info(wiggle, pos_counts, lengths, loc, gene_length, trim=False, m
                     if tries == 3: # increasing this may improve accuracy, but at the cost of running time.
                         break
                     sp = scipy.optimize.minimize(find_univariateSpline, x0, args=(xvals, data, degree, weights),
-                                                 options={'disp':fo}, full_output=True, method="Powell")
+                                                 options={'disp':fo}, method="Powell")
                     #fit a smoothing spline using an optimal parameter for smoothing and with weights proportional to the number of reads aligned at each position if weights is set
-                    try:
-                        cutoff = sp[0]
-                    except:
-                        cutoff = sp
+                    if sp.success is True:
+                        cutoff = sp.x
+                    else:
+                        pass
                     x0 += sect_length
             except:
                 print "%s failed spline fitting at section %s with sp: %s" %(loc, sect, str(sp))
                 continue
+
             if quiet is not True:
                 print "optimized smoothing parameter is %s" %(str(cutoff))
             spline = find_univariateSpline(cutoff, xvals, data, degree, weights, resid=False)
@@ -417,8 +427,7 @@ def peaks_from_info(wiggle, pos_counts, lengths, loc, gene_length, trim=False, m
 
             starts = array(sorted(set(starts)))
             stops = array(sorted(set(stops)))
-            import code
-            code.interact(local=locals())
+
             #plt.plot(starts)
             #plt.plot(stops)
             #plt.draw()
@@ -429,14 +438,21 @@ def peaks_from_info(wiggle, pos_counts, lengths, loc, gene_length, trim=False, m
                     p_stop = sect_length -1
                 try:
                     peaks = map(lambda x: x+p_start, xvals[diff(sign(diff(spline(xvals[p_start:(p_stop+1)]))))<0])  #peaks with-in this subsection, indexed from section (not subsection) start
+                    if quiet is not True:
+                        print "I found %d peaks" %(len(peaks))
                 except:
                     continue
                 if peaks.__len__() <=0:
                     continue
                 if peaks.__len__() is 1:
                     Nreads_in_peak = sum(cts[p_start:(p_stop+1)])
+                    if quiet is not True:
+                        print "Peak %d - %d has %d reads" %(p_start, (p_stop+1), Nreads_in_peak)
                     if Nreads_in_peak < minreads or max(data[p_start:(p_stop+1)]) < threshold:
+                        if quiet is not True:
+                            print "skipping peak, %d is not enough reads" %(Nreads_in_peak)
                         continue
+
                     g_start = tx_start + sectstart + p_start
                     g_stop = tx_start + sectstart + p_stop
                     peak = tx_start + sectstart + peaks[0]
@@ -705,7 +721,8 @@ def main(options):
                     bedline = "%s\t%d\t%d\t%s\t%s\t%s\t%d\t%d" %(chrom, int(g_start), int(g_stop), peak_name, min_pval, signstrand, int(thick_start), int(thick_stop))
                     allpeaks[bedline] = 1
                 else:
-                    print "Failed Gene Pvalue: %s Failed SloP Pvalue: %s for cluster %s" %(corrected_Gene_pval, corrected_SloP_pval, i)
+                    if quiet is not True:
+                        print "Failed Gene Pvalue: %s Failed SloP Pvalue: %s for cluster %s" %(corrected_Gene_pval, corrected_SloP_pval, i)
                     pass
             t=time.strftime('%X %x %Z')
             print geneinfo+ " finished:"+str(t)
