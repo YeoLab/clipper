@@ -222,7 +222,12 @@ def readsToWiggle_pysam(reads, tx_start, tx_end, keepstrand=None, trim=False, us
         if trim is True and readpos in seenreads:
             continue
         seenreads[readpos] = 1
-        lengths.append(read.qlen)        
+        if read.qlen > 0:
+            lengths.append(read.qlen)
+        else:
+            #hacky... some data doesn't have information about the read which was aligned in the .bam file... skirt this issue by using # of aligned positions
+            lengths.append(len(aligned_positions))
+        
         try:
             if usePos == "center":
                 center = (int(aligned_positions[-1]+aligned_positions[0])/2)-tx_start
