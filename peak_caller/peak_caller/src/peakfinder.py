@@ -20,7 +20,7 @@ import time
 import pybedtools
 from random import sample as rs
 from seqTools import *
-
+import gzip
 
 
 
@@ -32,12 +32,34 @@ if "optiputer" in host or "compute" in host:
 elif "tcc" in host or "triton" in host:
     basedir = "/projects"    
 
+"""
+
+Checks to make sure a BAM file has an index, if the index does not exist it is created
+
+Usage undefined if file does not exist (check is made earlier in program)
+bamfile - a path to a bam file
+
+Returns 1 
+TODO make it so a failaure returns 0
+
+"""
 def check_for_index(bamfile):
+    
+    if not os.path.exists(bamfile):
+        raise NameError("file %s does not exist" % (bamfile))
+    
     if os.path.exists(bamfile + ".bai"):
         return 1
     else:
-        print "Index for %s does not exist, please get a cookie while I index your bamfile for you" %(bamfile)
+        print "Index for %s does not exist, indexing bamfile" %(bamfile)
         process = call(["samtools", "index", str(bamfile)])
+        
+        #error if file is not correct format
+        print process
+        print type(process)
+        if process == -11: 
+            raise NameError("file %s not of correct type" % (bamfile))
+        
         return 1
 
 def get_FDR_cutoff_mode(readlengths, genelength, iterations=1000, mincut = 2, alpha=.05):
@@ -77,9 +99,6 @@ def get_FDR_cutoff_mode(readlengths, genelength, iterations=1000, mincut = 2, al
         cutoff = mincut            
     return int(cutoff)
 
-
-
-
 def get_FDR_cutoff_mean(readlengths, genelength, iterations=1000, mincut = 2, alpha = 0.05):
     """
     Find randomized method, as in FOX2ES NSMB paper.
@@ -90,8 +109,14 @@ def get_FDR_cutoff_mean(readlengths, genelength, iterations=1000, mincut = 2, al
     interations -- number of times to repeat FDR thresholding calculation 
     mincut -- min threshold possible to return
     alpha -- FDR alpha 
-    double check math on this
+    
+   
+    
+    Returns an int, the number of reads needed to meet the FDR cutoff
+    TODO: Allow the minimum cutoff to be paramaritizied
+    TODO: double check math on this
     """
+    
     if readlengths.__len__() < 20: # if you have very few reads on a gene, don't waste time trying to find a cutoff
         return mincut
     cmd = str(os.path.join(basedir, "yeolab/Software/bin/peaks"))
@@ -117,7 +142,7 @@ def get_FDR_cutoff_mean(readlengths, genelength, iterations=1000, mincut = 2, al
     n =0
     
     #parses results from peaks script, calculates mean from peaks results 
-    #should document peaks return value somewhere around here
+    #should document peaks function call return value somewhere around here
     for x in results.split("\n"):
         if x == "":
             continue
@@ -134,13 +159,30 @@ def get_FDR_cutoff_mean(readlengths, genelength, iterations=1000, mincut = 2, al
         cutoff = mincut
     return int(round(cutoff, 0))
 
+"""
+
+Loads bed file into a dictionary with the key being the name and a string being the value
+
+Input:
+BED -- a bed file to load
+
+Return:
+A dictionary with the key being the name position of the bed file and the values being the
+ordered bed file
+
+TODO: Refactor to used bedtools instead
+
+"""
 def build_geneinfo(BED):
+    
+    #opens bed file, either zipped or unzipped
     try:
-        import gzip
         bedfile = gzip.open(BED, "rb")
     except:
         bedfile = open(BED, "r")
+        
     GI = dict()
+    
     for line in bedfile.readlines():
         chr, start, stop, name, score, signstrand = line.strip().split("\t")
         chr.replace("chr", "")
@@ -148,6 +190,18 @@ def build_geneinfo(BED):
     bedfile.close()
     return GI
 
+"""
+
+Builds a dictionary of gene names and lengths of mappable regions in that gene
+
+Input:
+A two column file with the first column being the gene name and the second column being the
+mappable length of the gene
+
+Return:
+A dictionary with the key being the name of the gene and the value being the length
+
+"""
 def build_lengths(file):
     FI=open(file,"r")
     LEN = dict()
@@ -158,13 +212,25 @@ def build_lengths(file):
 
     FI.close()
     return LEN
-        
+
+"""
+
+
+Finds contiguous (within margin) regions that have reads, the area between covered locations
+is defined as regions without any coverage
+
+Input:
+data - wiggle track in list form each value is the coverage at that location
+margin - distance between sections 
+
+Output:
+A list of strings in the form "start_location|stop_location"
+ie [50|60, 70|80] 
+
+TODO: Modify to allow for thresholded margins 
+"""     
 def find_sections(data, margin):
-    """
-    Find contiguous (within margin) regions that have reads
-    data - wiggle track
-    margin - distance between sections 
-    """
+
     sections = list()
     section_num =0
     start = 0
@@ -487,7 +553,7 @@ def peaks_from_info(wiggle, pos_counts, lengths, loc, gene_length, trim=False, m
                 continue
 
             if quiet is not True:
-                print "optimized smoothing parameter
+                print "optimized smoothing parameter"
         #if we are going to save and output as a pickle fi is %s" %(str(cutoff))
         #final fit spline
             spline = find_univariateSpline(cutoff, xvals, data, degree, weights, resid=False)
