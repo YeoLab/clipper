@@ -1,5 +1,5 @@
 #!/nas3/yeolab/Software/Python_dependencies/bin/python
-
+#We will follow the UCSC genome browser assumption of using a zero based half open cord system
 import pysam
 import optparse
 from optparse import OptionParser, SUPPRESS_HELP
@@ -304,7 +304,8 @@ def find_univariateSpline(x, xdata, ydata, k, weight=None, resid=True):
         #plotSpline(spline, ydata, xdata, 33)        
         #computationally intensive 
         
-        #this section calclauates error of splines based on residuals * number of turns 
+        #this section calclauates error of splines based on residuals * number of turns
+        #need to explain why this happens Mike
         if resid is True:
             #knots = spline.get_knots()
             func = spline.__call__(xdata)
@@ -347,16 +348,37 @@ def plotSections(wiggle, sections, threshold):
         ax.add_patch(patch)
     f.show()
 
-def poissonP(reads_in_gene, reads_in_peak, gene_length, peak_length):
     """
+    
     scipy.stats.poisson.cdf
     compute the p-value for a peak of peak_length length with reads_in_peak reads,
     given that the read is gene_length long and has reads_in_gene reads
 
     If there are fewer than 3 reads expected to fall in the region, assume there's 3 reads
-    expected... 
+    expected...
+    
+    Paramaters
+    ----------
+    reads_in_gene: Integer representing number of reads in gene
+    reads_in_peak: Integer reperesnting the number of reads in a specific peak
+    gene_length: Integer representing length of gene
+    peak_length: Integer representing length of peak
+    
+    Returns double, the p-value that the peak is significant
+    If calcluation fails returns 1
+    
     """
+def poissonP(reads_in_gene, reads_in_peak, gene_length, peak_length):
+
     try:
+        #lam is estimate of the lambda value
+        #poission takes a value and the lambda 
+        #this is average number of reads per single site in the gene, but
+        #a peak is not a single site, so it the average number gets multipled by the peak 
+        #length as an estimator of the mean
+        
+        #TODO: check with boyko or someone else about this math.  I think its a strong over 
+        #estimate of the mean
         lam = (float(reads_in_gene)/(gene_length))*(peak_length)
 
         if lam < 3:
@@ -367,6 +389,7 @@ def poissonP(reads_in_gene, reads_in_peak, gene_length, peak_length):
         return 1
 
 """
+
 calls peaks for an individual gene 
 
 loc - string of all gene locations
@@ -412,11 +435,14 @@ def call_peaks(loc, gene_length, bam_fileobj=None, bam_file=None, trim=False, ma
     return r
 
 
-"""same args as before 
+"""
+
+same args as before 
 wiggle is converted from bam file
 pos_counts - one point per read instead of coverage of entire read
 lengths - lengths aligned portions of reads 
 rest are the same fix later
+
 """
 def peaks_from_info(wiggle, pos_counts, lengths, loc, gene_length, trim=False, margin=25, FDR_alpha=0.05,user_threshold=None,
                                    minreads=20, poisson_cutoff=0.05, plotit=False, quiet=False, outfile=None, w_cutoff=10, windowsize=1000, SloP = False, correct_P = False):
@@ -798,8 +824,29 @@ def peaks_from_info(wiggle, pos_counts, lengths, loc, gene_length, trim=False, m
     
     return peakDict
 
+
+
+"""
+
+Creates a dictionary containing all information needed to perform peak calling calcluations 
+for a single species
+
+Paramaters
+-----------
+species: string currently not used
+chrs: list specifying all the chromosomes in a given species
+bed: path to a bed file that contains information on genes (custom file *STRUCTURE_genes.BED.gz)
+mrna: path to a file that contains mRNA lengths (custom CSV file contains gene names follwed by gene lengths)
+premrna: path to a file that contains pre-mRNA lengths (custom CSV file contains gene names follwed by gene lengths_
+
+Returns dict of all items passed to it
+
+TODO:  Add checking to verify that file are actually passed
+"""
 def add_species(species, chrs, bed, mrna, premrna):
         par = dict()
+        
+        #this is non-pythonic, should just combine all lists
         par["chrs"] = [item for sublist in chrs for item in sublist] #expand sublists
         par["gene_bed"] = bed
         par["mRNA"] = mrna

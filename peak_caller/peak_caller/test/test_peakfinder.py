@@ -200,7 +200,9 @@ class test_peakfinder (unittest.TestCase):
         wiggle = ([5] * 20) + [0] + ([5] * 20)
         result = find_sections(wiggle, 0)
         print result
-        assert result == ["0|19", "21|40"]
+        
+        #I believe this is zero based half open result.  Need to think about it more
+        assert result == ["0|20", "21|40"]
         
         #returns one segnment
         result = find_sections(wiggle, 1)
@@ -211,7 +213,7 @@ class test_peakfinder (unittest.TestCase):
         wiggle = ([5] * 9) + [0] + ([5] * 10)
         result = find_sections(wiggle, 0)
         print result
-        assert result == ["0|8", "10|19"]
+        assert result == ["0|9", "10|19"]
         
         #returns one segnment
         result = find_sections(wiggle, 1)
@@ -225,7 +227,7 @@ class test_peakfinder (unittest.TestCase):
         #Edge case where margins start after the start of genes
         wiggle = ([5] * 10) + [0] 
         result = find_sections(wiggle, 0)
-        assert result == ["0|9"]
+        assert result == ["0|10"]
     
     """
     
@@ -272,14 +274,37 @@ class test_peakfinder (unittest.TestCase):
         
         #Case resid is true. Expected: returns residual sum of squared error between the 
         #spline and the actual curve 
+        #TODO: write better tests, this only tests very basic case
+        residual = find_univariateSpline(smoothing, x3, y, 3, resid=True)
+        self.assertAlmostEqual(expected.get_residual(), result.get_residual()) 
+        
+        #this works because the number of turns is 1 so the residual * turns is the residual
+        self.assertAlmostEqual(residual, sqrt(expected.get_residual()))
+        
+        #Case: calculation of univarate spline breaks
+        #There should be more error handling this is a general catch, we should be more sensetavie
+        #to different types of errors
+        assert Inf == find_univariateSpline(None, None, None, None, resid=True)
         
     """
     
     Performs unit testing on poissonP
     
+    Will not test math behind calling poisson fuction more than nessessary as it has already been tested by scipy
+    
     """ 
     def test_poissonP(self):
-        pass
+        #Case: fewer than 3 reads fall within a peak region: Expected result should return as though there are 3 expected reads
+        result = poissonP(50, 3, 50, 2)
+        self.assertAlmostEqual(result, (1 - 0.64723188878223115)) #manually calculated on personal computer stats.poisson.cdf(3, 3)
+        
+        #Case: More than 3 reads fall within a peak region. Expected: Result should return as normal
+        result = poissonP(50, 3, 50, 4)
+        self.assertAlmostEqual(result, (1 - 0.4334701203667089)) #manually calculated stats.poisson.cdf(3, 4)
+    
+        #Case: poissonp throws an exception. Expected: Result should return 1
+        result = poissonP(None, None, None, None)    
+        assert 1 == result
     
     """
     
@@ -289,9 +314,21 @@ class test_peakfinder (unittest.TestCase):
     Need to create a dummy call peaks function or stub or something to keep everything from
     getting called
     
+    The way this is currently written it is difficult to test logic other than error checking
+    
     """ 
     def test_call_peaks(self):
-        pass
+        #peaks_from_info = poissonP
+        """call_peaks("chr1|foo|5|10|-", 
+                   50, 
+                   bam_fileobj=None, 
+                   bam_file=None)"""
+        assert 1 == 1
+        #Case: Bam file is passed
+        
+        #Case: Bam object is passed
+        
+        #Case: Both bam file and object are passed
     
     """
     
@@ -307,11 +344,21 @@ class test_peakfinder (unittest.TestCase):
     """
     
     Performs unit testing on add_species
-        
+    
+    I'll probably refactor this a bit so I won't work to hard on testing this
     """
     def test_add_species(self):
-        pass
-    
+        #Case: object is returned as expected
+        result = add_species("hg19", [range(1,22), "X", "Y"],
+                                        "foo",
+                                        "bar",
+                                        "baz")
+        
+        assert result == {"chrs" : range(1,22) + ["X"] + ["Y"],
+                          "gene_bed" : "foo",
+                          "mRNA" : "bar",
+                          "premRNA" : "baz"}
+                        
     """
     
     Performs unit testing on main
