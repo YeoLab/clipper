@@ -12,6 +12,8 @@ from bx.bbi.bigwig_file import BigWigFile
 import pysam
 from subprocess import Popen, PIPE
 host = Popen(["hostname"], stdout=PIPE).communicate()[0].strip()
+
+#this appears unused now for peak calling stuff
 if "optiputer" in host or "compute" in host:
     basedir = "/nas/nas0"
 elif "tcc" in host or "triton" in host:
@@ -20,13 +22,14 @@ else:
     print "Where am I?"
     raise Exception
 
+pybedtools.set_tempdir("../pybedtools_tmp")
 
-if not os.path.exists("/nas3/scratch/lovci/pybedtools_tmp"):
-    pybedtools.set_tempdir("/projects/lovci/projects/tmp/python_tmp")
-else:
-    pybedtools.set_tempdir("/nas3/scratch/lovci/pybedtools_tmp")
-    pass
 
+"""
+
+This appears unused leaving until I talk with mike
+
+"""
 def build_AS_STRUCTURE_dict(species):
     if species == "hg19":
         chrs = map(str,range(1,23)) #1-22
@@ -88,6 +91,11 @@ def build_AS_STRUCTURE_dict(species):
             info[gene]['tx_stop'] = tx_stop
     return info, Gtypes
 
+"""
+
+This appears unused, leaving until I talk with mike
+
+"""
 def assign_to_regions(tool, species="hg19", nrand = 3, getseq=False):
     speciesFA = ""
     if species =="hg19" or species == "mm9" or species =="hg18":
@@ -173,6 +181,12 @@ def assign_to_regions(tool, species="hg19", nrand = 3, getseq=False):
         bed_dict['all']['rand'][i] = bed_dict['all']['rand'][i].sort()
         bed_dict['all']['rand'][i].sequence(fi=speciesFA, s=True)
     return bed_dict, sizes, Gsizes
+
+"""
+
+This appears unused, leaving until I talk with mike
+
+"""
 
 def build_assigned_from_existing(assigned_dir, clusters, regions, nrand):
     CLUS_regions = {}
@@ -298,14 +312,22 @@ def readsToWiggle_pysam(reads, tx_start, tx_end, keepstrand=None, trim=False, us
                 pass
     return wiggle, jxns, pos_counts, lengths, allreads
 
+"""
 
+Reverse complement a standard DNA sequence (consier forcing use of Biopython)
+
+"""
 def revcom(seq):
     import string
     return seq[::-1].translate(string.maketrans("tgcaTGCA", "acgtACGT"))
 
+""""
 
+wrapper for fetchseq
+
+"""
 def fetchseq(species, chr, start, stop, strand):
-    p = Popen([basedir + "/yeolab/Software/bin/fetchseq", "-s", species, "-c", str(chr), "-f", str(start), "-t", str(stop), "-h", basedir], stdout = PIPE)
+    p = Popen(["./fetchseq", "-s", species, "-c", str(chr), "-f", str(start), "-t", str(stop), "-h", basedir], stdout = PIPE)
     seq = p.communicate()[0].split("\n")
     sequence = "".join(seq[1:])
     if strand == "+":
@@ -315,8 +337,21 @@ def fetchseq(species, chr, start, stop, strand):
     else:
         raise Exception
 
+"""
+
+Generator function to chop input sequence into smaller bits (size=chunkSize).  
+if chunkOverlap is > 0 then it the smaller bits will overlap. 
+The last element will likely be shorter
+
+Paramaters
+----------
+
+Sequence: supplied string
+chunksize: length to chop chunks into
+chunkoverlap: overlap between previous chunk and next chunk
+
+"""
 def chop(sequence, chunkSize=50, chunkOverlap=.2):
-    """Chop input sequence into smaller bits (size=chunkSize).  if chunkOverlap is > 0 then it the smaller bits will overlap. The last element will likely be shorter"""
     i=0
     chunkstep = int(chunkSize*(1-chunkOverlap))
     while (i < len(sequence)):
