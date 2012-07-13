@@ -22,15 +22,8 @@ from random import sample as rs
 from seqTools import *
 import gzip
 
-
-
-
-
 host = Popen(["hostname"], stdout=PIPE).communicate()[0].strip()
-if "optiputer" in host or "compute" in host:
-    basedir = "/nas/nas0"
-elif "tcc" in host or "triton" in host:
-    basedir = "/projects"    
+
 
 """
 
@@ -68,7 +61,7 @@ def get_FDR_cutoff_mode(readlengths, genelength, iterations=1000, mincut = 2, al
     """
     if readlengths.__len__() < 20: # if you have very few reads on a gene, don't waste time trying to find a cutoff
         return mincut
-    cmd = str(os.path.join(basedir, "yeolab/Software/bin/peaks"))
+    cmd = "./peaks"
     bad = 1
     tries=0
     while bad == 1 and tries < 5:
@@ -119,18 +112,19 @@ def get_FDR_cutoff_mean(readlengths, genelength, iterations=1000, mincut = 2, al
     
     if readlengths.__len__() < 20: # if you have very few reads on a gene, don't waste time trying to find a cutoff
         return mincut
-    cmd = str(os.path.join(basedir, "yeolab/Software/bin/peaks"))
+    cmd = "../src/peaks" #maybe figure out way to get root dir of file
     bad =1
     tries=0
     
     #tries to open Popen instance for scattering reads up to 5 times because mpi sucks
     while bad == 1 and tries < 5:
         try:
-            process = Popen([cmd, "-f", "stdin", "-a", str(alpha), "-L",str(genelength),"-r", str(iterations)], stdin=PIPE, stdout=PIPE)
+            process = Popen([os.path.join(os.path.curdir, cmd), "-f", "stdin", "-a", str(alpha), "-L",str(genelength),"-r", str(iterations)], stdin=PIPE, stdout=PIPE)
             results, err = process.communicate("\n".join(map(str, readlengths)))
             return_val = process.wait()
             bad = 0
-        except OSError:
+        except OSError as e:
+            print e
             print "Couldn't open a process for thresholding, trying again"
             tries+=1
     if bad ==1: #encountered if tries > 5
@@ -876,21 +870,20 @@ def main(options):
         print "You must set either \"species\" or \"geneBed\"+\"geneMRNA\"+\"genePREMRNA\""
         exit()
 
-
     lenfile = ""
     
     species_parameters["hg19"] = add_species("hg19", [range(1,22), "X", "Y"],
-                                             os.path.join(basedir, "lovci/projects/ucscBED/hg19/", "hg19.AS.STRUCTURE_genes.BED.gz"),
-                                             os.path.join(basedir, "lovci/projects/ucscBED/hg19/", "hg19.AS.STRUCTURE_mRNA.lengths"),
-                                             os.path.join(basedir, "lovci/projects/ucscBED/hg19/", "hg19.AS.STRUCTURE_premRNA.lengths"))
+                                             os.path.join("../data", "hg19.AS.STRUCTURE_genes.BED.gz"),
+                                             os.path.join("../data", "hg19.AS.STRUCTURE_mRNA.lengths"),
+                                             os.path.join("../data" "hg19.AS.STRUCTURE_premRNA.lengths"))
     species_parameters["hg18"] = add_species("hg18", [range(1,22), "X", "Y"],
-                                             os.path.join(basedir, "lovci/projects/ucscBED/hg18/", "hg18.AS.STRUCTURE_genes.BED.gz"),
-                                             os.path.join(basedir, "lovci/projects/ucscBED/hg18/", "hg18.AS.STRUCTURE_mRNA.lengths"),
-                                             os.path.join(basedir, "lovci/projects/ucscBED/hg18/", "hg18.AS.STRUCTURE_premRNA.lengths"))
+                                             os.path.join("../data" "hg18.AS.STRUCTURE_genes.BED.gz"),
+                                             os.path.join("../data", "hg18.AS.STRUCTURE_mRNA.lengths"),
+                                             os.path.join("../data", "hg18.AS.STRUCTURE_premRNA.lengths"))
     species_parameters["mm9"] = add_species("mm9", [range(1,19), "X", "Y"],
-                                            os.path.join(basedir, "lovci/projects/ucscBED/mm9/", "mm9.AS.STRUCTURE_genes.BED.gz"),
-                                            os.path.join(basedir, "lovci/projects/ucscBED/mm9/", "mm9.AS.STRUCTURE_mRNA.lengths"),
-                                            os.path.join(basedir, "lovci/projects/ucscBED/mm9/", "mm9.AS.STRUCTURE_premRNA.lengths"))
+                                            os.path.join("../data", "mm9.AS.STRUCTURE_genes.BED.gz"),
+                                            os.path.join("../data", "mm9.AS.STRUCTURE_mRNA.lengths"),
+                                            os.path.join("../data", "mm9.AS.STRUCTURE_premRNA.lengths"))
     acceptable_species = ",".join(species_parameters.keys())
     
     #error checking
@@ -1208,10 +1201,10 @@ if __name__ == "__main__":
                 if int(options.np)%8 == 0:
                     nnodes = int(options.np)/8
                 else:
-
                     nnodes = (int(options.np)/8)+1
                     np = nnodes*8
                     print "You should have used a number of processors that is divisible by 8.  You tried %d and I'll actually use %d." %(options.np, np)
+                
                 shScript.write("#!/bin/sh\n#PBS -N %s\n#PBS -o %s\n#PBS -e %s\n#PBS -V\n#PBS -S /bin/sh\n#PBS -l nodes=%d:ppn=8\n#PBS -q batch\n#PBS -l walltime=00:50:00\n" %(options.job_name, runout, runerr, nnodes))
                 
                 if options.notify is not None:

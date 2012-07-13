@@ -10,6 +10,11 @@ class test_peakfinder (unittest.TestCase):
     def setUp(self):
         pass
     
+    """
+    
+    Performs basic all up test on entire program (except for main)
+    
+    """
     def test_allup(self):
         
         usage="\npython peakfinder.py -b <bamfile> -s <hg18/hg19/mm9>\n OR \npython peakfinder.py -b <bamfile> --customBED <BEDfile> --customMRNA <mRNA lengths> --customPREMRNA <premRNA lengths>"
@@ -49,7 +54,7 @@ class test_peakfinder (unittest.TestCase):
         parser.add_option("--start", dest="start", default=False, action="store_true", help=SUPPRESS_HELP) #private, don't use
         parser.add_option("--save-pickle", dest="save_pickle", default=False, action = "store_true", help="Save a pickle file containing the analysis")
         
-        args = ["-b", "/nas3/gpratt/HEK293/GSM782786_NAMF-mapped.hg19.bam.sorted.bam",
+        args = ["-b", "allup_test.bam",
                  "-s", "hg19",
                   "-g", "ENSG00000198901", 
                   "--serial", 
