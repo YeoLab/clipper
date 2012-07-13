@@ -199,7 +199,27 @@ def build_assigned_from_existing(assigned_dir, clusters, regions, nrand):
     
     return CLUS_regions, sizes, Gsizes
 
+"""
 
+Takes a list of reads from a bam file object and converts them to wiggle format
+
+Paramaters
+----------
+reads: bamfile object
+tx_start: transcription start site for region to convert
+tx_stop: transcription stop site for region to convert
+keepstrand: boolean for if strand specific information is important --check with mike
+trim: unknown
+usePos: location to assign read to accepts center, start or end
+
+Returns 
+wiggle: list represnting wiggle track for that location
+jxns: dictionary of the number of reads spaning a specific junction
+pos_counts: unknown looks like wiggle
+lengths: list of lengths of all reads
+allreads: dictionary of all reads in nested dict format allreads[start][stop] = 1
+
+"""
 def readsToWiggle_pysam(reads, tx_start, tx_end, keepstrand=None, trim=False, usePos='center'):
     wiggle = zeros((tx_end - tx_start + 1), dtype='f') #total read overlapping each position
     pos_counts = zeros((tx_end - tx_start + 1), dtype='f') #each read only gives one point, use usePos to determine whether the point comes from the start, center, or end
