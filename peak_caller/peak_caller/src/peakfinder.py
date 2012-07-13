@@ -280,20 +280,26 @@ def plotSpline(spline, data, xvals, threshold=None):
     
     pass
 
+"""
+
+Calculate a smoothing spline for ydata in xdata then return complexity-penalized residuals
+or return the smoothing spline if resid ==False
+
+Parameters:
+x -- Int, range of spline
+xdata -- list, wiggle track positions   
+ydata -- list, wiggle track coverage 
+k -- int, degree of spline
+
+Output: spline object and error if asked for by setting resid, probably want to factor out error calcluation into 
+second function
+
+refer to scipy documentation for futher questions.
+This functions results are undefined if all requiered argunments are not supplied
+"""
 def find_univariateSpline(x, xdata, ydata, k, weight=None, resid=True):
-    """
-    calculate a smoothing spline for ydata in xdata then return complexity-penalized residuals
-    or return the smoothing spline if resid ==False
-    x -- range of spline
-    xdata -- wiggle track positions   
-    ydata -- coverage 
-    k -- degree of spline
-    refer to scipy documentation for futher questions 
-    returns spline object and error if asked for by setting resid, probably want to factor out error calcluation into 
-    second function
-    """
+
     try:
-        
         spline = scipy.interpolate.UnivariateSpline(xdata, ydata, s=x,k=k, w=weight)
         #plotSpline(spline, ydata, xdata, 33)        
         #computationally intensive 
