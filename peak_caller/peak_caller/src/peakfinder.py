@@ -1169,7 +1169,8 @@ if __name__ == "__main__":
     (options,args) = parser.parse_args()
     
     #enforces required usage
-    if not options.bam or (not options.species) or (not options.geneBEDfile or not options.geneMRNAfile or not options.genePREMRNAfile):
+    if not (options.bam and ((options.species) or (options.geneBEDfile and options.geneMRNAfile and options.genePREMRNAfile))):
+        print "to helpful"
         parser.print_help()
         exit()
         
