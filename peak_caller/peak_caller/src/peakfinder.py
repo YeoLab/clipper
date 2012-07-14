@@ -1,4 +1,3 @@
-#!/nas3/yeolab/Software/Python_dependencies/bin/python
 #We will follow the UCSC genome browser assumption of using a zero based half open cord system
 import pysam
 import optparse
@@ -465,7 +464,7 @@ def peaks_from_info(wiggle, pos_counts, lengths, loc, gene_length, trim=False, m
     
     if gene_threshold == "error":
         print "I had a hard time with this one: %s.  I think I'll use a threshold of 50" %(loc)
-        threshold=50
+        gene_threshold=50
     peakDict['clusters'] = {}
     peakDict['sections'] = {}
     peakDict['nreads'] = nreads_in_gene
