@@ -59,15 +59,22 @@ class test_peakfinder (unittest.TestCase):
                   "-g", "ENSG00000198901", 
                   "--serial", 
                   "--job_name=peak_test",
-                   "--outfile=peak_results",
+                   "--outfile=../src/peak_results",
                    "-q"
                 ]    
         (options,args) = parser.parse_args(args)
         main(options)
         tested = open("../src/peak_results.BED")
         correct = open("peak_results.BED")
+        #problem with tracks being different
+        tested.next()
+        correct.next()
         for test, correct in zip(tested, correct):
-            assert test == correct
+            self.assertEqual(test, correct)
+        
+        #cleanup
+        os.remove("../src/peak_results.BED")
+        
     
     """
     
