@@ -304,7 +304,6 @@ threshold is an integer
 
 """
 def plotSections(wiggle, sections, threshold):
-    print "plotting sections"
     f = plt.figure()
     ax = f.add_subplot(111)
     ax.plot(wiggle)
@@ -329,7 +328,7 @@ def plotSections(wiggle, sections, threshold):
         path = Path(positions, codes)
         patch = patches.PathPatch(path, lw=1)
         ax.add_patch(patch)
-    f.show()
+    plt.show()
 
     """
     
