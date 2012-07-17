@@ -7,6 +7,9 @@ setup(
     version = "0.1",
     packages = find_packages(),
     ext_modules = [peaks],
+    package_data = {
+        '' : ['*.lengths', '*.gz', '*.bam']
+        },
     #Project Dependences go here
 
     #data and scripts go here
