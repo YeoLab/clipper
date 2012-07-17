@@ -19,7 +19,8 @@ if "optiputer" in host or "compute" in host:
 elif "tcc" in host or "triton" in host:
     basedir = "/projects"
 else:
-    print "Not on triton or optiputer some things may not work for the moment"
+    print "Where am I?"
+    raise Exception
 
 pybedtools.set_tempdir("../pybedtools_tmp")
 
