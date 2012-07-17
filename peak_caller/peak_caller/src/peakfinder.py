@@ -1,3 +1,4 @@
+#!/nas3/yeolab/Software/Python_dependencies/bin/python
 #We will follow the UCSC genome browser assumption of using a zero based half open cord system
 import pysam
 import optparse
@@ -20,9 +21,10 @@ import pybedtools
 from random import sample as rs
 from seqTools import *
 import gzip
-
+import peaks
+import pkg_resources
 host = Popen(["hostname"], stdout=PIPE).communicate()[0].strip()
-
+os.system("echo $PATH")
 
 """
 
@@ -111,40 +113,17 @@ def get_FDR_cutoff_mean(readlengths, genelength, iterations=1000, mincut = 2, al
     
     if readlengths.__len__() < 20: # if you have very few reads on a gene, don't waste time trying to find a cutoff
         return mincut
-    cmd = "../src/peaks" #maybe figure out way to get root dir of file
-    bad =1
-    tries=0
+    results = peaks.shuffle(genelength, iterations, 0, .05, readlengths) 
     
-    #tries to open Popen instance for scattering reads up to 5 times because mpi sucks
-    while bad == 1 and tries < 5:
-        try:
-            process = Popen([os.path.join(os.path.curdir, cmd), "-f", "stdin", "-a", str(alpha), "-L",str(genelength),"-r", str(iterations)], stdin=PIPE, stdout=PIPE)
-            results, err = process.communicate("\n".join(map(str, readlengths)))
-            return_val = process.wait()
-            bad = 0
-        except OSError as e:
-            print e
-            print "Couldn't open a process for thresholding, trying again"
-            tries+=1
-    if bad ==1: #encountered if tries > 5
-        return "error"
-    if tries > 0:
-        print "Ah, that fixed it."
-            
     total = 0
     n =0
     
     #parses results from peaks script, calculates mean from peaks results 
     #should document peaks function call return value somewhere around here
-    for x in results.split("\n"):
-        if x == "":
-            continue
-        try:
-            cut, n_observed = map(int, x.strip().split("\t"))
-            total += (cut * n_observed)
-            n+=n_observed
-        except:
-            pass
+    
+    for cut, n_observed in enumerate(results):
+        total += (cut * n_observed)
+        n+=n_observed
         
     #logic for min cutoffs 
     cutoff = total/iterations
@@ -263,6 +242,8 @@ def plotSpline(spline, data, xvals, threshold=None):
     """
     Plot a smoothing spline and real data
     """
+    
+    print "plotting"
     f = plt.figure()
     ax1 = f.add_subplot(111)
     ax1.plot(xvals, data)
@@ -314,7 +295,17 @@ def find_univariateSpline(x, xdata, ydata, k, weight=None, resid=True):
     except:
         return(Inf)
 
+
+"""
+
+Plots each section individually, I think
+Wiggle is a list representing a wiggle track
+sections is a list of strings of format "start|stop" where start and stop are both integers
+threshold is an integer 
+
+"""
 def plotSections(wiggle, sections, threshold):
+    print "plotting sections"
     f = plt.figure()
     ax = f.add_subplot(111)
     ax.plot(wiggle)
@@ -464,7 +455,7 @@ def peaks_from_info(wiggle, pos_counts, lengths, loc, gene_length, trim=False, m
     
     if gene_threshold == "error":
         print "I had a hard time with this one: %s.  I think I'll use a threshold of 50" %(loc)
-        gene_threshold=50
+        threshold=50
     peakDict['clusters'] = {}
     peakDict['sections'] = {}
     peakDict['nreads'] = nreads_in_gene
@@ -478,7 +469,7 @@ def peaks_from_info(wiggle, pos_counts, lengths, loc, gene_length, trim=False, m
     sections = find_sections(wiggle, margin)
 
 
-    if plotit is True:
+    if plotit is True:      
         plotSections(wiggle, sections, gene_threshold)
     bed = list()
 
@@ -872,17 +863,17 @@ def main(options):
     lenfile = ""
     
     species_parameters["hg19"] = add_species("hg19", [range(1,22), "X", "Y"],
-                                             os.path.join("../data", "hg19.AS.STRUCTURE_genes.BED.gz"),
-                                             os.path.join("../data", "hg19.AS.STRUCTURE_mRNA.lengths"),
-                                             os.path.join("../data" "hg19.AS.STRUCTURE_premRNA.lengths"))
+                                             pkg_resources.resource_filename(__name__, "../data/hg19.AS.STRUCTURE_genes.BED.gz"),
+                                             pkg_resources.resource_filename(__name__, "../data/hg19.AS.STRUCTURE_mRNA.lengths"),
+                                             pkg_resources.resource_filename(__name__, "../data/hg19.AS.STRUCTURE_premRNA.lengths"))
     species_parameters["hg18"] = add_species("hg18", [range(1,22), "X", "Y"],
-                                             os.path.join("../data" "hg18.AS.STRUCTURE_genes.BED.gz"),
-                                             os.path.join("../data", "hg18.AS.STRUCTURE_mRNA.lengths"),
-                                             os.path.join("../data", "hg18.AS.STRUCTURE_premRNA.lengths"))
+                                             pkg_resources.resource_filename(__name__, "../data/hg18.AS.STRUCTURE_genes.BED.gz"),
+                                             pkg_resources.resource_filename(__name__, "../data/hg18.AS.STRUCTURE_mRNA.lengths"),
+                                             pkg_resources.resource_filename(__name__, "../data/hg18.AS.STRUCTURE_premRNA.lengths"))
     species_parameters["mm9"] = add_species("mm9", [range(1,19), "X", "Y"],
-                                            os.path.join("../data", "mm9.AS.STRUCTURE_genes.BED.gz"),
-                                            os.path.join("../data", "mm9.AS.STRUCTURE_mRNA.lengths"),
-                                            os.path.join("../data", "mm9.AS.STRUCTURE_premRNA.lengths"))
+                                            pkg_resources.resource_filename(__name__,"../data/mm9.AS.STRUCTURE_genes.BED.gz"),
+                                            pkg_resources.resource_filename(__name__,"../data/mm9.AS.STRUCTURE_mRNA.lengths"),
+                                            pkg_resources.resource_filename(__name__,"../data/mm9.AS.STRUCTURE_premRNA.lengths"))
     acceptable_species = ",".join(species_parameters.keys())
     
     #error checking
