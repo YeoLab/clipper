@@ -51,7 +51,7 @@ extern "C" PyObject *peaks_shuffle(PyObject *self, PyObject *args)
       return NULL;
     }
   
-  printf("after read in");
+  
     //if (L ==0 || r ==0 || readfile ==0) usage(argv[0]);
     //Need to fix this to throw error if L r or the file is null or none
   

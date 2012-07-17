@@ -4,6 +4,7 @@ from optparse import OptionParser, SUPPRESS_HELP
 import os
 import unittest 
 import scipy
+import pkg_resources
 
 class test_peakfinder (unittest.TestCase):
     
@@ -54,18 +55,20 @@ class test_peakfinder (unittest.TestCase):
         parser.add_option("--start", dest="start", default=False, action="store_true", help=SUPPRESS_HELP) #private, don't use
         parser.add_option("--save-pickle", dest="save_pickle", default=False, action = "store_true", help="Save a pickle file containing the analysis")
         
-        args = ["-b", "allup_test.bam",
+        args = ["-b", pkg_resources.resource_filename(__name__, "../test/allup_test.bam"),
                  "-s", "hg19",
                   "-g", "ENSG00000198901", 
                   "--serial", 
                   "--job_name=peak_test",
-                   "--outfile=../src/peak_results",
+                   "--outfile=" + pkg_resources.resource_filename(__name__, "../src/peak_results"),
                    "-q"
                 ]    
         (options,args) = parser.parse_args(args)
         main(options)
-        tested = open("../src/peak_results.BED")
-        correct = open("peak_results.BED")
+
+        tested = open(pkg_resources.resource_filename(__name__, "../src/peak_results.BED"))
+        correct = open(pkg_resources.resource_filename(__name__, "../test/peak_results.BED"))
+        
         #problem with tracks being different
         tested.next()
         correct.next()
@@ -73,7 +76,7 @@ class test_peakfinder (unittest.TestCase):
             self.assertEqual(test, correct)
         
         #cleanup
-        os.remove("../src/peak_results.BED")
+        os.remove(pkg_resources.resource_filename(__name__, "../src/peak_results.BED"))
         
     
     """
@@ -92,23 +95,23 @@ class test_peakfinder (unittest.TestCase):
         self.assertRaises(NameError, check_for_index, f)
         
         #Test if file is not bam, but exists expected result is to throw improper file error
-        f = os.path.curdir + "/test_peakfinder.py"
+        f = pkg_resources.resource_filename(__name__, "test/test_peakfinder.py")
         self.assertRaises(NameError, check_for_index, f)
         
         #Test if file is bam and indexed expected result is returns 1 and succedes
         #should also check if file exists, but I'm lazy
-        f = os.path.curdir + "/indexed_test.bam"
+        f = pkg_resources.resource_filename(__name__, "../test/indexed_test.bam")
         result = check_for_index(f)
         assert result == 1
         
         #Test if file is bam and not indexed, expected result is returns one and succedes
         #should also check if file exists, but I'm lazy
-        f = os.path.curdir + "/not_indexed_test.bam"
+        f = pkg_resources.resource_filename(__name__, "../test/not_indexed_test.bam")
         result = check_for_index(f)
         assert result == 1
         
         #cleanup (should be in taredown)
-        os.remove(os.path.curdir + "/not_indexed_test.bam.bai")
+        os.remove(pkg_resources.resource_filename(__name__, "../test/not_indexed_test.bam.bai"))
     
     """
     
