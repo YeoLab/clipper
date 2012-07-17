@@ -21,7 +21,7 @@ import pybedtools
 from random import sample as rs
 from seqTools import *
 import gzip
-
+import peaks
 host = Popen(["hostname"], stdout=PIPE).communicate()[0].strip()
 
 
@@ -112,40 +112,17 @@ def get_FDR_cutoff_mean(readlengths, genelength, iterations=1000, mincut = 2, al
     
     if readlengths.__len__() < 20: # if you have very few reads on a gene, don't waste time trying to find a cutoff
         return mincut
-    cmd = "../src/peaks" #maybe figure out way to get root dir of file
-    bad =1
-    tries=0
+    results = peaks.shuffle(genelength, iterations, 0, .05, readlengths) 
     
-    #tries to open Popen instance for scattering reads up to 5 times because mpi sucks
-    while bad == 1 and tries < 5:
-        try:
-            process = Popen([os.path.join(os.path.curdir, cmd), "-f", "stdin", "-a", str(alpha), "-L",str(genelength),"-r", str(iterations)], stdin=PIPE, stdout=PIPE)
-            results, err = process.communicate("\n".join(map(str, readlengths)))
-            return_val = process.wait()
-            bad = 0
-        except OSError as e:
-            print e
-            print "Couldn't open a process for thresholding, trying again"
-            tries+=1
-    if bad ==1: #encountered if tries > 5
-        return "error"
-    if tries > 0:
-        print "Ah, that fixed it."
-            
     total = 0
     n =0
     
     #parses results from peaks script, calculates mean from peaks results 
     #should document peaks function call return value somewhere around here
-    for x in results.split("\n"):
-        if x == "":
-            continue
-        try:
-            cut, n_observed = map(int, x.strip().split("\t"))
-            total += (cut * n_observed)
-            n+=n_observed
-        except:
-            pass
+    
+    for cut, n_observed in enumerate(results):
+        total += (cut * n_observed)
+        n+=n_observed
         
     #logic for min cutoffs 
     cutoff = total/iterations

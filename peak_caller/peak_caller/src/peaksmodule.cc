@@ -19,11 +19,11 @@ using std::ifstream;
 // this program gets the expected frequency of heights of reads
 // randomly distributed r times over a gene of length L
 // adapted to C++ by Michael Lovci
-void initpeaks(void); /* Forward */
+extern "C" PyMODINIT_FUNC initpeaks(void); /* Forward */
 
-main(int argc, char **argv)
+int main(int argc, char **argv)
 {
-  Py_SetPRogramName(argv[0]);
+  Py_SetProgramName(argv[0]);
     
   Py_Initialize();
   
@@ -35,19 +35,23 @@ main(int argc, char **argv)
 //reads: list, list of read lengths
 //cutoff: double, B-H FDR cutoff
 //stats: boolean, true prints running time stats
-extern "C" PyObject shuffle(PyObject *self, PyObject *args)
-{
-  int L;
-  int r;
-  int T;
-  float alpha = PyFloat_AsDouble(cutoff);
-  PyObject *reads;
+extern "C" PyObject *peaks_shuffle(PyObject *self, PyObject *args)
+{  
+  int L = 2000; //length
+  int r = 1000; //number of times to rerun
+  int T = 0 ; //0 or 1 show timing info
+  float alpha = .05; //FDR
+  PyObject *reads; //list of reads
+  
+  //TODO figure out how to set default values and document this
   
   //parse args
-  if(!PyArg_ParseTuple(args, "iiifO", &L, &r, &T, &alpha, &reads) {
+  printf("before read in");
+  if(!PyArg_ParseTuple(args, "iiifO", &L, &r, &T, &alpha, &reads)) {
       return NULL;
     }
   
+  printf("after read in");
     //if (L ==0 || r ==0 || readfile ==0) usage(argv[0]);
     //Need to fix this to throw error if L r or the file is null or none
   
@@ -110,6 +114,7 @@ extern "C" PyObject shuffle(PyObject *self, PyObject *args)
     //end initialize
 
     //for each read assign it randomly
+    
     for (int i=0; i<PyList_Size(reads); i++){
       long len = PyInt_AsLong(PyList_GetItem(reads, i));
 
@@ -130,6 +135,7 @@ extern "C" PyObject shuffle(PyObject *self, PyObject *args)
 	GENE[position]++;
       }
     }
+    
     int total_num_peaks = 0;
     int max_height = 0;
     for (int j = 0; j < L; j++) {
@@ -196,18 +202,16 @@ extern "C" PyObject shuffle(PyObject *self, PyObject *args)
     OBS_CUTOFF[height_cutoff]++;
     //    cout << "height cutoff is " << height_cutoff << endl;
   }
-
-  PyObject* returnList = PyList_New(1000);
+  
+  PyObject *returnList = PyList_New(1000);
   for (int cut =0; cut < 1000; cut++){
-    PyList_Append(returnList, PyInt_FromLong(OBS_CUTOFF[cut]));
-    //if (OBS_CUTOFF[cut] > 0){
-      //cout << cut << "\t" << OBS_CUTOFF[cut] << endl;
-      //}
+    //cout << cut << "\t" << OBS_CUTOFF[cut] << endl;
+   
+    PyList_SetItem(returnList, cut, Py_BuildValue("i", OBS_CUTOFF[cut]));
+  
   }
-
-  if (redone > 0){
-    //    fprintf(stderr,"Perhaps you should make alpha larger?  I had to re-iterate an extra %i times.\n", redone);
-  }
+  
+  
   //calculate runtime
   if (T == 1)    {
     double CPS = CLOCKS_PER_SEC;
@@ -220,18 +224,16 @@ extern "C" PyObject shuffle(PyObject *self, PyObject *args)
   }
   //
 
-
-  return *returnList;
+  return returnList;
 }
 
 static PyMethodDef peaks_methods[] = {
-  {"shuffle", peaks_shuffle, METH_VARARGS,
-   "shuffles and calcaultes cutoff for each shuffled time"},
-
-  {NULL, NULL, 0, NULL}
+    {"shuffle",             peaks_shuffle,      METH_VARARGS,
+     "Return the meaning of everything."},
+    {NULL, NULL, 0, NULL}           /* sentinel */
 };
 
-void initpeaks(void) 
+extern "C" PyMODINIT_FUNC initpeaks(void) 
 {
   PyImport_AddModule("peaks");
   Py_InitModule("peaks", peaks_methods);
