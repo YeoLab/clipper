@@ -26,7 +26,6 @@ import pkg_resources
 host = Popen(["hostname"], stdout=PIPE).communicate()[0].strip()
 os.system("echo $PATH")
 
-
 """
 
 Checks to make sure a BAM file has an index, if the index does not exist it is created
@@ -243,6 +242,8 @@ def plotSpline(spline, data, xvals, threshold=None):
     """
     Plot a smoothing spline and real data
     """
+    
+    print "plotting"
     f = plt.figure()
     ax1 = f.add_subplot(111)
     ax1.plot(xvals, data)
@@ -294,7 +295,17 @@ def find_univariateSpline(x, xdata, ydata, k, weight=None, resid=True):
     except:
         return(Inf)
 
+
+"""
+
+Plots each section individually, I think
+Wiggle is a list representing a wiggle track
+sections is a list of strings of format "start|stop" where start and stop are both integers
+threshold is an integer 
+
+"""
 def plotSections(wiggle, sections, threshold):
+    print "plotting sections"
     f = plt.figure()
     ax = f.add_subplot(111)
     ax.plot(wiggle)
@@ -458,7 +469,7 @@ def peaks_from_info(wiggle, pos_counts, lengths, loc, gene_length, trim=False, m
     sections = find_sections(wiggle, margin)
 
 
-    if plotit is True:
+    if plotit is True:      
         plotSections(wiggle, sections, gene_threshold)
     bed = list()
 
