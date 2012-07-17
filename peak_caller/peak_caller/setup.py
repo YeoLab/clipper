@@ -13,7 +13,14 @@ setup(
     #Project Dependences go here
 
     #data and scripts go here
-
+    install_requires = ['setuptools >= 0.6', 
+                        'pysam >= 0.6',
+                        'numpy >= 1.5.1 ',
+                        'scipy >= 0.11.0b1',
+                        'matplotlib >= 0.99.3',
+                        'deap >= 0.8',
+                        'pybedtools >= 0.6',
+                        ],
     #metadata for upload to PyPI
     author = "Michael Lovci and Gabriel Pratt",
     author_email = "lovci@ucsd.edu",
