@@ -22,6 +22,7 @@ from random import sample as rs
 from seqTools import *
 import gzip
 import peaks
+import pkg_resources
 host = Popen(["hostname"], stdout=PIPE).communicate()[0].strip()
 
 
@@ -850,17 +851,17 @@ def main(options):
     lenfile = ""
     
     species_parameters["hg19"] = add_species("hg19", [range(1,22), "X", "Y"],
-                                             os.path.join("../data", "hg19.AS.STRUCTURE_genes.BED.gz"),
-                                             os.path.join("../data", "hg19.AS.STRUCTURE_mRNA.lengths"),
-                                             os.path.join("../data" "hg19.AS.STRUCTURE_premRNA.lengths"))
+                                             pkg_resources.resource_filename(__name__, "../data/hg19.AS.STRUCTURE_genes.BED.gz"),
+                                             pkg_resources.resource_filename(__name__, "../data/hg19.AS.STRUCTURE_mRNA.lengths"),
+                                             pkg_resources.resource_filename(__name__, "../data/hg19.AS.STRUCTURE_premRNA.lengths"))
     species_parameters["hg18"] = add_species("hg18", [range(1,22), "X", "Y"],
-                                             os.path.join("../data" "hg18.AS.STRUCTURE_genes.BED.gz"),
-                                             os.path.join("../data", "hg18.AS.STRUCTURE_mRNA.lengths"),
-                                             os.path.join("../data", "hg18.AS.STRUCTURE_premRNA.lengths"))
+                                             pkg_resources.resource_filename(__name__, "../data/hg18.AS.STRUCTURE_genes.BED.gz"),
+                                             pkg_resources.resource_filename(__name__, "../data/hg18.AS.STRUCTURE_mRNA.lengths"),
+                                             pkg_resources.resource_filename(__name__, "../data/hg18.AS.STRUCTURE_premRNA.lengths"))
     species_parameters["mm9"] = add_species("mm9", [range(1,19), "X", "Y"],
-                                            os.path.join("../data", "mm9.AS.STRUCTURE_genes.BED.gz"),
-                                            os.path.join("../data", "mm9.AS.STRUCTURE_mRNA.lengths"),
-                                            os.path.join("../data", "mm9.AS.STRUCTURE_premRNA.lengths"))
+                                            pkg_resources.resource_filename(__name__,"../data/mm9.AS.STRUCTURE_genes.BED.gz"),
+                                            pkg_resources.resource_filename(__name__,"../data/mm9.AS.STRUCTURE_mRNA.lengths"),
+                                            pkg_resources.resource_filename(__name__,"../data/mm9.AS.STRUCTURE_premRNA.lengths"))
     acceptable_species = ",".join(species_parameters.keys())
     
     #error checking

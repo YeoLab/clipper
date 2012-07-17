@@ -8,9 +8,9 @@ import random
 import pickle
 from numpy import *
 import subprocess
-from bx.bbi.bigwig_file import BigWigFile
 import pysam
 from subprocess import Popen, PIPE
+import pkg_resources
 host = Popen(["hostname"], stdout=PIPE).communicate()[0].strip()
 
 #this appears unused now for peak calling stuff
@@ -22,7 +22,7 @@ else:
     print "not in triton or nas, this may cause some problems, hopefully not"
     
 
-pybedtools.set_tempdir("../pybedtools_tmp")
+pybedtools.set_tempdir(pkg_resources.resource_filename(__name__, "../pybedtools_tmp"))
 
 
 """
