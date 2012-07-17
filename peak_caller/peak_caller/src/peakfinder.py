@@ -24,6 +24,7 @@ import gzip
 import peaks
 import pkg_resources
 host = Popen(["hostname"], stdout=PIPE).communicate()[0].strip()
+os.system("echo $PATH")
 
 
 """
