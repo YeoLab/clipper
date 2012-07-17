@@ -19,20 +19,15 @@ using std::ifstream;
 // this program gets the expected frequency of heights of reads
 // randomly distributed r times over a gene of length L
 // adapted to C++ by Michael Lovci
-int usage(char *program_name)
+void initpeaks(void); /* Forward */
+
+main(int argc, char **argv)
 {
-  fprintf(stderr,"Usage is %s [options] \n", program_name);
-  fprintf(stderr,"file_in is a file with a list of the length of aligned reads (only the part that aligns) \n");
-  fprintf(stderr,"Options\n");
-  fprintf(stderr," -L <int>   Effective Gene Length\n");
-  fprintf(stderr," -r <int>   # of iterations \n");
-  fprintf(stderr," -f <int>   input file containing read lengths \n");
-  fprintf(stderr," -a <float>   B-H FDR cutoff, default(.05) ... gets very slow as alpha gets smaller\n");
-  fprintf(stderr," -T 1/0 default(0) print running time statistics \n");
-  fprintf(stderr,"Output:\n");
-  fprintf(stderr,"Significance Threshold [tab] Iterations with this observed threshold\n");
-  exit(8);
-  return -1;
+  Py_SetPRogramName(argv[0]);
+    
+  Py_Initialize();
+  
+  initpeaks();  
 }
 
 //length: int, effective length of gene
@@ -40,15 +35,21 @@ int usage(char *program_name)
 //reads: list, list of read lengths
 //cutoff: double, B-H FDR cutoff
 //stats: boolean, true prints running time stats
-extern "C" PyObject shuffle(PyObject *length, PyObject *iterations, PyObject *reads, PyObject *cutoff, PyObject *stats)
+extern "C" PyObject shuffle(PyObject *self, PyObject *args)
 {
-  long L = PyInt_AsLong(length);
-  long r = PyInt_AsLong(iterations);
-  bool T = PyInt_AsLong(stats);
-  double alpha = PyFloat_AsDouble(cutoff);
+  int L;
+  int r;
+  int T;
+  float alpha = PyFloat_AsDouble(cutoff);
+  PyObject *reads;
   
-  //if (L ==0 || r ==0 || readfile ==0) usage(argv[0]);
-  //Need to fix this to throw error if L r or the file is null or none
+  //parse args
+  if(!PyArg_ParseTuple(args, "iiifO", &L, &r, &T, &alpha, &reads) {
+      return NULL;
+    }
+  
+    //if (L ==0 || r ==0 || readfile ==0) usage(argv[0]);
+    //Need to fix this to throw error if L r or the file is null or none
   
   int redone = 0;
   int OBS_CUTOFF[1000]; // more than 1000 observed heights will kill this...
@@ -223,3 +224,31 @@ extern "C" PyObject shuffle(PyObject *length, PyObject *iterations, PyObject *re
   return *returnList;
 }
 
+static PyMethodDef peaks_methods[] = {
+  {"shuffle", peaks_shuffle, METH_VARARGS,
+   "shuffles and calcaultes cutoff for each shuffled time"},
+
+  {NULL, NULL, 0, NULL}
+};
+
+void initpeaks(void) 
+{
+  PyImport_AddModule("peaks");
+  Py_InitModule("peaks", peaks_methods);
+}
+
+int usage(char *program_name)
+{
+  fprintf(stderr,"Usage is %s [options] \n", program_name);
+  fprintf(stderr,"file_in is a file with a list of the length of aligned reads (only the part that aligns) \n");
+  fprintf(stderr,"Options\n");
+  fprintf(stderr," -L <int>   Effective Gene Length\n");
+  fprintf(stderr," -r <int>   # of iterations \n");
+  fprintf(stderr," -f <int>   input file containing read lengths \n");
+  fprintf(stderr," -a <float>   B-H FDR cutoff, default(.05) ... gets very slow as alpha gets smaller\n");
+  fprintf(stderr," -T 1/0 default(0) print running time statistics \n");
+  fprintf(stderr,"Output:\n");
+  fprintf(stderr,"Significance Threshold [tab] Iterations with this observed threshold\n");
+  exit(8);
+  return -1;
+}
