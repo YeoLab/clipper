@@ -30,11 +30,15 @@ int main(int argc, char **argv)
   initpeaks();  
 }
 
-//length: int, effective length of gene
-//iterations: int, number of iterations to run
-//reads: list, list of read lengths
-//cutoff: double, B-H FDR cutoff
-//stats: boolean, true prints running time stats
+/*
+length: int, effective length of gene
+iterations: int, number of iterations to run
+reads: list, list of read lengths
+cutoff: double, B-H FDR cutoff
+stats: boolean, true prints running time stats
+
+Expects length and iterations to be non-zero. If passed [] for reads returns []
+*/
 extern "C" PyObject *peaks_shuffle(PyObject *self, PyObject *args)
 {  
   int L = 2000; //length
@@ -46,14 +50,14 @@ extern "C" PyObject *peaks_shuffle(PyObject *self, PyObject *args)
   //TODO figure out how to set default values and document this
   
   //parse args
-  printf("before read in");
   if(!PyArg_ParseTuple(args, "iiifO", &L, &r, &T, &alpha, &reads)) {
       return NULL;
     }
   
-  
-    //if (L ==0 || r ==0 || readfile ==0) usage(argv[0]);
-    //Need to fix this to throw error if L r or the file is null or none
+  if (L ==0 || r ==0) {
+    PyErr_SetString(PyExc_ValueError, "input values should be non-zero");
+    return NULL;
+  }
   
   int redone = 0;
   int OBS_CUTOFF[1000]; // more than 1000 observed heights will kill this...
@@ -70,37 +74,7 @@ extern "C" PyObject *peaks_shuffle(PyObject *self, PyObject *args)
   ifstream indata2; // indata is like cin
 
   std::vector<int> readlist;    
-  //if (strcasecmp(file, "stdin")==0){
-  //  char line[256];
 
-  //  while (!cin.eof()){
-  //    cin.getline(line, 256);
-  //    readlist.push_back(atoi(line));
-  //  }
-
-  //}
-  //else{
-  //  indata.open(file); // opens the file containing the list of read lengths
-  //  if(!indata) { // file couldn't be opened
-  //    cout << "Error: file:" << file << "could not be opened" << endl;
-  //    exit(1);
-  //  }
-  //  char line[256];
-  //  while ( !indata.eof() ) { // keep reading until end-of-file
-  //    indata.getline(line,256);
-  //    readlist.push_back(atoi(line));
-  //  }
-    //}
-  //size_readslist = readlist.size();
-  
-  //Up to here we are just loading the read list into an array for use
-  //If I make this an external module I won't have to do that.
-  //int reads[size_readslist];
-  //for( int i=0; i<(size_readslist);i++){
-  //  reads[i]= readlist[i];
-  //}
-  
-  //Reads should take care of everything up to here
   readlist.clear();
   srand(time(NULL)); // seed random-number generator with the current time
   for (int iteration = 1; iteration <= r; iteration++){
@@ -114,21 +88,18 @@ extern "C" PyObject *peaks_shuffle(PyObject *self, PyObject *args)
     //end initialize
 
     //for each read assign it randomly
-    
     for (int i=0; i<PyList_Size(reads); i++){
       long len = PyInt_AsLong(PyList_GetItem(reads, i));
 
       //error checking for obviously invalid reads
       if (len > L){
-	cout << "read" << i << " is longer than gene (" << len << "), exiting" << endl;
-	exit(8);
+	PyErr_SetString(PyExc_ValueError, "there is a read longer than the gene");
+	return NULL;
       }
       int ran;
       
       //Pick a random location witin the gene that the read can map to
-      do{           // pick a random number within the length of the gene
-	ran = rand()%L;
-      }while((ran+len) > L); // pick again if the read will fall outside of the gene
+      ran = rand() % (L - len -1); //correct possible positions of reads based on size of gene and size of read
       
       //Increment the coverage along the length of that read
       for(int position=ran; position < (ran+len); position++)	{
@@ -147,68 +118,70 @@ extern "C" PyObject *peaks_shuffle(PyObject *self, PyObject *args)
 	max_height = GENE[j];
       }
     }
-    //cout << " calculating significance " << endl;
+    
     //here is where you compute what height is significant.
-
     double PVAL[max_height];
     std::vector<int> sig_heights;
     PVAL[0] = 1; // set pvalue for height 0 = to 1;
-    for (int height =1; height < max_height; height++){
-      PVAL[height] =1;
-      int bigger_peaks = 0; //number of peaks that are heigher than height
-      for (int height2=height; height2 < max_height; height2++){
 
+    for (int height = 1; height < max_height; height++){
+      
+      //Initalize p-value to 1 for all heights
+      PVAL[height] = 1;
+
+      //counts number of peaks that are heigher than height
+      int bigger_peaks = 0; 
+      for (int height2=height; height2 < max_height; height2++){
 	bigger_peaks += HEIGHT[height2];
       }
+
       //convert the integers to doubles and divide.
       double b = bigger_peaks;
       double t =  total_num_peaks;
       double a = b/t;
       PVAL[height] = a;
+
       if (a < 1 && bigger_peaks > 0){
 	sig_heights.push_back(height);
-      }
-      //      cout << height << "\t" << bigger_peaks << "\t" << total_num_peaks << "\t" << a<< endl;
+      }  
     }
-
-    //benjamani-hochberg FDR (correction of p-values)
-    //    cout << " B-H correction " << endl;
 
     double N_heights = sig_heights.size();
     double R = 0.0;
     double correctedP[sizeof(PVAL) / sizeof(PVAL[0])];
     std::vector<int> corr_sig_heights;
-    //test
-    for (int ele = sig_heights.size()-1; ele>=0; ele--){
+
+    //This is janky need help from mike
+    for (int ele = sig_heights.size() - 1; ele >= 0; ele--){
       correctedP[sig_heights[ele]] = PVAL[sig_heights[ele]] * N_heights/(N_heights - R);
       R += 1.0;
-      //      cout << "ele\t" << ele << "\tPVAL:\t" << PVAL[sig_heights[ele]] << "\tN_heights:\t" << N_heights << "\tsig_h:\t" << sig_heights[ele] << "\tcP\t" << correctedP[sig_heights[ele]] << endl; // print out what you wee here.
+
       if (correctedP[sig_heights[ele]] < alpha){
 	corr_sig_heights.push_back(sig_heights[ele]); // add the current height to corrected significant heights list.
       }
     }
-    if (corr_sig_heights.size() ==0 ){ // no heights are significant
-      //      cout << "redoing iteration # " << iteration << endl;
+
+    if (corr_sig_heights.size() == 0 ){ // no heights are significant
       iteration--;
       redone++;
+
       if (redone > (10*r)){
-	//	fprintf (stderr, "skipping this gene, there aren't enough reads\n");
 	break;
       }
+
       continue;
     }
 
     int height_cutoff = corr_sig_heights[(corr_sig_heights.size() - 1)]; // height cutoff is the smallest height that is still significant.
     OBS_CUTOFF[height_cutoff]++;
-    //    cout << "height cutoff is " << height_cutoff << endl;
+
+  
   }
   
   PyObject *returnList = PyList_New(1000);
-  for (int cut =0; cut < 1000; cut++){
-    //cout << cut << "\t" << OBS_CUTOFF[cut] << endl;
-   
-    PyList_SetItem(returnList, cut, Py_BuildValue("i", OBS_CUTOFF[cut]));
-  
+  //constuct return list
+  for (int cut = 0; cut < 1000; cut++) {
+    PyList_SetItem(returnList, cut, Py_BuildValue("i", OBS_CUTOFF[cut]));  
   }
   
   

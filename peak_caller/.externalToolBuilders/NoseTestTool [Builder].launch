@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <launchConfiguration type="org.eclipse.ui.externaltools.ProgramBuilderLaunchConfigurationType">
 <mapAttribute key="org.eclipse.debug.core.environmentVariables">
+<mapEntry key="PATH" value="/home/gabrielp/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/home/gabrielp/bioinformatics/tools/BEDTools-Version-2.13.3/bin:/home/gabrielp/Homework/cse280a/bowtie-0.12.7:/home/gabrielp/bioinformatics/tools/bowtie-0.12.7"/>
 <mapEntry key="PYTHONPATH" value="${project_loc}"/>
 </mapAttribute>
 <booleanAttribute key="org.eclipse.debug.ui.ATTR_LAUNCH_IN_BACKGROUND" value="true"/>
