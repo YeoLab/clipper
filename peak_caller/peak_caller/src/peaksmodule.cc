@@ -47,6 +47,7 @@ extern "C" PyObject *peaks_shuffle(PyObject *self, PyObject *args)
   float alpha = .05; //FDR
   PyObject *reads; //list of reads
   
+  
   //TODO figure out how to set default values and document this
   
   //parse args
@@ -59,36 +60,32 @@ extern "C" PyObject *peaks_shuffle(PyObject *self, PyObject *args)
     return NULL;
   }
   
+  //The equation in the initalizer is the estimated depth of the cutoff, initalizes all values to zero
+  int num_reads = PyList_Size(reads); 
+  std::vector<long> OBS_CUTOFF(((L / num_reads) + 1) * 100, 0L);
   int redone = 0;
-  int OBS_CUTOFF[1000]; // more than 1000 observed heights will kill this...
-  int size_readslist = 0;
   
-  //Initalize all observed hights to zero (maybe need to convert this to pyobject)
-  for (int cut = 0; cut < 1000; cut++){
-    OBS_CUTOFF[cut] = 0;
-  }
+  
   
   int GENE[L]; //will store the height at every position of the gene
-  int HEIGHT[L]; // will have the number of times you see every height across the gene  HEIGHT[3] = 10 means that there are 10 peaks with a height of 3
-  ifstream indata; // indata is like cin
-  ifstream indata2; // indata is like cin
 
-  std::vector<int> readlist;    
-
-  readlist.clear();
+  //This is height distribution, no reason to have length of gene, arbitrary starting depth choosen 
+  std::vector<int> HEIGHT(100, 0L); // will have the number of times you see every height across the gene  HEIGHT[3] = 10 means that there are 10 peaks with a height of 3
+  
   srand(time(NULL)); // seed random-number generator with the current time
   for (int iteration = 1; iteration <= r; iteration++){
-    //initialize GENE and HEIGHT
-    for (int j = 0; j < L; j++){
-      GENE[j] = 0;
+
+    //re-initalize height and gene on each iteration
+    for(int i = 0; i < L; i++) {
+      GENE[i] = 0;
     }
-    for (int j = 0; j < L; j++){
-      HEIGHT[j] = 0;
+    
+    for( int i = 0; i < HEIGHT.size(); i++) {
+      HEIGHT[i] = 0;
     }
-    //end initialize
 
     //for each read assign it randomly
-    for (int i=0; i<PyList_Size(reads); i++){
+    for (int i=0; i < num_reads; i++){
       long len = PyInt_AsLong(PyList_GetItem(reads, i));
 
       //error checking for obviously invalid reads
@@ -99,8 +96,15 @@ extern "C" PyObject *peaks_shuffle(PyObject *self, PyObject *args)
       int ran;
       
       //Pick a random location witin the gene that the read can map to
-      ran = rand() % (L - len -1); //correct possible positions of reads based on size of gene and size of read
+      ran = rand() % (L - len - 1); //correct possible positions of reads based on size of gene and size of read
       
+      if (ran + len >= L) {
+	PyErr_SetString(PyExc_ValueError, "read is assigned past end of gene, this is a bug");
+	return NULL;
+      }
+
+
+
       //Increment the coverage along the length of that read
       for(int position=ran; position < (ran+len); position++)	{
 	GENE[position]++;
@@ -110,6 +114,13 @@ extern "C" PyObject *peaks_shuffle(PyObject *self, PyObject *args)
     int total_num_peaks = 0;
     int max_height = 0;
     for (int j = 0; j < L; j++) {
+      
+      //if not enough read depth, resize
+      if (GENE[j] >= HEIGHT.size()) { 
+	  HEIGHT.resize(GENE[j] + 100, 0);
+	}
+
+      //now add to total height distribution
       HEIGHT[GENE[j]]++; // simulated height distribution
       if (GENE[j] > 0){
 	total_num_peaks++;
@@ -172,31 +183,21 @@ extern "C" PyObject *peaks_shuffle(PyObject *self, PyObject *args)
       continue;
     }
 
+    //Assign height cutoff to output vector
     int height_cutoff = corr_sig_heights[(corr_sig_heights.size() - 1)]; // height cutoff is the smallest height that is still significant.
-    OBS_CUTOFF[height_cutoff]++;
-
-  
+    if (height_cutoff > OBS_CUTOFF.size()) {
+      OBS_CUTOFF.resize(height_cutoff + 100, 0L);
+    }
+    OBS_CUTOFF[height_cutoff]++;  
   }
   
-  PyObject *returnList = PyList_New(1000);
+  PyObject *returnList = PyList_New(0);
+  
   //constuct return list
-  for (int cut = 0; cut < 1000; cut++) {
-    PyList_SetItem(returnList, cut, Py_BuildValue("i", OBS_CUTOFF[cut]));  
+  for (int cut = 0; cut < OBS_CUTOFF.size(); cut++) {
+    PyList_Append(returnList, PyInt_FromLong(OBS_CUTOFF[cut]));
   }
   
-  
-  //calculate runtime
-  if (T == 1)    {
-    double CPS = CLOCKS_PER_SEC;
-    double C = clock();
-    double runtime = C/CPS;
-    cout << "runtime: " << runtime << " seconds" << endl;
-    cout << "number of reads: " << size_readslist << endl;
-    cout << "iterations: " << r << endl;
-    cout << "gene length: " << L << endl;
-  }
-  //
-
   return returnList;
 }
 

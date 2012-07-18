@@ -53,6 +53,7 @@ class test_peakfinder(unittest.TestCase):
         self.parser.add_option("--color", dest="color", default="0,0,0", help="R,G,B Color for BED track output, default:black (0,0,0)")
         self.parser.add_option("--start", dest="start", default=False, action="store_true", help=SUPPRESS_HELP) #private, don't use
         self.parser.add_option("--save-pickle", dest="save_pickle", default=False, action = "store_true", help="Save a pickle file containing the analysis")
+        
 
     
     
@@ -62,6 +63,7 @@ class test_peakfinder(unittest.TestCase):
     
     """
     def test_allup(self):
+        
         
         args = ["-b", pkg_resources.resource_filename(__name__, "../test/allup_test.bam"),
                  "-s", "hg19",
@@ -73,7 +75,6 @@ class test_peakfinder(unittest.TestCase):
                 ]    
         (options,args) = self.parser.parse_args(args)
         main(options)
-
         tested = open(pkg_resources.resource_filename(__name__, "../src/peak_results.BED"))
         correct = open(pkg_resources.resource_filename(__name__, "../test/peak_results.BED"))
         
@@ -85,6 +86,9 @@ class test_peakfinder(unittest.TestCase):
         for test, correct in zip(tested_tool, correct_tool):
             self.assertEqual(test, correct)
         
+        #cleanup
+        os.remove(pkg_resources.resource_filename(__name__, "../src/peak_results.BED"))
+    
     """def test_plotting(self):
         args = ["-b", pkg_resources.resource_filename(__name__, "../test/allup_test.bam"),
                  "-s", "hg19",
@@ -114,15 +118,30 @@ class test_peakfinder(unittest.TestCase):
         
     """
     
-    Checks for overlapping results
+    Checks for overlapping results, we don't want this
     
     """
     def test_checkOverlaps(self):
+        
+        args = ["-b", pkg_resources.resource_filename(__name__, "../test/allup_test.bam"),
+                 "-s", "hg19",
+                  "-g", "ENSG00000198901", 
+                  "--serial", 
+                  "--job_name=peak_test",
+                   "--outfile=" + pkg_resources.resource_filename(__name__, "../src/peak_results"),
+                   "-q"
+                ]    
+        (options,args) = self.parser.parse_args(args)
+        main(options)
+        
         #tests to make sure there are no overlaps
         tested = open(pkg_resources.resource_filename(__name__, "../src/peak_results.BED"))
         tested_tool2 = pybedtools.BedTool(tested)
         result = tested_tool2.merge(n=True)
         self.assertEqual(result, 0, "there are overlaps in the output file") 
+        
+        #cleanup
+        os.remove(pkg_resources.resource_filename(__name__, "../src/peak_results.BED"))
         
     """
     
@@ -447,8 +466,9 @@ class test_peakfinder(unittest.TestCase):
     def test_main(self):
         pass
     
-    def tareDown(self):
-        #cleanup
-        os.remove(pkg_resources.resource_filename(__name__, "../src/peak_results.BED"))
+    def tearDown(self):
+        pass
+        
 if __name__ =='__main__':
     unittest.main()
+    os.remove(pkg_resources.resource_filename(__name__, "../src/peak_results.BED"))
