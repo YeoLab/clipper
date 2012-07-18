@@ -109,9 +109,10 @@ def get_FDR_cutoff_mean(readlengths, genelength, iterations=1000, mincut = 2, al
     TODO: Allow the minimum cutoff to be paramaritizied
     TODO: double check math on this
     """
-    
-    if readlengths.__len__() < 20: # if you have very few reads on a gene, don't waste time trying to find a cutoff
+
+    if len(readlengths) < 20: # if you have very few reads on a gene, don't waste time trying to find a cutoff        
         return mincut
+
     results = peaks.shuffle(genelength, iterations, 0, .05, readlengths) 
     
     total = 0
@@ -119,7 +120,7 @@ def get_FDR_cutoff_mean(readlengths, genelength, iterations=1000, mincut = 2, al
     
     #parses results from peaks script, calculates mean from peaks results 
     #should document peaks function call return value somewhere around here
-    
+        
     for cut, n_observed in enumerate(results):
         total += (cut * n_observed)
         n+=n_observed
@@ -410,7 +411,6 @@ def call_peaks(loc, gene_length, bam_fileobj=None, bam_file=None, trim=False, ma
 
     #need to document reads to wiggle
     wiggle, jxns, pos_counts, lengths, allreads =readsToWiggle_pysam(subset_reads,tx_start, tx_end, keepstrand=signstrand, trim=trim)
-    
     
     r = peaks_from_info(wiggle,pos_counts, lengths, loc, gene_length, trim, margin, FDR_alpha,user_threshold,minreads, poisson_cutoff, plotit, quiet, outfile, w_cutoff, windowsize, SloP, correct_P)
 
@@ -1156,9 +1156,8 @@ if __name__ == "__main__":
     parser.add_option("--save-pickle", dest="save_pickle", default=False, action = "store_true", help="Save a pickle file containing the analysis")
     (options,args) = parser.parse_args()
     
-    #enforces required usage
+    #enforces required usage    
     if not (options.bam and ((options.species) or (options.geneBEDfile and options.geneMRNAfile and options.genePREMRNAfile))):
-        print "to helpful"
         parser.print_help()
         exit()
         
