@@ -32,45 +32,67 @@ if "optiputer" in host or "compute" in host:
 elif "tcc" in host or "triton" in host:
     basedir = "/projects"    
 
-def check_for_index(bamfile):
+def check_for_index(bamfile, make = True):
+    """Check for an index, create one if it doesn't and make is True."""
     if os.path.exists(bamfile + ".bai"):
         return 1
     else:
-        print "Index for %s does not exist, please get a cookie while I index your bamfile for you" %(bamfile)
-        process = call(["samtools", "index", str(bamfile)])
+        print "Index for %s does not exist" %(bamfile)
+        if make is True:
+            print "Please get a cookie while I index your bamfile for you" 
+            process = call(["samtools", "index", str(bamfile)])
         return 1
 
 def get_FDR_cutoff_mode(readlengths, genelength, iterations=1000, mincut = 2, alpha=.05):
+
+
     """
-    Find randomized method, as in FOX2ES NSMB paper.
+    Find randomized threshold for signficance, as in FOX2ES NSMB paper.
+
+    Find the most frequently observed height against a random background.
+
+    Calls a C++ function called peaks to calculate the height of reads for which the
+    Benjamani-Hochberg corrected p-value is significant, with respect to a background of
+    the same number of equally-lengthed random reads scattered across a fake gene of the
+    same effective (alignable, maybe other consierations) length.  The source for this
+    is included in the repo as peaks_1.2.cc 
+
     """
+
     if readlengths.__len__() < 20: # if you have very few reads on a gene, don't waste time trying to find a cutoff
         return mincut
     cmd = str(os.path.join(basedir, "yeolab/Software/bin/peaks"))
     bad = 1
     tries=0
+
     while bad == 1 and tries < 5:
+
+        #problems opening other connections sometimes... make sure to try a couple times
+
         try:
             process = Popen([cmd, "-f", "stdin", "-L",str(genelength),"-r", str(iterations), "-a", str(alpha)], stdin=PIPE, stdout=PIPE)
             results, err = process.communicate("\n".join(map(str, readlengths)))
             return_val = process.wait()
             bad=0
+
         except OSError:
             print "Couldn't open a process for thresholding, trying again"
             tries +=1
         
     if bad == 1:
         return "error"
+
     obs = 0
-    cutoff = mincut
-    for x in results.split("\n"):
+    cutoff = mincut #initialize the observed cutoff
+
+    for x in results.split("\n"): #parse the results
         if x == "":
             continue
         try:
             cut, n_observed = map(int, x.strip().split("\t"))
         except:
             pass
-        if n_observed > obs and cut > cutoff:
+        if n_observed >= obs and cut > cutoff: #take the most frequently observed 
             obs = n_observed
             cutoff = cut
     if cutoff < mincut:
@@ -145,7 +167,7 @@ def build_lengths(file):
     FI.close()
     return LEN
         
-def find_sections(data, margin):
+def find_sections(data, margin=15):
     """
     Find contiguous (within margin) regions that have reads
     """
