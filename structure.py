@@ -2,7 +2,7 @@ from deap import dtm
 from subprocess import Popen, call, PIPE
 import re
 import pybedtools
-import os
+import os,sys
 import pickle
 from seqTools import fetchseq, chop
 #from CLIP_analysis import get_phastcons
@@ -32,12 +32,26 @@ def RNAhybrid_hits(query, target, mfe_cutoff=-40, chi=-20.0, theta=10.0):
     """
     
     #print " ".join(map(str, [RNAhybridcmd, "-d", (str(chi) + "," + str(theta)), "-n", "70", "-m", "10000", "-e", str(mfe_cutoff), str(target), str(query)]))
-    
-    rh = Popen([RNAhybridcmd, "-d", (str(chi) + "," + str(theta)), "-n", "70", "-m", "10000", "-e", str(mfe_cutoff), str(target), str(query)], stdout = PIPE)
-    parse = Popen(["perl", RNAhybrid_parser], stdin=rh.stdout, stdout=PIPE)
-    rh.stdout.close()
-    output = parse.communicate()
-    results = output[0].split("\n")[:-1]
+    tries = 0
+    while tries < 5: #recover from problems opening a Popen instance
+        try:
+            rh = Popen([RNAhybridcmd, "-d", (str(chi) + "," + str(theta)),
+                        "-n", "70", "-m", "10000", "-e", str(mfe_cutoff),
+                        str(target), str(query)], stdout = PIPE)
+            parse = Popen(["perl", RNAhybrid_parser], stdin=rh.stdout, stdout=PIPE)
+            rh.stdout.close()
+            output = parse.communicate()
+            results = output[0].split("\n")[:-1]
+            if tries > 0:
+                print "problem fixed"
+            tries=100 #made it through, exit the loop
+        except:
+            print "problem with %s" %(str(query))
+            tries = tries+1
+
+    if tries == 5:
+        print "I had a problem opening a Popen instance"
+        print "error, %s" %(sys.exc_info())
     for i, r in enumerate(results):
         results[i] = r.split("\t")
     return results
@@ -129,27 +143,30 @@ def bed12FromMatchedPair(a,b, x,y, chr="chrZ", strand = "+", color="255,0,0", sc
     bedline = "\t".join(map(str, [chr, start, stop, name, score, strand,  start, stop, color, "2", ",".join(map(str, [block1len, block2len])), ",".join(map(str,[block1Start, block2Start]))]))
     return bedline
     
-def matched_positions(query, target, querychunks=70, targetchunks=10000, mfe_cutoff=-40, species="hg19"):
+def matched_positions(query, target, querychunks=70, queryOverlap=.6, targetchunks=10000, targetOverlap=.1, mfe_cutoff=-40, species="hg19", quiet =False):
     """
     Run RNAhybrid using a genome range for query and target, step
     along each in (query/target)chunks-sized overlapping windows, target and query are
     bedtools intervals returned positions are 0-based from the start of
     target
     """
-    print "Pairing %s with %s" %(str(query), str(target))
-    
+    if quiet is not True:
+        print "Pairing %s with %s" %(str(query), str(target))
+
     qSeq = fetchseq(species, query.chrom.replace("chr", ""),
                     query.start, query.stop, query.strand)
     tSeq = fetchseq(species, target.chrom.replace("chr", ""),
                     target.start, target.stop, target.strand)
 
-    tChop = chop(tSeq, chunkSize=targetchunks, chunkOverlap=.1)
+    tChop = chop(tSeq, chunkSize=targetchunks, chunkOverlap=targetOverlap)
     matches = list()
 
 
     for i, T in tChop:
-        qChop = chop(qSeq, chunkSize=querychunks, chunkOverlap=.6)
+        qChop = chop(qSeq, chunkSize=querychunks, chunkOverlap=queryOverlap)
         for j, Q in qChop:
+            #print str(i) + "\t" + str(j)
+            #print T + "\t" + Q
             hits = RNAhybrid_hits(Q, T, mfe_cutoff=mfe_cutoff)
             for hit in hits:
                 tname, tlen, tpos, qname, qlen, mfe, pval, tseq, qseq = hit
@@ -178,7 +195,8 @@ def matched_positions(query, target, querychunks=70, targetchunks=10000, mfe_cut
                 
                 if bedline is not None:
                     matches.append(bedline)
-    print "Found %s structural matches" %(str(len(matches)))
+    if quiet is not True:
+        print "Found %s structural matches" %(str(len(matches)))
     return matches
 
 
@@ -211,27 +229,28 @@ def run_fold(picklefile, dir=None, eventName=None, outfile=None, mfe_cutoff=-40,
         return matches
     #print "mfe_cutoff = %f" %(mfe_cutoff)
     try:
-        matches.extend([i.replace("bedline", (eventName + "%%s" %(info['type']) + "%diProx_diDist")) for i in matched_positions(diProx, diDist, mfe_cutoff=mfe_cutoff, species=species)])
+        matches.extend([i.replace("bedline", (eventName + "%" + "%s" %(info['type']) + "%" + "diProx_diDist")) for i in matched_positions(diProx, diDist, mfe_cutoff=mfe_cutoff, species=species)])
+    except:
+        print "error. Exception raised was: %s" %(str(sys.exc_info()))
+        
+    try:
+        matches.extend([i.replace("bedline", (eventName + "%" + "%s" %(info['type']) + "%" + "diProx_uiDist")) for i in matched_positions(diProx, uiDist, mfe_cutoff=mfe_cutoff, species=species)])
     except:
         pass
     try:
-        matches.extend([i.replace("bedline", (eventName + "%%s" %(info['type']) + "%diProx_uiDist")) for i in matched_positions(diProx, uiDist, mfe_cutoff=mfe_cutoff, species=species)])
-    except:
-        pass
-    try:
-        matches.extend([i.replace("bedline", (eventName + "%%s" %(info['type']) + "%diProx_uiProx")) for i in matched_positions(diProx, uiProx, mfe_cutoff=mfe_cutoff, species=species)])
+        matches.extend([i.replace("bedline", (eventName + "%" + "%s" %(info['type']) + "%" + "diProx_uiProx")) for i in matched_positions(diProx, uiProx, mfe_cutoff=mfe_cutoff, species=species)])
     except:
         pass        
     try:
-        matches.extend([i.replace("bedline", (eventName + "%%s" %(info['type']) + "%uiProx_uiDist")) for i in matched_positions(uiProx, uiDist, mfe_cutoff=mfe_cutoff, species=species)])
+        matches.extend([i.replace("bedline", (eventName + "%" + "%s" %(info['type']) + "%" + "uiProx_uiDist")) for i in matched_positions(uiProx, uiDist, mfe_cutoff=mfe_cutoff, species=species)])
     except:        
         pass
     try:
-        matches.extend([i.replace("bedline", (eventName + "%%s" %(info['type']) + "%uiProx_diDist")) for i in matched_positions(uiProx, diDist, mfe_cutoff=mfe_cutoff, species=species)])
+        matches.extend([i.replace("bedline", (eventName + "%" + "%s" %(info['type']) + "%" + "uiProx_diDist")) for i in matched_positions(uiProx, diDist, mfe_cutoff=mfe_cutoff, species=species)])
     except:
         pass
     try:
-        matches.extend([i.replace("bedline", (eventName + "%%s" %(info['type']) + "%uiProx_diProx")) for i in matched_positions(uiProx, diProx, mfe_cutoff=mfe_cutoff, species=species)])
+        matches.extend([i.replace("bedline", (eventName + "%" + "%s" %(info['type']) + "%" + "uiProx_diProx")) for i in matched_positions(uiProx, diProx, mfe_cutoff=mfe_cutoff, species=species)])
     except:
         pass    
     all = "\n".join(matches)
@@ -252,17 +271,34 @@ def fold_a_dir(eventName, dir="structure_tmp/", outdir = "beds", rewrite=False, 
     #if os.path.exists(os.path.join(outdir, (eventName + ".RNAlinks.bed"))) and not rewrite:
     #    #file exists and user has not specificed a rewrite
     #    return(BT(os.path.join(outdir, (eventName + ".RNAlinks.bed"))))
+
+
+
+    #IMPORTANT:Delete locks later!!!
+
+    #make a lock so other processes can't touch it. 
+    if os.path.exists(os.path.join(outdir, (eventName + ".lock"))):
+        print "skipping locked file"
+        return None
+    else:
+        f = open(os.path.join(outdir, (eventName + ".lock")), 'w')
+        f.write("lock")
+        f.close()
+                     
+    
     if os.path.exists(os.path.join(outdir, (eventName + ".RNAlinks.bed"))): #this may lead to a race and data collision in the unlikely circumstance that two computers are running structure.py on the same set of genes to the same output directory
         #check whether the file contains "empty" indicating that the job was killed before a bed-file can be written or whether it shuold be re-tried
+        
         f = open(os.path.join(outdir, (eventName + ".RNAlinks.bed")), 'r');
         if str(f.readline()).startswith("empty") or rewrite is True:
+            #the file was opened previously, but never finished or, the user requested a re-write
             #print "removing existing files, probably corrupt intermediates"
             [os.remove(i) for i in glob.glob(os.path.join(outdir, (eventName + "*.RNAlinks.bed")))]#did not finish, partial files are probably corrupt
             pass
         else:
             f.close() #this is a legit bed file, i'll leave it be
             return(BT(os.path.join(outdir, (eventName + ".RNAlinks.bed"))))
-        #the file was opened previously, but never finished
+        
         f.close() #this is a legit bed file, i'll leave it be        
     f = open(os.path.join(outdir, (eventName + ".RNAlinks.bed")), 'w');
     f.write("empty\n")
@@ -281,12 +317,13 @@ def fold_a_dir(eventName, dir="structure_tmp/", outdir = "beds", rewrite=False, 
                 out.append(BT(outfile))
                 continue
             tool = run_fold(file, outfile=outfile,mfe_cutoff=mfe_cutoff, species=species)
+            
             out.append(tool)
         except:
             print "problem with %s" %(file)
     if len(out) ==1:
         print "using a single event for %s" %(eventName)
-        tool = out[0].saveas(os.path.join(outdir, (eventName + ".RNAlinks.bed")), trackline="track_name='%s.RNAlinks' itemRgb=On" %(eventName))
+        print "Wrote to file %s" %(outfile)
     else:
         import operator
         print "Merging multiple events"
@@ -294,11 +331,20 @@ def fold_a_dir(eventName, dir="structure_tmp/", outdir = "beds", rewrite=False, 
         for i in out:
             if i is None:
                 nCmps = nCmps-1
-                
+
         if nCmps > 0:
             try:
-                tool = BT(reduce(operator.add, [i+"\n" for i in "\n".join([str(i) for i in out if i is not None and len(i)>0]).split("\n") if i.startswith("chr")]), from_string=True).saveas(os.path.join(outdir, (eventName + ".RNAlinks.bed")), trackline="track_name='%s.RNAlinks' itemRgb=On" %(eventName)) #merge all bed lines into one and save with a track linee
+                newBed = ""
+                for event in out:
+                    for line in event:
+                        if line is not None:
+                            newBed = str(newBed) + "\n" + str(line)
+                
+                tool = BT(newBed, from_string=True).saveas(os.path.join(outdir, (eventName + ".RNAlinks.bed")), trackline="track_name='%s.RNAlinks' itemRgb=On" %(eventName)) #merge all bed lines into one and save with a track line
+                print "Wrote to file %s" %(os.path.join(outdir, (eventName + ".RNAlinks.bed")))
+
             except:
+                print sys.exc_info()
                 tool = None
         else:
             tool = None
@@ -367,6 +413,13 @@ def main(options):
         genelist = options.gene
     #mongoport = "8585"
     #mongo = Popen(["ssh", "-L", ("%s:localhost:%s" %(mongoport, mongoport)), "oolite", "-N"])  #connect to mongo db
+
+
+    if options.max_genes is not None:
+        if not len(genelist) < options.max_genes: #already < max_genes genes in genelist
+            import random
+            #sample a random subset
+            genelist = random.sample(genelist, options.max_genes)
     
     if options.serial is True:
         for gene in genelist:
@@ -388,6 +441,7 @@ if __name__ == "__main__":
     parser.add_option("--mfe_cutoff", dest="mfe_cutoff",default=-45)
     parser.add_option("--dbdir",      dest="dbdir",     default="structure_tmp/")
     parser.add_option("--outdir",      dest="outdir",     default="beds/")
+    parser.add_option("--max_genes", dest="max_genes", default=None, type="int")
     parser.add_option("--gene",       dest="gene",      default=None,   action="append")
     
     parser.add_option("--SGEprefix",     dest="prefix",    default=os.getcwd(), help="location for sh script and error logs")
