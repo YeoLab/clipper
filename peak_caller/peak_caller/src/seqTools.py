@@ -12,6 +12,8 @@ from bx.bbi.bigwig_file import BigWigFile
 import pysam
 from subprocess import Popen, PIPE
 host = Popen(["hostname"], stdout=PIPE).communicate()[0].strip()
+
+#this appears unused now for peak calling stuff
 if "optiputer" in host or "compute" in host:
     basedir = "/nas/nas0"
 elif "tcc" in host or "triton" in host:
@@ -20,14 +22,16 @@ else:
     print "Where am I?"
     raise Exception
 
+pybedtools.set_tempdir(basedir + "/scratch/lovci/pybedtools_tmp")
 
-if not os.path.exists("/nas3/scratch/lovci/pybedtools_tmp"):
-    pybedtools.set_tempdir("/projects/lovci/projects/tmp/python_tmp")
-else:
-    pybedtools.set_tempdir("/nas3/scratch/lovci/pybedtools_tmp")
-    pass
+
 
 def build_AS_STRUCTURE_dict(species):
+    """
+    used for other tools, not peakfinder related (yet)
+    #This appears unused leaving until I talk with mike
+
+    """
     if species == "hg19":
         chrs = map(str,range(1,23)) #1-22
         chrs.append("X")
@@ -88,7 +92,13 @@ def build_AS_STRUCTURE_dict(species):
             info[gene]['tx_stop'] = tx_stop
     return info, Gtypes
 
+
 def assign_to_regions(tool, species="hg19", nrand = 3, getseq=False):
+    """
+    MTL - used for CLIP_analysis.py
+    @This appears unused, leaving until I talk with mike
+    
+    """    
     speciesFA = ""
     if species =="hg19" or species == "mm9" or species =="hg18":
         speciesFA = basedir + "/yeolab/Genome/ucsc/" +species + "/chromosomes/all.fa"
@@ -174,7 +184,14 @@ def assign_to_regions(tool, species="hg19", nrand = 3, getseq=False):
         bed_dict['all']['rand'][i].sequence(fi=speciesFA, s=True)
     return bed_dict, sizes, Gsizes
 
+
+
 def build_assigned_from_existing(assigned_dir, clusters, regions, nrand):
+    """
+    used for CLIP_analysis
+    This appears unused, leaving until I talk with mike
+
+    """    
     CLUS_regions = {}
     for region in regions:
         CLUS_regions[region]={}
@@ -199,8 +216,29 @@ def build_assigned_from_existing(assigned_dir, clusters, regions, nrand):
     
     return CLUS_regions, sizes, Gsizes
 
-
 def readsToWiggle_pysam(reads, tx_start, tx_end, keepstrand=None, trim=False, usePos='center'):
+
+    """
+
+    Takes a list of reads from a bam file object and converts them to wiggle format
+
+    Paramaters
+    ----------
+    reads: bamfile object
+    tx_start: transcription start site for region to convert
+    tx_stop: transcription stop site for region to convert
+    keepstrand: boolean for if strand specific information is important --check with mike
+    trim: unknown
+    usePos: location to assign read to accepts center, start or end
+    
+    Returns 
+    wiggle: list represnting wiggle track for that location
+    jxns: dictionary of the number of reads spaning a specific junction
+    pos_counts: unknown looks like wiggle
+    lengths: list of lengths of all reads
+    allreads: dictionary of all reads in nested dict format allreads[start][stop] = 1
+
+    """    
     wiggle = zeros((tx_end - tx_start + 1), dtype='f') #total read overlapping each position
     pos_counts = zeros((tx_end - tx_start + 1), dtype='f') #each read only gives one point, use usePos to determine whether the point comes from the start, center, or end
     allreads = {}
@@ -280,16 +318,29 @@ def readsToWiggle_pysam(reads, tx_start, tx_end, keepstrand=None, trim=False, us
 
 
 def revcom(seq):
+    """
+
+    Reverse complement a standard DNA sequence (consider forcing use of Biopython) -- why? one-liner...
+    
+    """
+    
     import string
     return seq[::-1].translate(string.maketrans("tgcaTGCA", "acgtACGT"))
 
 
+
+
 def fetchseq(species, chr, start, stop, strand):
+    """
+    wrapper for fetchseq
+    TODO: wrap this into pybedtools.getSeq
+
+    """    
 
     tries=0
     while tries < 5:
         try:
-            p = Popen([basedir + "/yeolab/Software/bin/fetchseq", "-s", species, "-c", str(chr), "-f", str(start), "-t", str(stop), "-h", basedir], stdout = PIPE)
+            p = Popen(["./fetchseq", "-s", species, "-c", str(chr), "-f", str(start), "-t", str(stop), "-h", basedir], stdout = PIPE)
             seq = p.communicate()[0].split("\n")
             tries=100
         except:
@@ -305,8 +356,22 @@ def fetchseq(species, chr, start, stop, strand):
     else:
         raise Exception
 
+
 def chop(sequence, chunkSize=50, chunkOverlap=.2):
-    """Chop input sequence into smaller bits (size=chunkSize).  if chunkOverlap is > 0 then it the smaller bits will overlap. The last element will likely be shorter"""
+    """
+
+    Generator function to chop input sequence into smaller bits (size=chunkSize).  
+    if chunkOverlap is > 0 then it the smaller bits will overlap. 
+    The last element will likely be shorter
+    
+    Paramaters
+    ----------
+
+    Sequence: supplied string
+    chunksize: length to chop chunks into
+    chunkoverlap: overlap between previous chunk and next chunk
+
+    """    
     i=0
     chunkstep = int(chunkSize*(1-chunkOverlap))
     while (i < len(sequence)):
