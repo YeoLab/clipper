@@ -1,7 +1,8 @@
 from distutils.core import Extension
 from setuptools import setup, find_packages
 
-peaks = Extension("src/peaks", sources = ['src/peaksmodule.cc'])
+peaks = Extension("src/peaks", sources = ['src/peaksmodule.cc'],)
+#                  extra_compile_args = ['-O0']) used for debugging
 
 setup(
     name = "FindPeaks",
@@ -11,14 +12,12 @@ setup(
     package_data = {
         '' : ['*.lengths', '*.gz', '*.bam']
         },
-    #Project Dependences go here
-
-    #data and scripts go here
+    
     install_requires = ['setuptools >= 0.6', 
                         'pysam >= 0.6',
                         'numpy >= 1.5.1 ',
                         'scipy >= 0.11.0b1',
-                        'matplotlib >= 0.99.3',
+                        'matplotlib >= 1.1.0',
                         'deap >= 0.8',
                         'pybedtools >= 0.6',
                         ],
