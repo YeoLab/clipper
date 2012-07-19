@@ -172,7 +172,7 @@ extern "C" PyObject *peaks_shuffle(PyObject *self, PyObject *args)
       }
     }
 
-    if (corr_sig_heights.size() == 0 ){ // no heights are significant
+    if (corr_sig_heights.size() == 0 ) { // no heights are significant
       iteration--;
       redone++;
 
