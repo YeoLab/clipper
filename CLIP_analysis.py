@@ -524,7 +524,7 @@ def get_offsets_bed12(tool):
     return of
 
 def get_offsets(clusters, motif, slop=500):
-    ov = clusters.window(motif, b=slop, sm=True)
+    ov = clusters.window(motif, w=slop, sm=True)
     distances = list()
     for line in ov:
         positions=line.__str__().split("\t")
