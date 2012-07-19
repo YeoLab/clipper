@@ -285,8 +285,18 @@ def revcom(seq):
 
 
 def fetchseq(species, chr, start, stop, strand):
-    p = Popen([basedir + "/yeolab/Software/bin/fetchseq", "-s", species, "-c", str(chr), "-f", str(start), "-t", str(stop), "-h", basedir], stdout = PIPE)
-    seq = p.communicate()[0].split("\n")
+
+    tries=0
+    while tries < 5:
+        try:
+            p = Popen([basedir + "/yeolab/Software/bin/fetchseq", "-s", species, "-c", str(chr), "-f", str(start), "-t", str(stop), "-h", basedir], stdout = PIPE)
+            seq = p.communicate()[0].split("\n")
+            tries=100
+        except:
+            print "trying fetchseq again"
+            tries = tries + 1
+
+
     sequence = "".join(seq[1:])
     if strand == "+":
         return(sequence)
