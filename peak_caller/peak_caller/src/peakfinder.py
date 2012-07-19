@@ -92,7 +92,7 @@ def get_FDR_cutoff_mode(readlengths, genelength, iterations=1000, mincut = 2, al
         cutoff = mincut            
     return int(cutoff)
 
-def get_FDR_cutoff_mean(readlengths, genelength, iterations=1000, mincut = 2, alpha = 0.05):
+def get_FDR_cutoff_mean(readlengths, genelength, iterations=100, mincut = 2, alpha = 0.05):
     """
     Find randomized method, as in FOX2ES NSMB paper.
     MEAN, not MODE
@@ -112,7 +112,8 @@ def get_FDR_cutoff_mean(readlengths, genelength, iterations=1000, mincut = 2, al
 
     if len(readlengths) < 20: # if you have very few reads on a gene, don't waste time trying to find a cutoff        
         return mincut
-
+    
+    print genelength, iterations, readlengths
     results = peaks.shuffle(genelength, iterations, 0, .05, readlengths) 
     
     total = 0
@@ -1116,6 +1117,7 @@ def main(options):
 
         return 1
 
+
 if __name__ == "__main__":
     
     usage="\npython peakfinder.py -b <bamfile> -s <hg18/hg19/mm9>\n OR \npython peakfinder.py -b <bamfile> --customBED <BEDfile> --customMRNA <mRNA lengths> --customPREMRNA <premRNA lengths>"
@@ -1129,6 +1131,7 @@ if __name__ == "__main__":
     parser.add_option("--customBED", dest="geneBEDfile", help="bed file to call peaks on, must come withOUT species and with customMRNA and customPREMRNA", metavar="BEDFILE")
     parser.add_option("--customMRNA", dest="geneMRNAfile", help="file with mRNA lengths for your bed file in format: GENENAME<tab>LEN", metavar="FILE")
     parser.add_option("--customPREMRNA", dest="genePREMRNAfile", help="file with pre-mRNA lengths for your bed file in format: GENENAME<tab>LEN", metavar="FILE")
+    parser.add_option("--session", dest="session", help="Type of cluster to submit multi-threaded job to, enter SGE or PBS", type="string")
 
     parser.add_option("--outdir", dest="prefix", default=os.getcwd(), help="output directory, default=cwd")    
     parser.add_option("--outfile", dest="outfile", default="fitted_clusters", help="a bed file output, default:%default")
@@ -1154,6 +1157,7 @@ if __name__ == "__main__":
     parser.add_option("--color", dest="color", default="0,0,0", help="R,G,B Color for BED track output, default:black (0,0,0)")
     parser.add_option("--start", dest="start", default=False, action="store_true", help=SUPPRESS_HELP) #private, don't use
     parser.add_option("--save-pickle", dest="save_pickle", default=False, action = "store_true", help="Save a pickle file containing the analysis")
+    
     (options,args) = parser.parse_args()
     
     #enforces required usage    
@@ -1171,20 +1175,35 @@ if __name__ == "__main__":
         if options.start is True:
             dtm.start(main, options)
         else:
+                
+            #importing drmaa here so as not to thrash serilazation 
+            
+            
             scriptName = os.path.join(options.prefix, options.job_name+".runme.sh")
             runerr = os.path.join(options.prefix, options.job_name+ ".err")
             runout = os.path.join(options.prefix, options.job_name+ ".out")
             shScript = open(scriptName, 'w')
-            host = Popen(["hostname"], stdout=PIPE).communicate()[0].strip()
-
-            if "optiputer" in host or "compute" in host:
-                shScript.write("#!/bin/bash\n#$ -N %s\n#$ -S /bin/bash\n#$ -V\n#$ -pe mpi %d\n#$ -cwd\n#$ -o %s\n#$ -e %s\n#$ -l bigmem\n" %(options.job_name, options.np, runout, runerr))
+            
+            #trying to make job submission as general as possible, figure out the engine to submit to
+            if options.session is not None:
+                sessionType = options.session
+            else: #use DRMAA to figure out engine type
+                try:
+                    from drmaa import Session
+                except e: 
+                    print >>sys.stderr, e 
+                    print >>sys.stderr, "you must either specify the type of cluster you are running or have DRMAA installed"
+                sessionType = Session.drmsInfo
+                
+            
+            if sessionType.startswith("GE") or sessionType.startswith("SGE"):
+                shScript.write("#!/bin/bash\n#$ -N %s\n#$ -S /bin/bash\n#$ -V\n#$ -pe mpi %d\n#$ -cwd\n#$ -o %s\n#$ -e %s\n#$" %(options.job_name, options.np, runout, runerr))
                 if options.notify is not None:
                     shScript.write("#$ -notify\n#$ -m abe\n#$ -M %s\n" %(options.notify))
             
                 shScript.write("/opt/openmpi/bin/mpirun -np $NSLOTS -machinefile $TMPDIR/machines python %s --start\n" %(" ".join(sys.argv)))
 
-            elif "tcc" in host or "triton" in host:
+            elif sessionType.startswith("PBS"):
                 nnodes = 1
                 if int(options.np)%8 == 0:
                     nnodes = int(options.np)/8
