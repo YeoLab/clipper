@@ -11,6 +11,7 @@ import subprocess
 import pysam
 from subprocess import Popen, PIPE
 import pkg_resources
+import gc
 host = Popen(["hostname"], stdout=PIPE).communicate()[0].strip()
 
 #this appears unused now for peak calling stuff

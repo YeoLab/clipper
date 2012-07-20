@@ -113,7 +113,6 @@ def get_FDR_cutoff_mean(readlengths, genelength, iterations=100, mincut = 2, alp
     if len(readlengths) < 20: # if you have very few reads on a gene, don't waste time trying to find a cutoff        
         return mincut
     
-    print genelength, iterations, readlengths
     results = peaks.shuffle(genelength, iterations, 0, .05, readlengths) 
     
     total = 0
@@ -205,17 +204,16 @@ TODO: Modify to allow for thresholded margins
 def find_sections(data, margin):
 
     sections = list()
-    section_num =0
     start = 0
     stop = 0
-    highlight=False
-    gap=0
+    highlight = False
+    gap = 0
     margin = int(margin)
     
     #walk along wiggle track until a gap is length of margin, when that happens reset, call that a region
     #and reset
     for i, val in enumerate(data):
-        stop =i
+        stop = i
         if val > 0:
             gap=0
             if highlight is False:
@@ -413,7 +411,7 @@ def call_peaks(loc, gene_length, bam_fileobj=None, bam_file=None, trim=False, ma
     #need to document reads to wiggle
     wiggle, jxns, pos_counts, lengths, allreads =readsToWiggle_pysam(subset_reads,tx_start, tx_end, keepstrand=signstrand, trim=trim)
     
-    r = peaks_from_info(wiggle,pos_counts, lengths, loc, gene_length, trim, margin, FDR_alpha,user_threshold,minreads, poisson_cutoff, plotit, quiet, outfile, w_cutoff, windowsize, SloP, correct_P)
+    r = peaks_from_info(list(wiggle) ,pos_counts, lengths, loc, gene_length, trim, margin, FDR_alpha,user_threshold,minreads, poisson_cutoff, plotit, quiet, outfile, w_cutoff, windowsize, SloP, correct_P)
 
     return r
 
@@ -465,7 +463,9 @@ def peaks_from_info(wiggle, pos_counts, lengths, loc, gene_length, trim=False, m
     if quiet is not True:
         print "Testing %s" %(loc)
         print "Gene threshold is: %d" %(gene_threshold)
-    sections = find_sections(wiggle, margin)
+    
+    import peaks
+    sections = peaks.find_sections(wiggle, margin)
 
 
     if plotit is True:      
@@ -473,7 +473,7 @@ def peaks_from_info(wiggle, pos_counts, lengths, loc, gene_length, trim=False, m
     bed = list()
 
     for sect in sections:
-        sectstart, sectstop = map(int, sect.split("|"))
+        sectstart, sectstop = sect
         sect_length = sectstop-sectstart+1
         data = wiggle[sectstart:(sectstop+1)]
         cts = pos_counts[sectstart:(sectstop+1)]
@@ -986,7 +986,7 @@ def main(options):
                 else:
                     if quiet is not True:
                         print "Failed Gene Pvalue: %s Failed SloP Pvalue: %s for cluster %s" %(corrected_Gene_pval, corrected_SloP_pval, i)
-                    pass
+                    
             t=time.strftime('%X %x %Z')
             print geneinfo+ " finished:"+str(t)
         outbed = options.outfile + ".BED"

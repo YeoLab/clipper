@@ -252,61 +252,7 @@ class test_peakfinder(unittest.TestCase):
     def test_build_lengths(self):
         pass
     
-    """
     
-    Performs unit testing on find_sections
-
-    """
-    def test_find_sections(self):
-        #setup 
-        
-        #Null Case
-        self.assertRaises(TypeError, find_sections, (None, 0))
-        
-        #Case with all zero coverage
-        wiggle = [0] * 20
-        result = find_sections(wiggle, 0)
-        assert result == []
-        
-        #Case with all non-zero coverage
-        wiggle = [5] * 20
-        result = find_sections(wiggle, 0)
-        assert result == ["0|19"]
-      
-        #Case with one region on margin of one and two regions on margin of two
-        
-        #returns two segnments
-        wiggle = ([5] * 20) + [0] + ([5] * 20)
-        result = find_sections(wiggle, 0)
-        print result
-        
-        #I believe this is zero based half open result.  Need to think about it more
-        assert result == ["0|20", "21|40"]
-        
-        #returns one segnment
-        result = find_sections(wiggle, 1)
-        print result
-        assert result == ["0|40"]
-        
-        #second case returns two segnments
-        wiggle = ([5] * 9) + [0] + ([5] * 10)
-        result = find_sections(wiggle, 0)
-        print result
-        assert result == ["0|9", "10|19"]
-        
-        #returns one segnment
-        result = find_sections(wiggle, 1)
-        assert result == ["0|19"]
-        
-        #Edge case where margins stop before the end of genes
-        wiggle = [0] + ([5] * 10)
-        result = find_sections(wiggle, 0)
-        assert result == ["1|10"]
-        
-        #Edge case where margins start after the start of genes
-        wiggle = ([5] * 10) + [0] 
-        result = find_sections(wiggle, 0)
-        assert result == ["0|10"]
     
     """
     

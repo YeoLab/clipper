@@ -191,19 +191,125 @@ extern "C" PyObject *peaks_shuffle(PyObject *self, PyObject *args)
     OBS_CUTOFF[height_cutoff]++;  
   }
   
-  PyObject *returnList = PyList_New(0);
+  PyObject *returnList = PyList_New(OBS_CUTOFF.size());
   
   //constuct return list
   for (int cut = 0; cut < OBS_CUTOFF.size(); cut++) {
-    PyList_Append(returnList, PyInt_FromLong(OBS_CUTOFF[cut]));
+    PyList_SetItem(returnList, cut, PyInt_FromLong(OBS_CUTOFF[cut]));
   }
   
   return returnList;
 }
 
+/* Find contigous (within margin) regions that have reads, the area between covered locations is defined as regions without any coverage
+
+Input: data - wiggle track in list form each value is the coverage at that location
+margin - distance between section
+
+Output:
+A list of strings in the form "start_location|stop_location"
+
+TODO: Modify to allow for thresholded margins"
+
+*/
+extern "C" PyObject *peaks_find_sections(PyObject *self, PyObject *args) {
+  std::vector<PyObject*> sections(0); //vector of sections because appending to a python list takes a very long time
+  PyObject *wiggle; //list of reads
+  int margin;
+  int start = 0;
+  int stop = 0;
+  bool highlight = false;
+  int gap = 0;
+ 
+  //parse args
+  if(!PyArg_ParseTuple(args, "Oi", &wiggle, &margin)) {
+      return NULL;
+    }
+  int wiggle_size = PyList_Size(wiggle); 
+  int loc = 0; //initalize outside because we need to use for the end catch
+
+  //walk along the wiggle track looking for gaps wider than the margin, when that happens output the region
+  for (; loc < wiggle_size; loc++) { 
+    double cur_wiggle_value = PyFloat_AsDouble(PyList_GetItem(wiggle, loc));
+    stop = loc;
+
+    //If the current value is non-zero advance 
+    if (cur_wiggle_value > 0) {
+      gap = 0;
+      
+      //sets the new start after 
+      if ( !highlight ) { 
+	start = loc - margin;
+	
+	//make sure we don't go negative
+	if (start < 0) {
+	  start = 0;
+	}
+      }
+      highlight = true;
+    } else {
+      gap += 1;
+    }
+    
+    //reset and add region to list of sections
+    if (highlight && gap > margin) {
+      highlight = false;
+      gap = 0;
+
+      
+      PyObject *section = PyTuple_New(2);
+      PyTuple_SetItem(section, 0, PyInt_FromLong(start));
+      PyTuple_SetItem(section, 1, PyInt_FromLong(stop));
+     
+      sections.push_back(section);
+    }
+  }
+
+  //catch last potental section
+  if ( highlight ) {
+ 
+    PyObject *section = PyTuple_New(2);
+    PyTuple_SetItem(section, 0, PyInt_FromLong(start));
+    PyTuple_SetItem(section, 1, PyInt_FromLong(stop));
+   
+    sections.push_back(section);
+
+  }
+  
+  PyObject *returnList = PyList_New(sections.size());
+  
+  //transform vector to pylist
+  for (int i = 0; i < sections.size(); i++) {
+    PyList_SetItem(returnList, i, sections[i]);
+  }
+  
+  return returnList; 
+}
+
+extern "C" PyObject *peaks_readsToWiggle_pysam(PyObject *self, PyObject *args) {
+  std::vector<PyObject*> sections(0); //vector of sections because appending to a python list takes a very long time
+  PyObject *wiggle; //list of reads
+  int margin;
+  int start = 0;
+  int stop = 0;
+  bool highlight = false;
+  int gap = 0;
+ 
+  //parse args
+  if(!PyArg_ParseTuple(args, "Oi", &wiggle, &margin)) {
+      return NULL;
+    }
+  int wiggle_size = PyList_Size(wiggle);
+  return void;
+}
 static PyMethodDef peaks_methods[] = {
     {"shuffle",             peaks_shuffle,      METH_VARARGS,
      "Return the meaning of everything."},
+    {"find_sections", peaks_find_sections, METH_VARARGS,
+    "finds sections given a list and a margin"},
+    {"readToWiggle_pysam", peaks_readsToWiggle_pysam, METH_VARARGS,
+    "converts pysam to a wiggle vector and some other stuff},
+
     {NULL, NULL, 0, NULL}           /* sentinel */
 };
 
