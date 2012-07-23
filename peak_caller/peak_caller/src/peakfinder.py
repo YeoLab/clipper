@@ -19,12 +19,13 @@ import math
 import time
 import pybedtools
 from random import sample as rs
-from seqTools import *
+from seqTools import readsToWiggle_pysam
 import gzip
-import peaks
-import pkg_resources
+from peaks import find_sections, shuffle
+from pkg_resources import resource_filename
 host = Popen(["hostname"], stdout=PIPE).communicate()[0].strip()
 
+verboseprint = lambda *a: None
 """
 
 Checks to make sure a BAM file has an index, if the index does not exist it is created
@@ -44,12 +45,9 @@ def check_for_index(bamfile):
     if os.path.exists(bamfile + ".bai"):
         return 1
     else:
-        print "Index for %s does not exist, indexing bamfile" %(bamfile)
+        verboseprint("Index for %s does not exist, indexing bamfile" %(bamfile))
         process = call(["samtools", "index", str(bamfile)])
         
-        #error if file is not correct format
-        print process
-        print type(process)
         if process == -11: 
             raise NameError("file %s not of correct type" % (bamfile))
         
@@ -71,7 +69,7 @@ def get_FDR_cutoff_mode(readlengths, genelength, iterations=1000, mincut = 2, al
             return_val = process.wait()
             bad=0
         except OSError:
-            print "Couldn't open a process for thresholding, trying again"
+            print >>sys.stderr,  "Couldn't open a process for thresholding, trying again"
             tries +=1
         
     if bad == 1:
@@ -113,7 +111,7 @@ def get_FDR_cutoff_mean(readlengths, genelength, iterations=100, mincut = 2, alp
     if len(readlengths) < 20: # if you have very few reads on a gene, don't waste time trying to find a cutoff        
         return mincut
     
-    results = peaks.shuffle(genelength, iterations, 0, .05, readlengths) 
+    results = shuffle(genelength, iterations, 0, .05, readlengths) 
     
     total = 0
     n =0
@@ -174,16 +172,16 @@ Return:
 A dictionary with the key being the name of the gene and the value being the length
 
 """
-def build_lengths(file):
-    FI=open(file,"r")
-    LEN = dict()
+def build_lengths(f):
+    FI=open(f,"r")
+    gene_lengths = {}
 
     for line in FI.readlines():
-        name, len = line.strip().split("\t")
-        LEN[name]=int(len)
+        name, gene_length = line.strip().split("\t")
+        gene_lengths[name]=int(gene_length)
 
     FI.close()
-    return LEN
+    return gene_lengths
 
 """
 
@@ -242,7 +240,7 @@ def plotSpline(spline, data, xvals, threshold=None):
     Plot a smoothing spline and real data
     """
     
-    print "plotting"
+    verboseprint("plotting")
     f = plt.figure()
     ax1 = f.add_subplot(111)
     ax1.plot(xvals, data)
@@ -284,10 +282,6 @@ def find_univariateSpline(x, xdata, ydata, k, weight=None, resid=True):
             func = spline.__call__(xdata)
             turns = sum(abs(diff(sign(diff(func)))))/2 # number of turns in the function
             err = sqrt((spline.get_residual())*(turns**4))
-            #may also work.
-            ###norm = linalg.norm(func)
-            ###err = sqrt((spline.get_residual()) + norm**3) #penalize complexity
-            #print str(v) + "\t" + str(turns)
             return(err)
         else:
             return(spline)
@@ -384,7 +378,6 @@ user_threshold - user defined FDR thershold (probably should be factored into FD
 minreads - min reads in section to try and call peaks
 poisson_cutoff - p-value for signifance cut off for number of reads in peak that gets called - might want to use ashifted distribution
 plotit - makes figures 
-quiet - supresses output
 outfile - ???
 w_cutoff - width cutoff, peaks narrower than this are discarted 
 windowssize - for super local calculation distance left and right to look 
@@ -392,15 +385,15 @@ SloP - super local p-value instead of gene-wide p-value
 correct_P - boolean bonferoni correction of p-values from poisson
 
 """
-def call_peaks(loc, gene_length, bam_fileobj=None, bam_file=None, trim=False, margin=25, FDR_alpha=0.05,user_threshold=None,
-               minreads=20, poisson_cutoff=0.05, plotit=False, quiet=False, outfile=None, w_cutoff=10, windowsize=1000, SloP = False, correct_P = False):
+def call_peaks(loc, gene_length, bam_fileobj=None, bam_file=None, margin=25, FDR_alpha=0.05,user_threshold=None,
+               minreads=20, poisson_cutoff=0.05, plotit=False,  outfile=None, w_cutoff=10, windowsize=1000, SloP = False, correct_P = False):
     #setup
     chrom, gene_name, tx_start, tx_end, signstrand = loc.split("|")
     
     #logic reading bam files
     if bam_file is None and bam_fileobj is None:
         #using a file object is faster for serial processing bot doesn't work in parallel
-        print "you have to pick either bam file or bam file object, not both"
+        verboseprint("you have to pick either bam file or bam file object, not both")
         exit()
     elif bam_fileobj is None:
         bam_fileobj = pysam.Samfile(bam_file, 'rb')
@@ -409,9 +402,8 @@ def call_peaks(loc, gene_length, bam_fileobj=None, bam_file=None, trim=False, ma
     subset_reads = bam_fileobj.fetch(reference=chrom, start=tx_start,end=tx_end)
 
     #need to document reads to wiggle
-    wiggle, jxns, pos_counts, lengths, allreads =readsToWiggle_pysam(subset_reads,tx_start, tx_end, keepstrand=signstrand, trim=trim)
-    
-    r = peaks_from_info(list(wiggle) ,pos_counts, lengths, loc, gene_length, trim, margin, FDR_alpha,user_threshold,minreads, poisson_cutoff, plotit, quiet, outfile, w_cutoff, windowsize, SloP, correct_P)
+    wiggle, jxns, pos_counts, lengths, allreads = readsToWiggle_pysam(subset_reads,tx_start, tx_end, signstrand, "center")
+    r = peaks_from_info(list(wiggle), pos_counts, lengths, loc, gene_length, margin, FDR_alpha,user_threshold,minreads, poisson_cutoff, plotit, outfile, w_cutoff, windowsize, SloP, correct_P)
 
     return r
 
@@ -425,8 +417,8 @@ lengths - lengths aligned portions of reads
 rest are the same fix later
 
 """
-def peaks_from_info(wiggle, pos_counts, lengths, loc, gene_length, trim=False, margin=25, FDR_alpha=0.05,user_threshold=None,
-                                   minreads=20, poisson_cutoff=0.05, plotit=False, quiet=False, outfile=None, w_cutoff=10, windowsize=1000, SloP = False, correct_P = False):
+def peaks_from_info(wiggle, pos_counts, lengths, loc, gene_length, margin=25, FDR_alpha=0.05,user_threshold=None,
+                                   minreads=20, poisson_cutoff=0.05, plotit=False, outfile=None, w_cutoff=10, windowsize=1000, SloP = False, correct_P = False):
 
 
     peakDict = {}
@@ -451,26 +443,23 @@ def peaks_from_info(wiggle, pos_counts, lengths, loc, gene_length, trim=False, m
         gene_threshold = user_threshold
     
     if gene_threshold == "error":
-        print "I had a hard time with this one: %s.  I think I'll use a threshold of 50" %(loc)
+        verboseprint("I had a hard time with this one: %s.  I think I'll use a threshold of 50" %(loc))
         threshold=50
     peakDict['clusters'] = {}
     peakDict['sections'] = {}
-    peakDict['nreads'] = nreads_in_gene
+    peakDict['nreads'] = int(nreads_in_gene)
     peakDict['threshold'] = gene_threshold
     peakDict['loc'] = loc
     peakn=1
-    tmpsect = {}
-    if quiet is not True:
-        print "Testing %s" %(loc)
-        print "Gene threshold is: %d" %(gene_threshold)
+ 
+    verboseprint("Testing %s" %(loc))
+    verboseprint("Gene threshold is: %d" %(gene_threshold))
     
-    import peaks
-    sections = peaks.find_sections(wiggle, margin)
+    sections = find_sections(wiggle, margin)
 
 
     if plotit is True:      
         plotSections(wiggle, sections, gene_threshold)
-    bed = list()
 
     for sect in sections:
         sectstart, sectstop = sect
@@ -487,20 +476,18 @@ def peaks_from_info(wiggle, pos_counts, lengths, loc, gene_length, trim=False, m
         
         #makes sure there are enough reads
         if Nreads < minreads:
-            if quiet is not True:
-                print "%d is not enough reads, skipping section: %s" %(Nreads, sect)
+            verboseprint("%d is not enough reads, skipping section: %s" %(Nreads, sect))
             continue
         else:
-            if quiet is not True:
-                print "Analyzing section %s with %d reads" %(sect, Nreads)
+            verboseprint("Analyzing section %s with %d reads" %(sect, Nreads))
         
             
         #sets super-local if requested, might be able to factor this
         if user_threshold is None:
             if SloP is True:
                 threshold = get_FDR_cutoff_mean(sect_read_lengths, sect_length, alpha=FDR_alpha)
-                if quiet is not True:
-                    print "Using super-local threshold %d" %(threshold)
+                verboseprint("Using super-local threshold %d" %(threshold))
+                
             else:
                 threshold= gene_threshold
         else:
@@ -508,25 +495,21 @@ def peaks_from_info(wiggle, pos_counts, lengths, loc, gene_length, trim=False, m
 
         #saves threshold for each individual section
         peakDict['sections'][sect]['threshold'] = threshold
-        peakDict['sections'][sect]['nreads'] = Nreads
+        peakDict['sections'][sect]['nreads'] = int(Nreads)
 
         #if wiggle track never excides threshold
         if max(data) < threshold:
-            if quiet is not True:
-                print "data not high enough, stopping"
+            verboseprint("data not high enough, stopping")
             continue
         
         #fitting splines logic, black magic 
         try:
             degree=3 #cubic spline
             weights = None 
-            fo = True #output information about the fitting optimization
-            if quiet is True:
-                fo=False
             #for very large windows with many reads a large smoothing parameter is required.  test several different options to determine a reasonable inital estimate
             
-             #Goal is to find optimnal smooting paramater in multiple steps
-           #x1 initial estimate of smoothing paramater 
+            #Goal is to find optimnal smooting paramater in multiple steps
+            #x1 initial estimate of smoothing paramater 
             #step 1, identify good initial value
             x1=(sectstop-sectstart+1)
             x0=x1
@@ -545,8 +528,8 @@ def peaks_from_info(wiggle, pos_counts, lengths, loc, gene_length, trim=False, m
                     x0 = x2
                     useme = i
 
-            if quiet is not True:
-                print "I'm using (region length) * %d as the initial estimate for the smoothing parameter" %(useme)            
+         
+            verboseprint("I'm using (region length) * %d as the initial estimate for the smoothing parameter" %(useme))          
             try:
                 #fine optimization of smooting paramater
                 cutoff =float(0)
@@ -555,8 +538,10 @@ def peaks_from_info(wiggle, pos_counts, lengths, loc, gene_length, trim=False, m
                     tries += 1
                     if tries == 3: # increasing this may improve accuracy, but at the cost of running time.
                         break
+                    
+                    #TODO make verbose a global variable so I can display stuff again
                     sp = scipy.optimize.minimize(find_univariateSpline, x0, args=(xvals, data, degree, weights),
-                                                 options={'disp':fo}, method="Powell")
+                                                 options={'disp':False}, method="Powell")
                     #fit a smoothing spline using an optimal parameter for smoothing and with weights proportional to the number of reads aligned at each position if weights is set
                     if sp.success is True:
                         cutoff = sp.x
@@ -564,11 +549,11 @@ def peaks_from_info(wiggle, pos_counts, lengths, loc, gene_length, trim=False, m
                         pass
                     x0 += sect_length
             except:
-                print "%s failed spline fitting at section %s with sp: %s" %(loc, sect, str(sp))
+                print >>sys.stderr,  "%s failed spline fitting at section %s with sp: %s" %(loc, sect, str(sp))
                 continue
 
-            if quiet is not True:
-                print "optimized smoothing parameter"
+       
+            verboseprint ("optimized smoothing parameter")
         #if we are going to save and output as a pickle fi is %s" %(str(cutoff))
         #final fit spline
             spline = find_univariateSpline(cutoff, xvals, data, degree, weights, resid=False)
@@ -624,8 +609,7 @@ def peaks_from_info(wiggle, pos_counts, lengths, loc, gene_length, trim=False, m
                     p_stop = sect_length -1
                 try:
                     peaks = map(lambda x: x+p_start, xvals[diff(sign(diff(spline(xvals[p_start:(p_stop+1)]))))<0])  #peaks with-in this subsection, indexed from section (not subsection) start
-                    if quiet is not True:
-                        print "I found %d peaks" %(len(peaks))
+                    verboseprint( "I found %d peaks" %(len(peaks)))
                 except:
                     continue
                 
@@ -635,13 +619,11 @@ def peaks_from_info(wiggle, pos_counts, lengths, loc, gene_length, trim=False, m
                 if peaks.__len__() is 1:
                     #gets reads in peak
                     Nreads_in_peak = sum(cts[p_start:(p_stop+1)])
-                    if quiet is not True:
-                        print "Peak %d - %d has %d reads" %(p_start, (p_stop+1), Nreads_in_peak)
+                    verboseprint("Peak %d - %d has %d reads" %(p_start, (p_stop+1), Nreads_in_peak))
                     
                     #makes sure there enough reads
                     if Nreads_in_peak < minreads or max(data[p_start:(p_stop+1)]) < threshold:
-                        if quiet is not True:
-                            print "skipping peak, %d is not enough reads" %(Nreads_in_peak)
+                        verboseprint("skipping peak, %d is not enough reads" %(Nreads_in_peak))
                         continue
 
                     #formatting of bed track
@@ -794,7 +776,7 @@ def peaks_from_info(wiggle, pos_counts, lengths, loc, gene_length, trim=False, m
                         peakDict['clusters'][bedline]['size'] = peak_length
                         peakn+=1
         except:
-            print "spline fitting failed for %s" %(loc)
+            print >>sys.stderr,  "spline fitting failed for %s" %(loc)
             
     #inflate p-values based on # of comparisons #bonferroni corrected
     if correct_P is True:            
@@ -838,15 +820,12 @@ def add_species(species, chrs, bed, mrna, premrna):
         
 def main(options):
     bamfile = options.bam
-    quiet = options.quiet
-    start = True
     if os.path.exists(bamfile):
         bamfile = os.path.abspath(bamfile) #re-set to include the full path to bamfile
-        if quiet is not True:
-            #sys.stderr.write("bam file is set to %s\n" %bamfile)
-            print "bam file is set to %s\n" %(bamfile)
+        verboseprint("bam file is set to %s\n" %(bamfile))
     else:
-        print "Bam file not defined"
+        sys.stderr.write("Bam file not defined")
+        raise FileNotFoundException
 
     species = options.species
     geneBed = options.geneBEDfile
@@ -862,17 +841,17 @@ def main(options):
     lenfile = ""
     
     species_parameters["hg19"] = add_species("hg19", [range(1,22), "X", "Y"],
-                                             pkg_resources.resource_filename(__name__, "../data/hg19.AS.STRUCTURE_genes.BED.gz"),
-                                             pkg_resources.resource_filename(__name__, "../data/hg19.AS.STRUCTURE_mRNA.lengths"),
-                                             pkg_resources.resource_filename(__name__, "../data/hg19.AS.STRUCTURE_premRNA.lengths"))
+                                             resource_filename(__name__, "../data/hg19.AS.STRUCTURE_genes.BED.gz"),
+                                             resource_filename(__name__, "../data/hg19.AS.STRUCTURE_mRNA.lengths"),
+                                             resource_filename(__name__, "../data/hg19.AS.STRUCTURE_premRNA.lengths"))
     species_parameters["hg18"] = add_species("hg18", [range(1,22), "X", "Y"],
-                                             pkg_resources.resource_filename(__name__, "../data/hg18.AS.STRUCTURE_genes.BED.gz"),
-                                             pkg_resources.resource_filename(__name__, "../data/hg18.AS.STRUCTURE_mRNA.lengths"),
-                                             pkg_resources.resource_filename(__name__, "../data/hg18.AS.STRUCTURE_premRNA.lengths"))
+                                             resource_filename(__name__, "../data/hg18.AS.STRUCTURE_genes.BED.gz"),
+                                             resource_filename(__name__, "../data/hg18.AS.STRUCTURE_mRNA.lengths"),
+                                             resource_filename(__name__, "../data/hg18.AS.STRUCTURE_premRNA.lengths"))
     species_parameters["mm9"] = add_species("mm9", [range(1,19), "X", "Y"],
-                                            pkg_resources.resource_filename(__name__,"../data/mm9.AS.STRUCTURE_genes.BED.gz"),
-                                            pkg_resources.resource_filename(__name__,"../data/mm9.AS.STRUCTURE_mRNA.lengths"),
-                                            pkg_resources.resource_filename(__name__,"../data/mm9.AS.STRUCTURE_premRNA.lengths"))
+                                             resource_filename(__name__,"../data/mm9.AS.STRUCTURE_genes.BED.gz"),
+                                             resource_filename(__name__,"../data/mm9.AS.STRUCTURE_mRNA.lengths"),
+                                             resource_filename(__name__,"../data/mm9.AS.STRUCTURE_premRNA.lengths"))
     acceptable_species = ",".join(species_parameters.keys())
     
     #error checking
@@ -905,47 +884,34 @@ def main(options):
         pass
     
     #unwrapping the options is really unnessessary, this could be refactored to remove the unwrapping
-    job_name = options.job_name
-    prefix = options.prefix
     minreads = int(options.minreads)
     plotit = options.plotit
     poisson_cutoff = options.poisson_cutoff
 
-    g = options.gene ##
+    g = options.gene 
     
+    gene_list = list()
+    
+    allpeaks = set([])
+    #gets all the genes to call peaks on
+    try:
+        if len(g) > 0:
+            gene_list = g
+    except:
+        gene_list = genes.keys()
+        
     #Chooses between parallel and serial runs.  Potentally good to factor these two things out into different function calls
-    if options.serial is True:
-        #this warning looks incorrect, serial is for processing, not lists of genes
-        print "WARNING: not using transcriptome-based cutoff because you decided to supply a list of genes"
+   
         bamfileobj = pysam.Samfile(bamfile, 'rb')
-        n = 0 #number of genes analyzed
-        genelist = list()
-        #allpeaks=pybedtools.BedTool(open(options.outfile, 'w'))
-        allpeaks = dict()
         
-        #this is all super hacky and needs to be cleaned up, this tests for genes or keys, needs to be more explicit
-        try:
-            if g.__len__() > 0:
-                genelist = g
-                print "Trying these genes:"
-                for gene in g:
-                    print gene
-
-        except:
-            genelist = genes.keys()
-            
-        #unused?
-        alleaks = dict()
-
-        n=0
+        results = []
         
-        #unused?
-        n_clusters= 0
-        
+        transcriptome_size = 0
         #I think this calls peaks for each gene in the gene list, which could be every gene in the genome
-        for gene in genelist:
-            n= n+1
-            
+        running_list = []
+        length_list  = []
+        for n, gene in enumerate(gene_list):
+        
             #again, hacky should be factored to a single if statement, need to be more explicit about code paths
             if options.maxgenes == None:
                 pass
@@ -958,99 +924,21 @@ def main(options):
             #There is a better way of doing timing.  
             t=time.strftime('%X %x %Z')
             print geneinfo+ " started:"+str(t)
-            trim=options.trim
+            transcriptome_size += lengths[gene]
+            #TODO make it so transcript size isn't always used
+            #this is a filter operation, should make it as such
+            running_list += gene_list[gene]
+            length_list += lengths[gene]
             
             #maybe just pass options object?  Should this be a new object in itself?
-            gene_peaks = call_peaks( geneinfo, genelen, bam_fileobj=bamfileobj, bam_file=None, trim=trim, user_threshold = options.threshold,
-                                     margin=margin, minreads=minreads, poisson_cutoff=poisson_cutoff,plotit=plotit, quiet=quiet,outfile=None, SloP=options.SloP, FDR_alpha = options.FDR_alpha)
-            
-            #unused?
-            n_clusters = gene_peaks['Nclusters']
-            
-            #prints out all peaks for an individual gene, this should probably be its own function
-            for i in gene_peaks['clusters'].keys():
+        if options.serial is True:
+            results.append(call_peaks(geneinfo, genelen, bam_fileobj=bamfileobj, bam_file=None, user_threshold = options.threshold,
+                                     margin=margin, minreads=minreads, poisson_cutoff=poisson_cutoff,plotit=plotit, outfile=None, SloP=options.SloP, FDR_alpha = options.FDR_alpha))
+        else: 
+            results = dtm.map(call_peaks, running_list, length_list, bam_file=bamfile, bam_fileobj=None, margin=margin, user_threshold = options.threshold,
+                          minreads=minreads, poisson_cutoff=poisson_cutoff, plotit=False, outfile=None, SloP=options.SloP, FDR_alpha=options.FDR_alpha)
 
-                #note: you must set "correctP" in the call_peaks function to "True" if you'd like the p-values to actually be corrected
-                corrected_SloP_pval = gene_peaks['clusters'][i]['SloP']
-                corrected_Gene_pval = gene_peaks['clusters'][i]['GeneP']                
-                #this i should be an object if you are processing it like this
-                (chrom, g_start, g_stop, peak_name, geneP, signstrand, thick_start, thick_stop) = i.split("\t")                            
-                
-                #only prints peak if it passes quality cutoff requiernments.  
-                if corrected_SloP_pval < poisson_cutoff or corrected_Gene_pval < poisson_cutoff:
-                    min_pval = min([corrected_SloP_pval, corrected_Gene_pval])
-
-                    bedline = "%s\t%d\t%d\t%s\t%s\t%s\t%d\t%d" %(chrom, int(g_start), int(g_stop), peak_name, min_pval, signstrand, int(thick_start), int(thick_stop))
-                    #this is the biggest hack I've ever seen.  Convert it out then convert it out of string then convert it back for hashing?  This needs to be a hashable object
-                    allpeaks[bedline] = 1
-                else:
-                    if quiet is not True:
-                        print "Failed Gene Pvalue: %s Failed SloP Pvalue: %s for cluster %s" %(corrected_Gene_pval, corrected_SloP_pval, i)
-                    
-            t=time.strftime('%X %x %Z')
-            print geneinfo+ " finished:"+str(t)
-        outbed = options.outfile + ".BED"
-        color=options.color
-
-        
-        #import code
-        #code.interact(local=locals())
-
-        
-        #creates a bedtool out of keys, this should really be whats getting appended to in the inital construction step
-        tool = pybedtools.BedTool("\n".join(allpeaks.keys()), from_string=True)
-        
-        #gracefully fails on zero case 
-        if len(allpeaks.keys()) > 0:
-            tool = tool.sort()
-        
-        
-        tool.saveas(outbed, trackline="track name=\"%s\" visibility=2 colorByStrand=\"%s %s\"" %(outbed, color, color))   
-        
-        #outputs results as well as printing them, bad form.  We should probably just print to stdout and let the user decide how to save the results.  
-        print tool
-    else:
-        
-        #factor out into error checking 
-        if quiet is False:
-            print "quiet required for parallel runs"
-        if plotit is True:
-            print "plots not available for parallel runs"
-        
-        #badly named variables 
-        gl = list()
-        ll = list()
-        g = options.gene
-        genelist = list() # list of genes to call peaks on
-
-        #this is redundant code should be factored, also len() __len__ is a protected function!
-        try:
-            if g.__len__() > 0:
-                genelist = g
-
-        except:
-            genelist = genes.keys()
-        n=0
-        transcriptome_size = 0
-        
-        #redundant code, need to factor
-        for i in genelist: #make sure that the lists are in the right order, and if there's maxgenes set then limit the number of genes to analyze
-            n+=1
-            if options.maxgenes is None:
-                pass
-            else:
-                if n > maxgenes:
-                    break
-                
-            #gene lengths and length length lengths 
-            gl.append(genes[i])
-            ll.append(lengths[i])
-            transcriptome_size += lengths[i]
-        print "trying %d genes" %(gl.__len__())
-        trim=options.trim
-        
-        results = dtm.map(call_peaks, gl, ll, bam_file=bamfile, bam_fileobj=None, trim=trim, margin=margin, user_threshold = options.threshold,
-                          minreads=minreads, poisson_cutoff=poisson_cutoff, plotit=False, quiet=True, outfile=None, SloP=options.SloP, FDR_alpha=options.FDR_alpha)
+  
         print "finished with calling peaks"
         
         #if we are going to save and output as a pickle file we should output as a pickle file
@@ -1065,8 +953,9 @@ def main(options):
         #count total number of reads in transcriptiome
         transcriptome_reads = 0
         
-        for gener in results:
-            transcriptome_reads += gener['nreads']
+        for gene_result in results:
+            print "nreads", gene_result['nreads']
+            transcriptome_reads += gene_result['nreads']
         print "Transcriptome size is %d, transcriptome reads are %d" %(transcriptome_size, transcriptome_reads)
         
         #is this a missed indent?
@@ -1102,21 +991,21 @@ def main(options):
                         allpeaks[bedline] = 1
 
                     except:
-                        print "parsing failed"
+                        print >>sys.stderr,  "parsing failed"
                         pass
             except:
-                print "error handling genes"
+                print >>sys.stderr,  "error handling genes"
                 pass
             
         #again redundant code 
         outbed = options.outfile + ".BED"
         color=options.color
-        tool = pybedtools.BedTool("\n".join(allpeaks.keys()), from_string=True).sort().saveas(outbed, trackline="track name=\"%s\" visibility=2 colorByStrand=\"%s %s\"" %(outbed, color, color))
+        pybedtools.BedTool("\n".join(allpeaks.keys()), from_string=True).sort().saveas(outbed, trackline="track name=\"%s\" visibility=2 colorByStrand=\"%s %s\"" %(outbed, color, color))
 
         print "wrote peaks to %s" %(options.outfile)
 
         return 1
-
+ 
 
 if __name__ == "__main__":
     
@@ -1138,7 +1027,7 @@ if __name__ == "__main__":
 
     parser.add_option("--gene", "-g", dest="gene", action="append", help="A specific gene you'd like try", metavar="GENENAME")
     parser.add_option("--plot", "-p", dest="plotit", action="store_true", help="make figures of the fits", default=False)
-    parser.add_option("--quiet", "-q", dest="quiet", action="store_true", help="suppress notifications")
+    parser.add_option("--verbose", "-q", dest="verbose", action="store_true", help="suppress notifications")
 
     parser.add_option("--minreads", dest="minreads", help="minimum reads required for a section to start the fitting process.  Default:%default", default=3, type="int", metavar="NREADS")
     parser.add_option("--margin", dest="margin", type="int", help="find sections of genes within M bases that have genes and perform fitting. Default:%default", default=15, metavar="NBASES")
@@ -1160,6 +1049,19 @@ if __name__ == "__main__":
     
     (options,args) = parser.parse_args()
     
+    global varboseprint
+    #creates verbose or scilent output mode
+    if options.verbose:
+        def verboseprint(*args):
+        # Print each argument separately so caller doesn't need to
+        # stuff everything to be printed into a single string
+            for arg in args:
+                print arg,
+            print
+    else:   
+        verboseprint = lambda *a: None      # do-nothing function
+
+    
     #enforces required usage    
     if not (options.bam and ((options.species) or (options.geneBEDfile and options.geneMRNAfile and options.genePREMRNAfile))):
         parser.print_help()
@@ -1168,7 +1070,7 @@ if __name__ == "__main__":
     check_for_index(options.bam)
     
     if options.serial is True:
-        print "Starting serial computation"        
+        verboseprint("Starting serial computation")        
         main(options)
     else:
 
@@ -1210,7 +1112,7 @@ if __name__ == "__main__":
                 else:
                     nnodes = (int(options.np)/8)+1
                     np = nnodes*8
-                    print "You should have used a number of processors that is divisible by 8.  You tried %d and I'll actually use %d." %(options.np, np)
+                    verboseprint("You should have used a number of processors that is divisible by 8.  You tried %d and I'll actually use %d." %(options.np, np))
                 
                 shScript.write("#!/bin/sh\n#PBS -N %s\n#PBS -o %s\n#PBS -e %s\n#PBS -V\n#PBS -S /bin/sh\n#PBS -l nodes=%d:ppn=8\n#PBS -q batch\n#PBS -l walltime=00:50:00\n" %(options.job_name, runout, runerr, nnodes))
                 

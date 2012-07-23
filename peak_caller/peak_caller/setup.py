@@ -1,9 +1,9 @@
 from distutils.core import Extension
 from setuptools import setup, find_packages
 
-peaks = Extension("src/peaks", sources = ['src/peaksmodule.cc'],)
-#                  extra_compile_args = ['-O0']) used for debugging
-
+peaks = Extension("src/peaks", sources = ['src/peaksmodule.cc'],
+                  #extra_compile_args = ['-O0'] 
+)                 
 setup(
     name = "FindPeaks",
     version = "0.1",

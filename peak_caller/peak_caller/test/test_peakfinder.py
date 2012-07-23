@@ -87,9 +87,10 @@ class test_peakfinder(unittest.TestCase):
             self.assertEqual(test, correct)
         
         #cleanup
-        os.remove(pkg_resources.resource_filename(__name__, "../src/peak_results.BED"))
+        #os.remove(pkg_resources.resource_filename(__name__, "../src/peak_results.BED"))
     
-    """def test_plotting(self):
+    """
+    def test_plotting(self):
         args = ["-b", pkg_resources.resource_filename(__name__, "../test/allup_test.bam"),
                  "-s", "hg19",
                   "-g", "ENSG00000198901", 
