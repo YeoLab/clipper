@@ -286,29 +286,138 @@ extern "C" PyObject *peaks_find_sections(PyObject *self, PyObject *args) {
   return returnList; 
 }
 
+/* fast version of reads to wiggle */
 extern "C" PyObject *peaks_readsToWiggle_pysam(PyObject *self, PyObject *args) {
-  std::vector<PyObject*> sections(0); //vector of sections because appending to a python list takes a very long time
-  PyObject *wiggle; //list of reads
-  int margin;
-  int start = 0;
-  int stop = 0;
-  bool highlight = false;
-  int gap = 0;
- 
+  
+  
+  //Define argunments passed in
+  PyObject *reads; //list of reads
+  int tx_start;
+  int tx_end;
+  string keepstrand;
+  string usePos;
+  
+
   //parse args
-  if(!PyArg_ParseTuple(args, "Oi", &wiggle, &margin)) {
+  if(!PyArg_ParseTuple(args, "Oiiss", &reads, &tx_start, &tx_end, &keepstrand, &usePos)) {
+      return NULL;
+  }
+  
+  //error checking
+  if(!(usePos == "center" || usePos == "start" || usePos == "end")) {
+    	PyErr_SetString(PyExc_NameError, "usePos must be either center, start or end");
+	return NULL;
+  }
+
+  //set list sizes to do calculations on (NEVER SET BEFORE parsing the tuple)
+  std::vector<int> wiggle(tx_end - tx_start + 1, 0); 
+  std::vector<int> pos_counts(tx_end - tx_start + 1, 0);
+  std::vector<int> lengths;
+
+  PyObject *iterator = PyObject_GetIter(reads);
+  PyObject *item;
+  
+  while (item = PyIter_Next(iterator)) {
+
+    //skips reads on the wrong strand
+    PyObject *is_reverse = PyObject_GetAttrString(item, "is_reverse");
+    Py_INCREF(is_reverse); 
+    if (is_reverse == Py_True && keepstrand  == "+") {
+      continue;
+    } else if(is_reverse == Py_False && keepstrand == "-") {
+      continue;
+    }
+    Py_DECREF(is_reverse);
+    //sets read stard and stop location 
+    PyObject *aligned_positions = PyObject_GetAttrString(item, "positions");
+    Py_INCREF(aligned_positions);
+    int positions_size = PyList_Size(aligned_positions);
+
+    long read_start = PyLong_AsLong(PyList_GetItem(aligned_positions, 0)); //possible bug here
+    long read_stop = PyLong_AsLong(PyList_GetItem(aligned_positions, positions_size - 1)); //get the last item in the list
+
+    //skip if the read aligns past before the tx_start or after the tx_end
+    if (read_start < tx_start || read_stop > tx_end) {
+      continue;
+    }
+
+    //doing the hacky version of getting the read size, just getting all the aligned locations
+    lengths.push_back(positions_size);
+    
+    //choose where to align single reads 
+    if (usePos == "center") {
+      pos_counts[(((read_stop + read_start) / 2) - tx_start)] += 1; //assign pos counts 
+    } else if (usePos == "start") {
+      if (keepstrand == "+") {
+	pos_counts[read_start - tx_start]++;
+      } else {
+	pos_counts[read_stop - tx_start]++;
+      } 
+    } else if (usePos == "end") {
+      if (keepstrand == "+") {
+	pos_counts[read_stop - tx_start]++;
+      } else {
+	pos_counts[read_start - tx_start]++;
+      } 
+    } else {
       return NULL;
     }
-  int wiggle_size = PyList_Size(wiggle);
-  return void;
+    
+    
+    //generate wiggle track from files
+    for(int i = 0; i < positions_size; i++) {
+      PyObject *cur  = PyList_GetItem(aligned_positions, i);
+      Py_INCREF(cur);
+      if (cur == NULL) {
+	return NULL;
+      }
+      long pos = PyLong_AsLong(cur);
+      Py_DECREF(cur);
+      int wig_index = pos-tx_start;
+      wiggle[wig_index]++;
+    }
+    
+    Py_DECREF(aligned_positions);
+    Py_DECREF(item);
+  }
+  Py_DECREF(iterator); // iteration has ended, garbage collet it
+  
+  //all 3 items have been generated, convert them into PyLists and return them as a tuple 
+  
+  //convert lengths to pylist
+  PyObject *retLengths = PyList_New(lengths.size());
+  
+  //transform vector to pylist
+  for (int i = 0; i < lengths.size(); i++) {
+    PyList_SetItem(retLengths, i, PyInt_FromLong(lengths[i]));
+  }
+
+  //convert single counts and wiggle as pylist
+  PyObject *retWiggle = PyList_New(wiggle.size());
+  PyObject *retPos_counts = PyList_New(pos_counts.size());
+  
+  //transform vector to pylist
+  for (int i = 0; i < wiggle.size(); i++) {
+    PyList_SetItem(retWiggle, i, PyInt_FromLong(wiggle[i]));
+    PyList_SetItem(retPos_counts, i, PyInt_FromLong(pos_counts[i]));
+  }
+
+  
+  //add 3 lists to tuple and return
+  PyObject *return_tuple = PyTuple_New(3);
+  PyTuple_SetItem(return_tuple, 0, retWiggle);
+  PyTuple_SetItem(return_tuple, 1, retPos_counts);
+  PyTuple_SetItem(return_tuple, 2, retLengths);
+  cout << "foo" << endl;
+  return return_tuple;
 }
 static PyMethodDef peaks_methods[] = {
     {"shuffle",             peaks_shuffle,      METH_VARARGS,
      "Return the meaning of everything."},
     {"find_sections", peaks_find_sections, METH_VARARGS,
     "finds sections given a list and a margin"},
-    {"readToWiggle_pysam", peaks_readsToWiggle_pysam, METH_VARARGS,
-    "converts pysam to a wiggle vector and some other stuff},
+    {"readsToWiggle_pysam", peaks_readsToWiggle_pysam, METH_VARARGS,
+    "converts pysam to a wiggle vector and some other stuff"},
 
     {NULL, NULL, 0, NULL}           /* sentinel */
 };

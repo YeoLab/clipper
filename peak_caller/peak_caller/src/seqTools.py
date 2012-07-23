@@ -224,7 +224,7 @@ reads: bamfile object
 tx_start: transcription start site for region to convert
 tx_stop: transcription stop site for region to convert
 keepstrand: boolean for if strand specific information is important --check with mike
-trim: unknown
+trim: removes duplicate reads if set to true
 usePos: location to assign read to accepts center, start or end
 
 Returns 
@@ -235,28 +235,33 @@ lengths: list of lengths of all reads
 allreads: dictionary of all reads in nested dict format allreads[start][stop] = 1
 
 """
-def readsToWiggle_pysam(reads, tx_start, tx_end, keepstrand=None, trim=False, usePos='center'):
+def readsToWiggle_pysam(reads, tx_start, tx_end, keepstrand=None, usePos='center'):
     wiggle = zeros((tx_end - tx_start + 1), dtype='f') #total read overlapping each position
     pos_counts = zeros((tx_end - tx_start + 1), dtype='f') #each read only gives one point, use usePos to determine whether the point comes from the start, center, or end
     allreads = {}
     jxns = {}
     lengths = list()
     seenreads = {}
+    
+    #process for each read
     for read in reads:
+        
+        #skips opposite strand if trim only keeps one strand
         if read.is_reverse is True and keepstrand is "+":
             continue
         if read.is_reverse is False and keepstrand is "-":
             continue
+        
         aligned_positions = read.positions
+        
+        # skip reads that fall outside the gene bounds
         if aligned_positions[0] < tx_start or aligned_positions[-1] > tx_end:
-            continue # skip reads that fall outside the gene bounds
-        readpos = str(aligned_positions[0]) +"-" + str(aligned_positions[-1])
+            continue 
+        
+        #set up      
         read_start = aligned_positions[0]
         read_stop = aligned_positions[-1]
         
-        if trim is True and readpos in seenreads:
-            continue
-        seenreads[readpos] = 1
         if read.qlen > 0:
             lengths.append(read.qlen)
         else:
@@ -312,6 +317,7 @@ def readsToWiggle_pysam(reads, tx_start, tx_end, keepstrand=None, trim=False, us
                 print "junction parsing broke"
                 pass
     return wiggle, jxns, pos_counts, lengths, allreads
+
 
 """
 
