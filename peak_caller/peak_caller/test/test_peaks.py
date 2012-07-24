@@ -5,7 +5,7 @@ Created on Jul 17, 2012
 '''
 import unittest
 import peaks
-from peaks import find_sections, readsToWiggle_pysam
+from peaks import find_sections, readsToWiggle_pysam_foo
 from numpy import ones
 import pysam
 import pkg_resources
@@ -133,22 +133,22 @@ class Test(unittest.TestCase):
 
         reads = pysam.Samfile(pkg_resources.resource_filename(__name__, "../test/allup_test.bam"))
         reads = reads.fetch(region="chr15:91536649-91537641")
-        wiggle, pos_counts, lengths = readsToWiggle_pysam(reads, 91537632, 91537675, "-", 'center')
-        #print wiggle, pos_counts ,lengths
+        wiggle, pos_counts, lengths = readsToWiggle_pysam_foo(reads, 91537632, 91537675, '-', 'center')
+        print wiggle, pos_counts ,lengths
         
         wiggle_true = [  2. ,  2.,   2. ,  2. ,  2. ,  2.  , 2. ,  2. , 11. , 11.,  11. , 11.  ,11. , 11. , 11.,
   11. , 11.,  11.,  11. , 11.  ,11. , 11. , 11. , 11.,  11. , 11. , 11.  ,11. , 11.  ,11.,
   11. , 11.,  11.,   9. ,  9. ,  9. ,  9. ,  9.,   9. ,  9.,   9. ,  0. ,  0.,   0.]
         
         for true, test in zip(wiggle_true, wiggle):
-            assert true == test
-        
+            self.assertEqual(test, true)
+    
         pos_counts_true = [ 0. , 0.,  0. , 0.  ,0. , 0.,  0.,  0.,  0.,  0.,  0.,  0.,  0. , 0. , 
                            0. , 0. , 2.,  0., 0. , 0.,  0.,  0.,  0. , 0.,  9.,  0. , 0.,  0. , 0. ,  
                            0. , 0. , 0. , 0. , 0.,  0.,  0., 0. , 0.,  0. , 0. , 0.,  0.,  0. ,  0.]
         
         for true, test in zip(pos_counts_true, pos_counts):
-            assert test == true
+            self.assertEqual(test, true)
             
         assert lengths == [33, 33, 33, 33, 33, 33, 33, 33, 33, 33, 33]
         

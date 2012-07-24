@@ -2,7 +2,7 @@ from distutils.core import Extension
 from setuptools import setup, find_packages
 
 peaks = Extension("src/peaks", sources = ['src/peaksmodule.cc'],
-                  #extra_compile_args = ['-O0'] 
+                  extra_compile_args = ['-O0'] 
 )                 
 setup(
     name = "FindPeaks",
@@ -10,7 +10,7 @@ setup(
     packages = find_packages(),
     ext_modules = [peaks],
     package_data = {
-        '' : ['*.lengths', '*.gz', '*.bam']
+        '' : ['*.lengths', '*.gz', '*.bam', '*.bai']
         },
     
     install_requires = ['setuptools >= 0.6', 
