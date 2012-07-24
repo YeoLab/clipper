@@ -287,24 +287,24 @@ extern "C" PyObject *peaks_find_sections(PyObject *self, PyObject *args) {
 }
 
 /* fast version of reads to wiggle */
-extern "C" PyObject *peaks_readsToWiggle_pysam(PyObject *self, PyObject *args) {
+extern "C" PyObject *peaks_readsToWiggle_pysam_foo(PyObject *self, PyObject *args) {
   
   
   //Define argunments passed in
   PyObject *reads; //list of reads
   int tx_start;
   int tx_end;
-  string keepstrand;
-  string usePos;
+  char *keepstrand;
+  char *usePos;
   
-
+  //"Oiiss"
   //parse args
   if(!PyArg_ParseTuple(args, "Oiiss", &reads, &tx_start, &tx_end, &keepstrand, &usePos)) {
       return NULL;
   }
   
   //error checking
-  if(!(usePos == "center" || usePos == "start" || usePos == "end")) {
+  if(!(strcmp(usePos,"center") || strcmp(usePos, "start") || strcmp(usePos, "end"))) {
     	PyErr_SetString(PyExc_NameError, "usePos must be either center, start or end");
 	return NULL;
   }
@@ -318,16 +318,17 @@ extern "C" PyObject *peaks_readsToWiggle_pysam(PyObject *self, PyObject *args) {
   PyObject *item;
   
   while (item = PyIter_Next(iterator)) {
-
     //skips reads on the wrong strand
     PyObject *is_reverse = PyObject_GetAttrString(item, "is_reverse");
     Py_INCREF(is_reverse); 
-    if (is_reverse == Py_True && keepstrand  == "+") {
+    
+    if (is_reverse == Py_True && !strcmp(keepstrand, "+")) {
       continue;
-    } else if(is_reverse == Py_False && keepstrand == "-") {
+    } else if(is_reverse == Py_False && !strcmp(keepstrand, "-")) {
       continue;
     }
     Py_DECREF(is_reverse);
+    
     //sets read stard and stop location 
     PyObject *aligned_positions = PyObject_GetAttrString(item, "positions");
     Py_INCREF(aligned_positions);
@@ -345,16 +346,16 @@ extern "C" PyObject *peaks_readsToWiggle_pysam(PyObject *self, PyObject *args) {
     lengths.push_back(positions_size);
     
     //choose where to align single reads 
-    if (usePos == "center") {
+    if (!strcmp(usePos, "center")) {
       pos_counts[(((read_stop + read_start) / 2) - tx_start)] += 1; //assign pos counts 
-    } else if (usePos == "start") {
-      if (keepstrand == "+") {
+    } else if (!strcmp(usePos, "start")) {
+      if (strcmp(keepstrand, "+")) {
 	pos_counts[read_start - tx_start]++;
       } else {
 	pos_counts[read_stop - tx_start]++;
       } 
-    } else if (usePos == "end") {
-      if (keepstrand == "+") {
+    } else if (!strcmp(usePos, "end")) {
+      if (strcmp(keepstrand, "+")) {
 	pos_counts[read_stop - tx_start]++;
       } else {
 	pos_counts[read_start - tx_start]++;
@@ -379,6 +380,7 @@ extern "C" PyObject *peaks_readsToWiggle_pysam(PyObject *self, PyObject *args) {
     
     Py_DECREF(aligned_positions);
     Py_DECREF(item);
+    
   }
   Py_DECREF(iterator); // iteration has ended, garbage collet it
   
@@ -401,14 +403,13 @@ extern "C" PyObject *peaks_readsToWiggle_pysam(PyObject *self, PyObject *args) {
     PyList_SetItem(retWiggle, i, PyInt_FromLong(wiggle[i]));
     PyList_SetItem(retPos_counts, i, PyInt_FromLong(pos_counts[i]));
   }
-
-  
+ 
   //add 3 lists to tuple and return
   PyObject *return_tuple = PyTuple_New(3);
   PyTuple_SetItem(return_tuple, 0, retWiggle);
   PyTuple_SetItem(return_tuple, 1, retPos_counts);
   PyTuple_SetItem(return_tuple, 2, retLengths);
-  cout << "foo" << endl;
+  
   return return_tuple;
 }
 static PyMethodDef peaks_methods[] = {
@@ -416,7 +417,7 @@ static PyMethodDef peaks_methods[] = {
      "Return the meaning of everything."},
     {"find_sections", peaks_find_sections, METH_VARARGS,
     "finds sections given a list and a margin"},
-    {"readsToWiggle_pysam", peaks_readsToWiggle_pysam, METH_VARARGS,
+    {"readsToWiggle_pysam_foo", peaks_readsToWiggle_pysam_foo, METH_VARARGS,
     "converts pysam to a wiggle vector and some other stuff"},
 
     {NULL, NULL, 0, NULL}           /* sentinel */

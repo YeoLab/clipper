@@ -19,13 +19,19 @@ import math
 import time
 import pybedtools
 from random import sample as rs
-from seqTools import readsToWiggle_pysam
 import gzip
-from peaks import find_sections, shuffle
+from peaks import find_sections, shuffle, readsToWiggle_pysam_foo
 from pkg_resources import resource_filename
 host = Popen(["hostname"], stdout=PIPE).communicate()[0].strip()
 
-verboseprint = lambda *a: None
+
+def verboseprint(*args):
+        # Print each argument separately so caller doesn't need to
+        # stuff everything to be printed into a single string
+            for arg in args:
+                print arg,
+            print
+#verboseprint = lambda *a: None
 """
 
 Checks to make sure a BAM file has an index, if the index does not exist it is created
@@ -198,7 +204,7 @@ A list of strings in the form "start_location|stop_location"
 ie [50|60, 70|80] 
 
 TODO: Modify to allow for thresholded margins 
-"""     
+
 def find_sections(data, margin):
 
     sections = list()
@@ -234,7 +240,7 @@ def find_sections(data, margin):
         sect = str(start) + "|" + str(stop)
         sections.append(sect)
     return(sections)
-        
+    """
 def plotSpline(spline, data, xvals, threshold=None):
     """
     Plot a smoothing spline and real data
@@ -392,7 +398,7 @@ def call_peaks(loc, gene_length, bam_fileobj=None, bam_file=None, margin=25, FDR
     
     #logic reading bam files
     if bam_file is None and bam_fileobj is None:
-        #using a file object is faster for serial processing bot doesn't work in parallel
+        #using a file opbject is faster for serial processing bot doesn't work in parallel
         verboseprint("you have to pick either bam file or bam file object, not both")
         exit()
     elif bam_fileobj is None:
@@ -402,7 +408,8 @@ def call_peaks(loc, gene_length, bam_fileobj=None, bam_file=None, margin=25, FDR
     subset_reads = bam_fileobj.fetch(reference=chrom, start=tx_start,end=tx_end)
 
     #need to document reads to wiggle
-    wiggle, jxns, pos_counts, lengths, allreads = readsToWiggle_pysam(subset_reads,tx_start, tx_end, signstrand, "center")
+    #wiggle, pos_counts, lengths = readsToWiggle_pysam_foo(subset_reads, tx_start, tx_end, signstrand, "center")
+    wiggle, pos_counts, lengths = readsToWiggle_pysam_foo(subset_reads, tx_start, tx_end, signstrand, "center")
     r = peaks_from_info(list(wiggle), pos_counts, lengths, loc, gene_length, margin, FDR_alpha,user_threshold,minreads, poisson_cutoff, plotit, outfile, w_cutoff, windowsize, SloP, correct_P)
 
     return r
@@ -454,7 +461,6 @@ def peaks_from_info(wiggle, pos_counts, lengths, loc, gene_length, margin=25, FD
  
     verboseprint("Testing %s" %(loc))
     verboseprint("Gene threshold is: %d" %(gene_threshold))
-    
     sections = find_sections(wiggle, margin)
 
 
@@ -877,11 +883,10 @@ def main(options):
     margin = int(options.margin)
     
     #this should be fixed, args should initally be ints if passed
-    try:
-        
+    print options.maxgenes
+    if options.maxgenes is not None:
         maxgenes = int(options.maxgenes)
-    except:
-        pass
+
     
     #unwrapping the options is really unnessessary, this could be refactored to remove the unwrapping
     minreads = int(options.minreads)
@@ -902,109 +907,111 @@ def main(options):
         
     #Chooses between parallel and serial runs.  Potentally good to factor these two things out into different function calls
    
-        bamfileobj = pysam.Samfile(bamfile, 'rb')
+    bamfileobj = pysam.Samfile(bamfile, 'rb')
         
-        results = []
+    results = []
         
-        transcriptome_size = 0
-        #I think this calls peaks for each gene in the gene list, which could be every gene in the genome
-        running_list = []
-        length_list  = []
-        for n, gene in enumerate(gene_list):
+    transcriptome_size = 0
+    #I think this calls peaks for each gene in the gene list, which could be every gene in the genome
+    running_list = []
+    length_list  = []
+    
+    for n, gene in enumerate(gene_list):
+        #again, hacky should be factored to a single if statement, need to be more explicit about code paths
+        if options.maxgenes == None:
+            pass
+        else:
+            if n >= maxgenes:
+                break
+        geneinfo = genes[gene]
+        genelen = lengths[gene]
         
-            #again, hacky should be factored to a single if statement, need to be more explicit about code paths
-            if options.maxgenes == None:
-                pass
-            else:
-                if n >= maxgenes:
-                    break
-            geneinfo = genes[gene]
-            genelen = lengths[gene]
-            
-            #There is a better way of doing timing.  
-            t=time.strftime('%X %x %Z')
-            print geneinfo+ " started:"+str(t)
-            transcriptome_size += lengths[gene]
-            #TODO make it so transcript size isn't always used
-            #this is a filter operation, should make it as such
-            running_list += gene_list[gene]
-            length_list += lengths[gene]
-            
-            #maybe just pass options object?  Should this be a new object in itself?
-        if options.serial is True:
+        #There is a better way of doing timing.  
+        t=time.strftime('%X %x %Z')
+        verboseprint (geneinfo+ " started:"+str(t))
+        transcriptome_size += lengths[gene]
+        #TODO make it so transcript size isn't always used
+        #this is a filter operation, should make it as such
+        running_list.append(genes[gene])
+        verboseprint(lengths[gene])
+        length_list.append(lengths[gene])
+        
+        #maybe just pass options object?  Should this be a new object in itself?
+        if options.serial:
             results.append(call_peaks(geneinfo, genelen, bam_fileobj=bamfileobj, bam_file=None, user_threshold = options.threshold,
-                                     margin=margin, minreads=minreads, poisson_cutoff=poisson_cutoff,plotit=plotit, outfile=None, SloP=options.SloP, FDR_alpha = options.FDR_alpha))
-        else: 
+                                 margin=margin, minreads=minreads, poisson_cutoff=poisson_cutoff,plotit=plotit, outfile=None, SloP=options.SloP, FDR_alpha = options.FDR_alpha))
+            #hacky way of doing serial vs non-serial until I get a handle on distributed maps
+            
+    if not options.serial: 
             results = dtm.map(call_peaks, running_list, length_list, bam_file=bamfile, bam_fileobj=None, margin=margin, user_threshold = options.threshold,
                           minreads=minreads, poisson_cutoff=poisson_cutoff, plotit=False, outfile=None, SloP=options.SloP, FDR_alpha=options.FDR_alpha)
 
   
-        print "finished with calling peaks"
-        
-        #if we are going to save and output as a pickle file we should output as a pickle file
-        #we should factor instead create a method or object to handle all file output
-        if options.save_pickle is True:
-            pickle_file = open(options.outfile + ".pickle", 'w')
-            pickle.dump(results, file = pickle_file)                
-        
-        #combine results
-        allpeaks = {}
+    verboseprint("finished with calling peaks")
 
-        #count total number of reads in transcriptiome
-        transcriptome_reads = 0
-        
-        for gene_result in results:
-            print "nreads", gene_result['nreads']
-            transcriptome_reads += gene_result['nreads']
-        print "Transcriptome size is %d, transcriptome reads are %d" %(transcriptome_size, transcriptome_reads)
-        
-        #is this a missed indent?
-        for gener in results:
-            try:
-                #how come this logic for printing clusters is different from the serial logic?
-                for cluster in gener['clusters'].keys():
-                    try:
-                        transcriptomeP = poissonP(transcriptome_reads, gener['clusters'][cluster]['Nreads'], transcriptome_size, gener['clusters'][cluster]['size'])
-                        if math.isnan(transcriptomeP):
-                            print "Transcriptome P is NaN, transcriptome_reads = %d, cluster reads = %d, transcriptome_size = %d, cluster_size = %d" %(transcriptome_reads, gener['clusters'][cluster]['Nreads'], transcriptome_size, gener['clusters'][cluster]['size'])
+    #if we are going to save and output as a pickle file we should output as a pickle file
+    #we should factor instead create a method or object to handle all file output
+    if options.save_pickle is True:
+        pickle_file = open(options.outfile + ".pickle", 'w')
+        pickle.dump(results, file = pickle_file)                
+    
+    #combine results
+    allpeaks = set([])
 
-                        if transcriptomeP > poisson_cutoff:
-                            #print "%s\n Failed Transcriptome cutoff with %s reads, pval: %s" %(cluster, gener['clusters'][cluster]['Nreads'], transcriptomeP)
-                            
-                            continue
-                        min_pval = 1
+    #count total number of reads in transcriptiome
+    transcriptome_reads = 0
+    
+    for gene_result in results:
+        verboseprint("nreads", gene_result['nreads'])
+        transcriptome_reads += gene_result['nreads']
+    print "Transcriptome size is %d, transcriptome reads are %d" %(transcriptome_size, transcriptome_reads)
+    
+    #is this a missed indent?
+    for gener in results:
+        try:
+            #how come this logic for printing clusters is different from the serial logic?
+            for cluster in gener['clusters'].keys():
+                try:
+                    transcriptomeP = poissonP(transcriptome_reads, gener['clusters'][cluster]['Nreads'], transcriptome_size, gener['clusters'][cluster]['size'])
+                    if math.isnan(transcriptomeP):
+                        print "Transcriptome P is NaN, transcriptome_reads = %d, cluster reads = %d, transcriptome_size = %d, cluster_size = %d" %(transcriptome_reads, gener['clusters'][cluster]['Nreads'], transcriptome_size, gener['clusters'][cluster]['size'])
 
-                        corrected_SloP_pval = gener['clusters'][cluster]['SloP']
-                        corrected_Gene_pval = gener['clusters'][cluster]['GeneP']
-                        
+                    if not options.serial and transcriptomeP > poisson_cutoff:
+                        #print "%s\n Failed Transcriptome cutoff with %s reads, pval: %s" %(cluster, gener['clusters'][cluster]['Nreads'], transcriptomeP)
+                        continue
+                    
+                    min_pval = 1
 
-                        if corrected_SloP_pval < poisson_cutoff or corrected_Gene_pval < poisson_cutoff:
-                            min_pval = min([corrected_SloP_pval, corrected_Gene_pval])
-                        else:
-                            #print "Failed Gene Pvalue: %s and failed SloP Pvalue: %s for cluster %s" %(corrected_Gene_pval, corrected_SloP_pval, i)
-                            pass
-                            continue
+                    corrected_SloP_pval = gener['clusters'][cluster]['SloP']
+                    corrected_Gene_pval = gener['clusters'][cluster]['GeneP']
+                    
 
-
-                        (chrom, g_start, g_stop, peak_name, geneP, signstrand, thick_start, thick_stop) = cluster.split("\t")                            
-                        bedline = "%s\t%d\t%d\t%s\t%s\t%s\t%d\t%d" %(chrom, int(g_start), int(g_stop), peak_name, min_pval, signstrand, int(thick_start), int(thick_stop))
-                        allpeaks[bedline] = 1
-
-                    except:
-                        print >>sys.stderr,  "parsing failed"
+                    if corrected_SloP_pval < poisson_cutoff or corrected_Gene_pval < poisson_cutoff:
+                        min_pval = min([corrected_SloP_pval, corrected_Gene_pval])
+                    else:
+                        #print "Failed Gene Pvalue: %s and failed SloP Pvalue: %s for cluster %s" %(corrected_Gene_pval, corrected_SloP_pval, i)
                         pass
-            except:
-                print >>sys.stderr,  "error handling genes"
-                pass
-            
-        #again redundant code 
-        outbed = options.outfile + ".BED"
-        color=options.color
-        pybedtools.BedTool("\n".join(allpeaks.keys()), from_string=True).sort().saveas(outbed, trackline="track name=\"%s\" visibility=2 colorByStrand=\"%s %s\"" %(outbed, color, color))
+                        continue
 
-        print "wrote peaks to %s" %(options.outfile)
 
-        return 1
+                    (chrom, g_start, g_stop, peak_name, geneP, signstrand, thick_start, thick_stop) = cluster.split("\t")                            
+                    bedline = "%s\t%d\t%d\t%s\t%s\t%s\t%d\t%d" %(chrom, int(g_start), int(g_stop), peak_name, min_pval, signstrand, int(thick_start), int(thick_stop))
+                    allpeaks.add(bedline)
+
+                except:
+                    print >>sys.stderr,  "parsing failed"
+                    pass
+        except:
+            print >>sys.stderr,  "error handling genes"
+            pass
+        
+    #again redundant code 
+    outbed = options.outfile + ".BED"
+    color=options.color
+    pybedtools.BedTool("\n".join(allpeaks), from_string=True).sort(stream=True).saveas(outbed, trackline="track name=\"%s\" visibility=2 colorByStrand=\"%s %s\"" %(outbed, color, color))
+    print "wrote peaks to %s" %(options.outfile)
+    "\n".join(allpeaks)
+    return 1
  
 
 if __name__ == "__main__":
