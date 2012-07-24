@@ -70,12 +70,13 @@ class test_peakfinder(unittest.TestCase):
                   "-g", "ENSG00000198901", 
                   "--serial", 
                   "--job_name=peak_test",
-                   "--outfile=" + pkg_resources.resource_filename(__name__, "../src/peak_results"),
+                   "--outfile=" + os.getcwd() + "/build/lib.linux-i686-2.7/src/peak_results",
                    "-q"
                 ]    
         (options,args) = self.parser.parse_args(args)
         main(options)
-        tested = open(pkg_resources.resource_filename(__name__, "../src/peak_results.BED"))
+        print os.getcwd()
+        tested = open(os.getcwd() + "/build/lib.linux-i686-2.7/src/peak_results.BED")
         correct = open(pkg_resources.resource_filename(__name__, "../test/peak_results.BED"))
         
         #problem with tracks being different
@@ -83,13 +84,15 @@ class test_peakfinder(unittest.TestCase):
         correct_tool = pybedtools.BedTool(correct)
         
         #checks to make sure files are equal and there are not exact dups
+        self.assertEqual(len(tested_tool), len(correct_tool))
         for test, correct in zip(tested_tool, correct_tool):
             self.assertEqual(test, correct)
         
         #cleanup
-        os.remove(pkg_resources.resource_filename(__name__, "../src/peak_results.BED"))
+        #os.remove(pkg_resources.resource_filename(__name__, "../src/peak_results.BED"))
     
-    """def test_plotting(self):
+    """
+    def test_plotting(self):
         args = ["-b", pkg_resources.resource_filename(__name__, "../test/allup_test.bam"),
                  "-s", "hg19",
                   "-g", "ENSG00000198901", 
@@ -128,20 +131,20 @@ class test_peakfinder(unittest.TestCase):
                   "-g", "ENSG00000198901", 
                   "--serial", 
                   "--job_name=peak_test",
-                   "--outfile=" + pkg_resources.resource_filename(__name__, "../src/peak_results"),
+                   "--outfile=" + os.getcwd() + "/build/lib.linux-i686-2.7/src/peak_results",
                    "-q"
                 ]    
         (options,args) = self.parser.parse_args(args)
         main(options)
         
         #tests to make sure there are no overlaps
-        tested = open(pkg_resources.resource_filename(__name__, "../src/peak_results.BED"))
+        tested = open(os.getcwd() + "/build/lib.linux-i686-2.7/src/peak_results.BED")
         tested_tool2 = pybedtools.BedTool(tested)
         result = tested_tool2.merge(n=True)
         self.assertEqual(result, 0, "there are overlaps in the output file") 
         
         #cleanup
-        os.remove(pkg_resources.resource_filename(__name__, "../src/peak_results.BED"))
+        #os.remove(pkg_resources.resource_filename(__name__, "../src/peak_results.BED"))
         
     """
     
@@ -252,61 +255,7 @@ class test_peakfinder(unittest.TestCase):
     def test_build_lengths(self):
         pass
     
-    """
     
-    Performs unit testing on find_sections
-
-    """
-    def test_find_sections(self):
-        #setup 
-        
-        #Null Case
-        self.assertRaises(TypeError, find_sections, (None, 0))
-        
-        #Case with all zero coverage
-        wiggle = [0] * 20
-        result = find_sections(wiggle, 0)
-        assert result == []
-        
-        #Case with all non-zero coverage
-        wiggle = [5] * 20
-        result = find_sections(wiggle, 0)
-        assert result == ["0|19"]
-      
-        #Case with one region on margin of one and two regions on margin of two
-        
-        #returns two segnments
-        wiggle = ([5] * 20) + [0] + ([5] * 20)
-        result = find_sections(wiggle, 0)
-        print result
-        
-        #I believe this is zero based half open result.  Need to think about it more
-        assert result == ["0|20", "21|40"]
-        
-        #returns one segnment
-        result = find_sections(wiggle, 1)
-        print result
-        assert result == ["0|40"]
-        
-        #second case returns two segnments
-        wiggle = ([5] * 9) + [0] + ([5] * 10)
-        result = find_sections(wiggle, 0)
-        print result
-        assert result == ["0|9", "10|19"]
-        
-        #returns one segnment
-        result = find_sections(wiggle, 1)
-        assert result == ["0|19"]
-        
-        #Edge case where margins stop before the end of genes
-        wiggle = [0] + ([5] * 10)
-        result = find_sections(wiggle, 0)
-        assert result == ["1|10"]
-        
-        #Edge case where margins start after the start of genes
-        wiggle = ([5] * 10) + [0] 
-        result = find_sections(wiggle, 0)
-        assert result == ["0|10"]
     
     """
     
