@@ -70,13 +70,13 @@ class test_peakfinder(unittest.TestCase):
                   "-g", "ENSG00000198901", 
                   "--serial", 
                   "--job_name=peak_test",
-                   "--outfile=" + os.getcwd() + "/build/lib.linux-i686-2.7/src/peak_results",
+                   "--outfile=" + os.getcwd() + "/peak_results",
                    "-q"
                 ]    
         (options,args) = self.parser.parse_args(args)
         main(options)
         print os.getcwd()
-        tested = open(os.getcwd() + "/build/lib.linux-i686-2.7/src/peak_results.BED")
+        tested = open(os.getcwd() + "/peak_results.BED")
         correct = open(pkg_resources.resource_filename(__name__, "../test/peak_results.BED"))
         
         #problem with tracks being different
@@ -131,14 +131,14 @@ class test_peakfinder(unittest.TestCase):
                   "-g", "ENSG00000198901", 
                   "--serial", 
                   "--job_name=peak_test",
-                   "--outfile=" + os.getcwd() + "/build/lib.linux-i686-2.7/src/peak_results",
+                   "--outfile=" + os.getcwd() + "/peak_results",
                    "-q"
                 ]    
         (options,args) = self.parser.parse_args(args)
         main(options)
         
         #tests to make sure there are no overlaps
-        tested = open(os.getcwd() + "/build/lib.linux-i686-2.7/src/peak_results.BED")
+        tested = open(os.getcwd() + "/peak_results.BED")
         tested_tool2 = pybedtools.BedTool(tested)
         result = tested_tool2.merge(n=True)
         self.assertEqual(result, 0, "there are overlaps in the output file") 

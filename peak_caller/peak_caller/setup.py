@@ -13,10 +13,10 @@ setup(
         '' : ['*.lengths', '*.gz', '*.bam', '*.bai']
         },
     
-    install_requires = ['setuptools >= 0.6', 
+    install_requires = ['setuptools >= 0.4', 
                         'pysam >= 0.6',
                         'numpy >= 1.5.1 ',
-                        'scipy >= 0.11.0b1',
+                        'scipy >= 0.8.0',
                         'matplotlib >= 1.1.0',
                         'deap >= 0.8',
                         'pybedtools >= 0.6',
