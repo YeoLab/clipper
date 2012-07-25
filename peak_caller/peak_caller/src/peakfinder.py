@@ -24,6 +24,8 @@ import pkg_resources
 import pp
 host = Popen(["hostname"], stdout=PIPE).communicate()[0].strip()
 job_server = pp.Server()
+import logging
+logging.disable(logging.INFO)
 
 def verboseprint(*args):
         # Print each argument separately so caller doesn't need to
@@ -395,7 +397,7 @@ def call_peaks(loc, gene_length, bam_fileobj=None, bam_file=None, margin=25, FDR
                minreads=20, poisson_cutoff=0.05, plotit=False,  outfile=None, w_cutoff=10, windowsize=1000, SloP = False, correct_P = False):
     #setup
     chrom, gene_name, tx_start, tx_end, signstrand = loc.split("|")
-    
+    print >> sys.stderr, loc
     #logic reading bam files
     if bam_file is None and bam_fileobj is None:
         #using a file opbject is faster for serial processing bot doesn't work in parallel
@@ -946,18 +948,30 @@ def main(options):
         running_list.append(genes[gene])
         verboseprint(lengths[gene])
         length_list.append(lengths[gene])
-        
-    jobs = [job_server.submit(call_peaks, 
+
+    #print running_list[23918]
+    combined_list = zip(running_list, length_list)
+    #def call_peaks(*a):
+    #    return 5
+    result = [call_peaks(gene, length, None, bamfile,  margin, options.FDR_alpha, options.threshold, 
+                               minreads,  poisson_cutoff,  False,  None, 10, 1000, options.SloP, False) for gene, length in combined_list]
+    print result
+    """jobs = [job_server.submit(call_peaks, 
                               args = (gene, length, None, bamfile,  margin, options.FDR_alpha, options.threshold, 
                                minreads,  poisson_cutoff,  False,  None, 10, 1000, options.SloP, False,), 
                               depfuncs = (peaks_from_info, get_FDR_cutoff_mean, 
                                           verboseprint,),
                               modules = ("pysam", "os", "sys", "scipy", "math", "time", "pybedtools", 
-                               "random", "peaks"),) for gene, length in zip(running_list, length_list)]
+                               "random", "peaks"),) for gene, length in combined_list]"""
 
+    print "looking at jobs"
     for job in jobs:
+        print job.finished
+        print job.tid
+        job.wait()
+        #print job()
         results.append(job())   
-        
+    return 1
     verboseprint("finished with calling peaks")
 
     #if we are going to save and output as a pickle file we should output as a pickle file
@@ -972,11 +986,10 @@ def main(options):
     #count total number of reads in transcriptiome
     transcriptome_reads = 0
     
-    print results
     for gene_result in results:
-        print gene_result
-        verboseprint("nreads", gene_result['nreads'])
-        transcriptome_reads += gene_result['nreads']
+        if gene_result is not None:
+            verboseprint("nreads", gene_result['nreads'])
+            transcriptome_reads += gene_result['nreads']
     print "Transcriptome size is %d, transcriptome reads are %d" %(transcriptome_size, transcriptome_reads)
     
     #is this a missed indent?
