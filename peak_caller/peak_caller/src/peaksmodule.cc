@@ -89,9 +89,10 @@ extern "C" PyObject *peaks_shuffle(PyObject *self, PyObject *args)
       long len = PyInt_AsLong(PyList_GetItem(reads, i));
 
       //error checking for obviously invalid reads
-      if (len > L){
-	PyErr_SetString(PyExc_ValueError, "there is a read longer than the gene");
-	return NULL;
+      if (len + 1 >= L){
+	continue;
+	//PyErr_SetString(PyExc_ValueError, "there is a read longer than the gene");
+	//return NULL;
       }
       int ran;
       
