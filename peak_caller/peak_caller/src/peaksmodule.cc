@@ -163,7 +163,8 @@ extern "C" PyObject *peaks_shuffle(PyObject *self, PyObject *args)
     double R = 0.0;
     double correctedP[sizeof(PVAL) / sizeof(PVAL[0])];
     std::vector<int> corr_sig_heights;
-
+    
+    
     //This is janky need help from mike
     for (int ele = sig_heights.size() - 1; ele >= 0; ele--){
       correctedP[sig_heights[ele]] = PVAL[sig_heights[ele]] * N_heights/(N_heights - R);
@@ -199,7 +200,7 @@ extern "C" PyObject *peaks_shuffle(PyObject *self, PyObject *args)
   for (int cut = 0; cut < OBS_CUTOFF.size(); cut++) {
     PyList_SetItem(returnList, cut, PyInt_FromLong(OBS_CUTOFF[cut]));
   }
-  
+
   return returnList;
 }
 
