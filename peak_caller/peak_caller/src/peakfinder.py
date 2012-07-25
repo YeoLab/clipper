@@ -951,27 +951,25 @@ def main(options):
 
     #print running_list[23918]
     combined_list = zip(running_list, length_list)
-    #def call_peaks(*a):
-    #    return 5
+  
     result = [call_peaks(gene, length, None, bamfile,  margin, options.FDR_alpha, options.threshold, 
                                minreads,  poisson_cutoff,  False,  None, 10, 1000, options.SloP, False) for gene, length in combined_list]
     print result
-    """jobs = [job_server.submit(call_peaks, 
+    jobs = [job_server.submit(call_peaks, 
                               args = (gene, length, None, bamfile,  margin, options.FDR_alpha, options.threshold, 
                                minreads,  poisson_cutoff,  False,  None, 10, 1000, options.SloP, False,), 
                               depfuncs = (peaks_from_info, get_FDR_cutoff_mean, 
                                           verboseprint,),
                               modules = ("pysam", "os", "sys", "scipy", "math", "time", "pybedtools", 
-                               "random", "peaks"),) for gene, length in combined_list]"""
+                               "random", "peaks"),) for gene, length in combined_list]
 
     print "looking at jobs"
     for job in jobs:
         print job.finished
         print job.tid
         job.wait()
-        #print job()
+        print job.finished
         results.append(job())   
-    return 1
     verboseprint("finished with calling peaks")
 
     #if we are going to save and output as a pickle file we should output as a pickle file
