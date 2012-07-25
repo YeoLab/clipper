@@ -18,7 +18,7 @@ setup(
                         'numpy >= 1.5.1 ',
                         'scipy >= 0.8.0',
                         'matplotlib >= 1.1.0',
-                        'deap >= 0.8',
+                        #'deap >= 0.8',
                         'pybedtools >= 0.6',
                         ],
     #metadata for upload to PyPI

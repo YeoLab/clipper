@@ -128,29 +128,41 @@ class Test(unittest.TestCase):
         wiggle = list(wiggle)
         result = find_sections(wiggle, 0)
         self.assertEqual(result, [(0,19)])
-    
-    def test_readsToWiggle_pysam(self):
 
-        reads = pysam.Samfile(pkg_resources.resource_filename(__name__, "../test/allup_test.bam"))
-        reads = reads.fetch(region="chr15:91536649-91537641")
-        wiggle, pos_counts, lengths = readsToWiggle_pysam_foo(reads, 91537632, 91537675, '-', 'center')
-        print wiggle, pos_counts ,lengths
+    def test_readsToWiggle_pysam_jxnsOnly(self):
+
+        reads2 = pysam.Samfile(pkg_resources.resource_filename(__name__, "../test/jxns.bam"))
+        reads2 = reads2.fetch(region="chr1:183806493-183836600")
+        ### things to check with a new bam file: strand, make sure that the reads fall completely within the range supplied
+        wiggle, jxns, pos_counts, lengths, allreads = readsToWiggle_pysam_foo(reads2, 183806490, 183838475, '+', 'center')
         
-        wiggle_true = [  2. ,  2.,   2. ,  2. ,  2. ,  2.  , 2. ,  2. , 11. , 11.,  11. , 11.  ,11. , 11. , 11.,
-  11. , 11.,  11.,  11. , 11.  ,11. , 11. , 11. , 11.,  11. , 11. , 11.  ,11. , 11.  ,11.,
-  11. , 11.,  11.,   9. ,  9. ,  9. ,  9. ,  9.,   9. ,  9.,   9. ,  0. ,  0.,   0.]
-        
-        for true, test in zip(wiggle_true, wiggle):
-            self.assertEqual(test, true)
+        print wiggle, jxns, pos_counts ,lengths, allreads
+        assert 1==0        
     
-        pos_counts_true = [ 0. , 0.,  0. , 0.  ,0. , 0.,  0.,  0.,  0.,  0.,  0.,  0.,  0. , 0. , 
-                           0. , 0. , 2.,  0., 0. , 0.,  0.,  0.,  0. , 0.,  9.,  0. , 0.,  0. , 0. ,  
-                           0. , 0. , 0. , 0. , 0.,  0.,  0., 0. , 0.,  0. , 0. , 0.,  0.,  0. ,  0.]
+  ##   def test_readsToWiggle_pysam(self):
+  ##       assert 1==0
+  ##       reads = pysam.Samfile(pkg_resources.resource_filename(__name__, "../test/allup_test.bam"))      
+  ##       reads = reads.fetch(region="chr15:91536649-91537641")
+  ##       wiggle, pos_counts, lengths, jxns = readsToWiggle_pysam_foo(reads, 91537632, 91537675, '-', 'center')
         
-        for true, test in zip(pos_counts_true, pos_counts):
-            self.assertEqual(test, true)
+  ##       print wiggle, pos_counts ,lengths, jxns
+  ##       assert 1==0
+        
+  ##       wiggle_true = [  2. ,  2.,   2. ,  2. ,  2. ,  2.  , 2. ,  2. , 11. , 11.,  11. , 11.  ,11. , 11. , 11.,
+  ## 11. , 11.,  11.,  11. , 11.  ,11. , 11. , 11. , 11.,  11. , 11. , 11.  ,11. , 11.  ,11.,
+  ## 11. , 11.,  11.,   9. ,  9. ,  9. ,  9. ,  9.,   9. ,  9.,   9. ,  0. ,  0.,   0.]
+        
+  ##       for true, test in zip(wiggle_true, wiggle):
+  ##           self.assertEqual(test, true)
+    
+  ##       pos_counts_true = [ 0. , 0.,  0. , 0.  ,0. , 0.,  0.,  0.,  0.,  0.,  0.,  0.,  0. , 0. , 
+  ##                          0. , 0. , 2.,  0., 0. , 0.,  0.,  0.,  0. , 0.,  9.,  0. , 0.,  0. , 0. ,  
+  ##                          0. , 0. , 0. , 0. , 0.,  0.,  0., 0. , 0.,  0. , 0. , 0.,  0.,  0. ,  0.]
+        
+  ##       for true, test in zip(pos_counts_true, pos_counts):
+  ##           self.assertEqual(test, true)
             
-        assert lengths == [33, 33, 33, 33, 33, 33, 33, 33, 33, 33, 33]
+  ##       assert lengths == [33, 33, 33, 33, 33, 33, 33, 33, 33, 33, 33]
         
 if __name__ == "__main__":
     #import sys;sys.argv = ['', 'Test.testName']
