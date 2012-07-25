@@ -268,10 +268,6 @@ def main(options):
 
     print "looking at jobs"
     for job in jobs:
-        #print job.finished
-        #print job.tid
-        #job.wait()
-        #print job.finished
         results.append(job())   
     verboseprint("finished with calling peaks")
 
@@ -296,10 +292,7 @@ def main(options):
     #is this a missed indent?
     for gener in results:
         try:
-            #how come this logic for printing clusters is different from the serial logic?
-            print gener
             for cluster in gener['clusters'].keys():
-                print cluster
                 try:
                     transcriptomeP = poissonP(transcriptome_reads, gener['clusters'][cluster]['Nreads'], transcriptome_size, gener['clusters'][cluster]['size'])
                     if math.isnan(transcriptomeP):
@@ -330,7 +323,8 @@ def main(options):
                     print >>sys.stderr,  e
                     print >>sys.stderr,  "parsing failed"
                     pass
-        except:
+        except Exception as e:
+            print >> sys.stderr, e
             print >>sys.stderr,  "error handling genes"
             pass
         
