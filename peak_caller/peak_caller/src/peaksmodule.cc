@@ -41,7 +41,6 @@ Expects length and iterations to be non-zero. If passed [] for reads returns []
 */
 extern "C" PyObject *peaks_shuffle(PyObject *self, PyObject *args)
 {  
-  return PyList_New(0);
   int L = 2000; //length
   int r = 1000; //number of times to rerun
   int T = 0 ; //0 or 1 show timing info
@@ -63,11 +62,13 @@ extern "C" PyObject *peaks_shuffle(PyObject *self, PyObject *args)
   
   //The equation in the initalizer is the estimated depth of the cutoff, initalizes all values to zero
   int num_reads = PyList_Size(reads); 
+  if (num_reads == 0) {
+        PyErr_SetString(PyExc_ValueError, "List must not be null");
+	return NULL;
+  }
   std::vector<long> OBS_CUTOFF(((L / num_reads) + 1) * 100, 0L);
   int redone = 0;
-  
-  
-  
+ 
   int GENE[L]; //will store the height at every position of the gene
 
   //This is height distribution, no reason to have length of gene, arbitrary starting depth choosen 
@@ -290,7 +291,7 @@ extern "C" PyObject *peaks_find_sections(PyObject *self, PyObject *args) {
 }
 
 /* fast version of reads to wiggle */
-extern "C" PyObject *peaks_readsToWiggle_pysam_foo(PyObject *self, PyObject *args) {
+extern "C" PyObject *peaks_readsToWiggle_pysam(PyObject *self, PyObject *args) {
   
   
   //Define argunments passed in
@@ -425,7 +426,9 @@ extern "C" PyObject *peaks_readsToWiggle_pysam_foo(PyObject *self, PyObject *arg
 
       Py_DECREF(cur);
       int wig_index = pos-tx_start;
-      wiggle[wig_index]++;
+      //wiggle[wig_index]++;
+      wiggle[wig_index] += 1.0 / positions_size;
+ 
     }
     //item == read
     
@@ -477,7 +480,7 @@ static PyMethodDef peaks_methods[] = {
      "Return the meaning of everything."},
     {"find_sections", peaks_find_sections, METH_VARARGS,
     "finds sections given a list and a margin"},
-    {"readsToWiggle_pysam_foo", peaks_readsToWiggle_pysam_foo, METH_VARARGS,
+    {"readsToWiggle_pysam", peaks_readsToWiggle_pysam, METH_VARARGS,
     "converts pysam to a wiggle vector and some other stuff"},
 
     {NULL, NULL, 0, NULL}           /* sentinel */
