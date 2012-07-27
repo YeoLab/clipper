@@ -6,7 +6,6 @@ Created on Jul 25, 2012
 
 import peaks
 from numpy import Inf
-import scipy
 import sys
 import pysam
 
@@ -197,10 +196,9 @@ This functions results are undefined if all requiered argunments are not supplie
 def find_univariateSpline(x, xdata, ydata, k, weight=None, resid=True):
     from numpy import diff, sign
     from math import sqrt
-    import scipy
     from scipy import interpolate
     try:
-        spline = scipy.interpolate.UnivariateSpline(xdata, ydata, s=x,k=k, w=weight)
+        spline = interpolate.UnivariateSpline(xdata, ydata, s=x,k=k, w=weight)
         #plotSpline(spline, ydata, xdata, 33)        
         #computationally intensive 
         
@@ -278,7 +276,6 @@ def plotSections(wiggle, sections, threshold):
     
     """
 def poissonP(reads_in_gene, reads_in_peak, gene_length, peak_length):
-    import scipy 
     from scipy import stats
     try:
         #lam is estimate of the lambda value
@@ -293,7 +290,7 @@ def poissonP(reads_in_gene, reads_in_peak, gene_length, peak_length):
 
         if lam < 3:
             lam =3;
-        cumP = 1- scipy.stats.poisson.cdf(reads_in_peak, int(lam))
+        cumP = 1- stats.poisson.cdf(reads_in_peak, int(lam))
         return cumP
     except Exception as e:
         print e
@@ -550,7 +547,7 @@ def peaks_from_info(wiggle, pos_counts, lengths, loc, gene_length, margin=25, FD
                         break
                     
                     #TODO make verbose a global variable so I can display stuff again
-                    sp = scipy.optimize.minimize(find_univariateSpline, x0, args=(xvals, data, degree, weights),
+                    sp = optimize.minimize(find_univariateSpline, x0, args=(xvals, data, degree, weights),
                                                  options={'disp':False}, method="Powell")
                     #fit a smoothing spline using an optimal parameter for smoothing and with weights proportional to the number of reads aligned at each position if weights is set
                     if sp.success is True:

@@ -1,32 +1,30 @@
 #!/nas3/yeolab/Software/Python_dependencies/bin/python
 #We will follow the UCSC genome browser assumption of using a zero based half open cord system
-import pysam
-import optparse
+from pysam import rmdup
 from optparse import OptionParser, SUPPRESS_HELP
 import os
 import sys
-from subprocess import Popen, PIPE, call
-from numpy import *
+from subprocess import call
 import pickle
 import time
 import pybedtools
-from random import sample as rs
 import gzip
 import pkg_resources
 import pp
-job_server = pp.Server()
-import logging
+import math
 from call_peak import call_peaks, peaks_from_info, get_FDR_cutoff_mean, poissonP
-pp.TRANSPORT_SOCKET_TIMEOUT = 200
-#logging.disable(logging.INFO)
+import logging
+logging.basicConfig(level=logging.INFO)
+job_server = pp.Server()
 
+#define verbose printing here for test cases
+global varboseprint
 def verboseprint(*args):
         # Print each argument separately so caller doesn't need to
         # stuff everything to be printed into a single string
             for arg in args:
                 print arg,
             print
-#verboseprint = lambda *a: None
 
 """
 
@@ -39,7 +37,7 @@ returns bamfile_trimed.bam file
 """
 
 def trim_reads(bamfile):
-    from pysam import rmdup
+    
     if not os.path.exists(bamfile):
         raise NameError("file %s does not exist" % (bamfile))
     
@@ -101,9 +99,9 @@ def build_geneinfo(BED):
     GI = dict()
     
     for line in bedfile.readlines():
-        chr, start, stop, name, score, signstrand = line.strip().split("\t")
-        chr.replace("chr", "")
-        GI[name] = "|".join([chr, name, start, stop, str(signstrand)])
+        chromosome, start, stop, name, score, signstrand = line.strip().split("\t")
+        chromosome.replace("chr", "")
+        GI[name] = "|".join([chromosome, name, start, stop, str(signstrand)])
     bedfile.close()
     return GI
 
@@ -164,7 +162,7 @@ def main(options):
         verboseprint("bam file is set to %s\n" %(bamfile))
     else:
         sys.stderr.write("Bam file not defined")
-        raise FileNotFoundException
+        raise IOError
 
     species = options.species
     geneBed = options.geneBEDfile
@@ -223,28 +221,23 @@ def main(options):
     
     #unwrapping the options is really unnessessary, this could be refactored to remove the unwrapping
     minreads = int(options.minreads)
-    plotit = options.plotit
     poisson_cutoff = options.poisson_cutoff
 
     g = options.gene 
     
     gene_list = list()
     
-    allpeaks = set([])
     #gets all the genes to call peaks on
     try:
         if len(g) > 0:
             gene_list = g
     except:
         gene_list = genes.keys()
-        
-    #Chooses between parallel and serial runs.  Potentally good to factor these two things out into different function calls
-   
-    bamfileobj = pysam.Samfile(bamfile, 'rb')
-        
+                
+    
     results = []
-        
     transcriptome_size = 0
+    
     #I think this calls peaks for each gene in the gene list, which could be every gene in the genome
     running_list = []
     length_list  = []
@@ -256,8 +249,8 @@ def main(options):
         else:
             if n >= maxgenes:
                 break
+            
         geneinfo = genes[gene]
-        genelen = lengths[gene]
         
         #There is a better way of doing timing.  
         t=time.strftime('%X %x %Z')
@@ -281,10 +274,9 @@ def main(options):
                                minreads,  poisson_cutoff,  options.plotit,  None, 10, 1000, options.SloP, False,), 
                               depfuncs = (peaks_from_info, get_FDR_cutoff_mean, 
                                           verboseprint,),
-                              modules = ("pysam", "os", "sys", "scipy", "math", "time", "pybedtools", 
+                              modules = ("pysam", "os", "sys", "scipy", "math", "time", 
                                "random", "peaks"),) for gene, length in combined_list]
 
-    print "looking at jobs"
     for job in jobs:
         results.append(job())   
     verboseprint("finished with calling peaks")
@@ -309,42 +301,40 @@ def main(options):
     
     #is this a missed indent?
     for gener in results:
-        try:
-            for cluster in gener['clusters'].keys():
-                try:
-                    transcriptomeP = poissonP(transcriptome_reads, gener['clusters'][cluster]['Nreads'], transcriptome_size, gener['clusters'][cluster]['size'])
-                    if math.isnan(transcriptomeP):
-                        print "Transcriptome P is NaN, transcriptome_reads = %d, cluster reads = %d, transcriptome_size = %d, cluster_size = %d" %(transcriptome_reads, gener['clusters'][cluster]['Nreads'], transcriptome_size, gener['clusters'][cluster]['size'])
+        if gener['clusters'].keys() is None:
+            continue
+        
+        for cluster in gener['clusters'].keys():
+            try:
+                transcriptomeP = poissonP(transcriptome_reads, gener['clusters'][cluster]['Nreads'], transcriptome_size, gener['clusters'][cluster]['size'])
+                if math.isnan(transcriptomeP):
+                    print "Transcriptome P is NaN, transcriptome_reads = %d, cluster reads = %d, transcriptome_size = %d, cluster_size = %d" %(transcriptome_reads, gener['clusters'][cluster]['Nreads'], transcriptome_size, gener['clusters'][cluster]['size'])
 
-                    if not options.serial and transcriptomeP > poisson_cutoff:
-                        #print "%s\n Failed Transcriptome cutoff with %s reads, pval: %s" %(cluster, gener['clusters'][cluster]['Nreads'], transcriptomeP)
-                        continue
-                    
-                    min_pval = 1
+                if not options.serial and transcriptomeP > poisson_cutoff:
+                    print "%s\n Failed Transcriptome cutoff with %s reads, pval: %s" %(cluster, gener['clusters'][cluster]['Nreads'], transcriptomeP)
+                    continue
+                
+                min_pval = 1
 
-                    corrected_SloP_pval = gener['clusters'][cluster]['SloP']
-                    corrected_Gene_pval = gener['clusters'][cluster]['GeneP']
+                corrected_SloP_pval = gener['clusters'][cluster]['SloP']
+                corrected_Gene_pval = gener['clusters'][cluster]['GeneP']
 
-                    if corrected_SloP_pval < poisson_cutoff or corrected_Gene_pval < poisson_cutoff:
-                        min_pval = min([corrected_SloP_pval, corrected_Gene_pval])
-                    else:
-                        print "Failed Gene Pvalue: %s and failed SloP Pvalue: %s for cluster %s" %(corrected_Gene_pval, corrected_SloP_pval)
-                        pass
-                        continue
+                if corrected_SloP_pval < poisson_cutoff or corrected_Gene_pval < poisson_cutoff:
+                    min_pval = min([corrected_SloP_pval, corrected_Gene_pval])
+                else:
+                    verboseprint("Failed Gene Pvalue: %s and failed SloP Pvalue: %s for cluster %s" %(corrected_Gene_pval, corrected_SloP_pval, cluster))
+                    continue
 
 
-                    (chrom, g_start, g_stop, peak_name, geneP, signstrand, thick_start, thick_stop) = cluster.split("\t")                            
-                    bedline = "%s\t%d\t%d\t%s\t%s\t%s\t%d\t%d" %(chrom, int(g_start), int(g_stop), peak_name, min_pval, signstrand, int(thick_start), int(thick_stop))
-                    allpeaks.add(bedline)
+                (chrom, g_start, g_stop, peak_name, geneP, signstrand, thick_start, thick_stop) = cluster.split("\t")
+                #print >> sys.stderr, cluster                           
+                bedline = "%s\t%d\t%d\t%s\t%s\t%s\t%d\t%d" % (chrom, int(g_start), int(g_stop), peak_name, min_pval, signstrand, int(thick_start), int(thick_stop))
+                allpeaks.add(bedline)
 
-                except Exception as e:
-                    print >>sys.stderr,  e
-                    print >>sys.stderr,  "parsing failed"
-                    pass
-        except Exception as e:
-            print >> sys.stderr, e
-            print >>sys.stderr,  "error handling genes"
-            pass
+            except NameError as e:
+                print >>sys.stderr,  e
+                print >>sys.stderr,  "parsing failed"
+                raise e
         
     #again redundant code 
     outbed = options.outfile + ".BED"
@@ -394,10 +384,10 @@ if __name__ == "__main__":
     parser.add_option("--color", dest="color", default="0,0,0", help="R,G,B Color for BED track output, default:black (0,0,0)")
     parser.add_option("--start", dest="start", default=False, action="store_true", help=SUPPRESS_HELP) #private, don't use
     parser.add_option("--save-pickle", dest="save_pickle", default=False, action = "store_true", help="Save a pickle file containing the analysis")
-    
+
     (options,args) = parser.parse_args()
     
-    global varboseprint
+    
     #creates verbose or scilent output mode
     if options.verbose:
         def verboseprint(*args):
@@ -418,63 +408,8 @@ if __name__ == "__main__":
     #If triming option is set use pysam to remove duplicate reads for us, trims strictly ignoring paired end and strandness
     if options.trim:
         options.bam = trim_reads(options.bam)
-        
+    
     check_for_index(options.bam)
     
     verboseprint("Starting peak calling")        
     main(options)
-    """else:
-
-        if options.start is True:
-            dtm.start(main, options)
-        else:
-                
-            #importing drmaa here so as not to thrash serilazation 
-            
-            
-            scriptName = os.path.join(options.prefix, options.job_name+".runme.sh")
-            runerr = os.path.join(options.prefix, options.job_name+ ".err")
-            runout = os.path.join(options.prefix, options.job_name+ ".out")
-            shScript = open(scriptName, 'w')
-            
-            #trying to make job submission as general as possible, figure out the engine to submit to
-            if options.session is not None:
-                sessionType = options.session
-            else: #use DRMAA to figure out engine type
-                try:
-                    from drmaa import Session
-                except e: 
-                    print >>sys.stderr, e 
-                    print >>sys.stderr, "you must either specify the type of cluster you are running or have DRMAA installed"
-                sessionType = Session.drmsInfo
-                
-            
-            if sessionType.startswith("GE") or sessionType.startswith("SGE"):
-                shScript.write("#!/bin/bash\n#$ -N %s\n#$ -S /bin/bash\n#$ -V\n#$ -pe mpi %d\n#$ -cwd\n#$ -o %s\n#$ -e %s\n#$" %(options.job_name, options.np, runout, runerr))
-                if options.notify is not None:
-                    shScript.write("#$ -notify\n#$ -m abe\n#$ -M %s\n" %(options.notify))
-            
-                shScript.write("/opt/openmpi/bin/mpirun -np $NSLOTS -machinefile $TMPDIR/machines python %s --start\n" %(" ".join(sys.argv)))
-
-            elif sessionType.startswith("PBS"):
-                nnodes = 1
-                if int(options.np)%8 == 0:
-                    nnodes = int(options.np)/8
-                else:
-                    nnodes = (int(options.np)/8)+1
-                    np = nnodes*8
-                    verboseprint("You should have used a number of processors that is divisible by 8.  You tried %d and I'll actually use %d." %(options.np, np))
-                
-                shScript.write("#!/bin/sh\n#PBS -N %s\n#PBS -o %s\n#PBS -e %s\n#PBS -V\n#PBS -S /bin/sh\n#PBS -l nodes=%d:ppn=8\n#PBS -q batch\n#PBS -l walltime=00:50:00\n" %(options.job_name, runout, runerr, nnodes))
-                
-                if options.notify is not None:
-                    shScript.write("#PBS -m abe\n#PBS -M %s\n" %(options.notify))
-
-
-                shScript.write("let np=$PBS_NUM_NODES*$PBS_NUM_PPN\ncd $PBS_O_WORKDIR\n"); 
-                shScript.write("/opt/openmpi/bin/mpirun --mca btl_tcp_if_include myri0 -v -machinefile $PBS_NODEFILE -np $np python %s --start\n" %(" ".join(sys.argv)))
-            shScript.close()
-            call(["qsub", scriptName]) #subprocess.call
-        """
-                
-

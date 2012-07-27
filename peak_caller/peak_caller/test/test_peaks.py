@@ -191,7 +191,8 @@ class Test(unittest.TestCase):
    11. , 11.,  11.,  11. , 11.  ,11. , 11. , 11. , 11.,  11. , 11. , 11.  ,11. , 11.  ,11.,
    11. , 11.,  11.,   9. ,  9. ,  9. ,  9. ,  9.,   9. ,  9.,   9. ,  0. ,  0.,   0.]
 
-        
+        for true, test in zip(wiggle_true, wiggle):
+            self.assertEqual(test, true)
         
          
     
