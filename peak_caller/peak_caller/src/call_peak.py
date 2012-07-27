@@ -16,7 +16,6 @@ def verboseprint(*args):
                 print arg,
             print
             
-verboseprint = lambda *a: None
 """
 interpolate, 
 optimize,
@@ -310,7 +309,7 @@ user_threshold - user defined FDR thershold (probably should be factored into FD
 minreads - min reads in section to try and call peaks
 poisson_cutoff - p-value for signifance cut off for number of reads in peak that gets called - might want to use ashifted distribution
 plotit - makes figures 
-outfile - ???
+
 w_cutoff - width cutoff, peaks narrower than this are discarted 
 windowssize - for super local calculation distance left and right to look 
 SloP - super local p-value instead of gene-wide p-value
@@ -318,7 +317,7 @@ correct_P - boolean bonferoni correction of p-values from poisson
 
 """
 def call_peaks(loc, gene_length, bam_fileobj=None, bam_file=None, margin=25, FDR_alpha=0.05,user_threshold=None,
-               minreads=20, poisson_cutoff=0.05, plotit=False,  outfile=None, w_cutoff=10, windowsize=1000, SloP = False, correct_P = False):
+               minreads=20, poisson_cutoff=0.05, plotit=False,  w_cutoff=10, windowsize=1000, SloP = False, correct_P = False):
     #setup
     chrom, gene_name, tx_start, tx_end, signstrand = loc.split("|")
     print >> sys.stderr, loc
@@ -337,7 +336,7 @@ def call_peaks(loc, gene_length, bam_fileobj=None, bam_file=None, margin=25, FDR
     #need to document reads to wiggle
     #wiggle, pos_counts, lengths = readsToWiggle_pysam_foo(subset_reads, tx_start, tx_end, signstrand, "center")
     wiggle, jxns, pos_counts, lengths, allreads = peaks.readsToWiggle_pysam(subset_reads, tx_start, tx_end, signstrand, "center", False)
-    r = peaks_from_info(list(wiggle), pos_counts, lengths, loc, gene_length, margin, FDR_alpha,user_threshold,minreads, poisson_cutoff, plotit, outfile, w_cutoff, windowsize, SloP, correct_P)
+    r = peaks_from_info(list(wiggle), pos_counts, lengths, loc, gene_length, margin, FDR_alpha,user_threshold,minreads, poisson_cutoff, plotit, w_cutoff, windowsize, SloP, correct_P)
 
     return r
 
@@ -413,11 +412,11 @@ rest are the same fix later
 
 """
 def peaks_from_info(wiggle, pos_counts, lengths, loc, gene_length, margin=25, FDR_alpha=0.05,user_threshold=None,
-                                   minreads=20, poisson_cutoff=0.05, plotit=False, outfile=None, w_cutoff=10, windowsize=1000, SloP = False, correct_P = False):
+                                   minreads=20, poisson_cutoff=0.05, plotit=False, w_cutoff=10, windowsize=1000, SloP = False, correct_P = False):
 
     #this is how things need to be for parallization to work
     import peaks
-    from numpy import arange, diff, sign, array, append, insert
+    from numpy import arange, diff, sign, array
     from random import sample as rs
     import math
     from call_peak import find_univariateSpline, poissonP, plotSections, plotSpline, generate_starts_and_stops

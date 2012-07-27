@@ -273,7 +273,7 @@ def main(options):
   
     jobs = [job_server.submit(call_peaks, 
                               args = (gene, length, None, bamfile,  margin, options.FDR_alpha, options.threshold, 
-                               minreads,  poisson_cutoff,  options.plotit,  None, 10, 1000, options.SloP, False,), 
+                               minreads,  poisson_cutoff,  options.plotit, 10, 1000, options.SloP, False,), 
                               depfuncs = (peaks_from_info, get_FDR_cutoff_mean, 
                                           verboseprint,),
                               modules = ("pysam", "os", "sys", "scipy", "math", "time", 
@@ -312,7 +312,7 @@ def main(options):
                 if math.isnan(transcriptomeP):
                     print "Transcriptome P is NaN, transcriptome_reads = %d, cluster reads = %d, transcriptome_size = %d, cluster_size = %d" %(transcriptome_reads, gener['clusters'][cluster]['Nreads'], transcriptome_size, gener['clusters'][cluster]['size'])
 
-                if not options.serial and transcriptomeP > poisson_cutoff:
+                if transcriptomeP > poisson_cutoff:
                     print "%s\n Failed Transcriptome cutoff with %s reads, pval: %s" %(cluster, gener['clusters'][cluster]['Nreads'], transcriptomeP)
                     continue
                 
