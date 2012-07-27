@@ -15,7 +15,7 @@ import math
 from call_peak import call_peaks, peaks_from_info, get_FDR_cutoff_mean, poissonP
 import logging
 logging.basicConfig(level=logging.INFO)
-job_server = pp.Server()
+
 
 #define verbose printing here for test cases
 global varboseprint
@@ -156,6 +156,8 @@ def add_species(species, chrs, bed, mrna, premrna):
         return par
         
 def main(options):
+    
+    job_server = pp.Server(ncpus=options.np)
     bamfile = options.bam
     if os.path.exists(bamfile):
         bamfile = os.path.abspath(bamfile) #re-set to include the full path to bamfile
@@ -358,7 +360,6 @@ if __name__ == "__main__":
     parser.add_option("--customBED", dest="geneBEDfile", help="bed file to call peaks on, must come withOUT species and with customMRNA and customPREMRNA", metavar="BEDFILE")
     parser.add_option("--customMRNA", dest="geneMRNAfile", help="file with mRNA lengths for your bed file in format: GENENAME<tab>LEN", metavar="FILE")
     parser.add_option("--customPREMRNA", dest="genePREMRNAfile", help="file with pre-mRNA lengths for your bed file in format: GENENAME<tab>LEN", metavar="FILE")
-    parser.add_option("--session", dest="session", help="Type of cluster to submit multi-threaded job to, enter SGE or PBS", type="string")
 
     parser.add_option("--outdir", dest="prefix", default=os.getcwd(), help="output directory, default=cwd")    
     parser.add_option("--outfile", dest="outfile", default="fitted_clusters", help="a bed file output, default:%default")
@@ -375,11 +376,11 @@ if __name__ == "__main__":
     parser.add_option("--FDR", dest="FDR_alpha", type="float", default=0.05, help="FDR cutoff for significant height estimation, default=%default")
     parser.add_option("--threshold", dest="threshold", type="int", default=None, help="Skip FDR calculation and set a threshold yourself")
 
-    parser.add_option("--serial", dest="serial", action="store_true", help="run genes in sequence (not parallel)")
+    #parser.add_option("--serial", dest="serial", action="store_true", help="run genes in sequence (not parallel)")
     parser.add_option("--maxgenes", dest="maxgenes", default=None, help="stop computation after this many genes, for testing", metavar="NGENES")
     parser.add_option("--job_name", dest="job_name", default="FAP", help="name for submitted job. Not used with --serial.  default:%default", metavar="NAME")
-    parser.add_option("--processors", dest="np", default=32, help="number of processors to use. Not used with --serial.  default:%default", type="int", metavar="NP")
-    parser.add_option("--notify", dest="notify", default=None, help="email address to notify of start, errors and completion", metavar="EMAIL")
+    parser.add_option("--processors", dest="np", default="autodetect", help="number of processors to use. Not used with.  default:%default", type="str", metavar="NP")
+    #parser.add_option("--notify", dest="notify", default=None, help="email address to notify of start, errors and completion", metavar="EMAIL")
     parser.add_option("--superlocal", action = "store_true", dest="SloP", default=False, help="Use super-local p-values, counting reads in a 1KB window around peaks")
     parser.add_option("--color", dest="color", default="0,0,0", help="R,G,B Color for BED track output, default:black (0,0,0)")
     parser.add_option("--start", dest="start", default=False, action="store_true", help=SUPPRESS_HELP) #private, don't use

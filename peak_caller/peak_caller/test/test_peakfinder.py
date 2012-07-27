@@ -47,7 +47,7 @@ class test_peakfinder(unittest.TestCase):
         self.parser.add_option("--serial", dest="serial", action="store_true", help="run genes in sequence (not parallel)")
         self.parser.add_option("--maxgenes", dest="maxgenes", default=None, help="stop computation after this many genes, for testing", metavar="NGENES")
         self.parser.add_option("--job_name", dest="job_name", default="FAP", help="name for submitted job. Not used with --serial.  default:%default", metavar="NAME")
-        self.parser.add_option("--processors", dest="np", default=32, help="number of processors to use. Not used with --serial.  default:%default", type="int", metavar="NP")
+        self.parser.add_option("--processors", dest="np", default="autodetect", help="number of processors to use. Not used with --serial.  default:%default", type="str", metavar="NP")
         self.parser.add_option("--notify", dest="notify", default=None, help="email address to notify of start, errors and completion", metavar="EMAIL")
         self.parser.add_option("--superlocal", action = "store_true", dest="SloP", default=False, help="Use super-local p-values, counting reads in a 1KB window around peaks")
         self.parser.add_option("--color", dest="color", default="0,0,0", help="R,G,B Color for BED track output, default:black (0,0,0)")
