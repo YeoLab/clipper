@@ -6,9 +6,7 @@ Created on Jul 25, 2012
 import unittest
 from peak_caller.src.call_peak import *
 import peaks
-import scipy
 from numpy import *
-import scipy
 from scipy import interpolate
 class Test(unittest.TestCase):
 
@@ -121,7 +119,7 @@ class Test(unittest.TestCase):
         data = x1 + x2
         smoothing = 5 
         #expected
-        expected = scipy.interpolate.UnivariateSpline(xvals, data, k=3, s=smoothing)
+        expected = interpolate.UnivariateSpline(xvals, data, k=3, s=smoothing)
         
         #test
         result = find_univariateSpline(smoothing, xvals, data, 3, resid=False)
