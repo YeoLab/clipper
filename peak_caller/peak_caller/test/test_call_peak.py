@@ -56,7 +56,7 @@ class Test(unittest.TestCase):
         
         read_lengths = [30] * 100
         result = get_FDR_cutoff_mean(read_lengths, 1000)
-        assert result == 7
+        self.assertEqual(result, 7)
         
         #Second similar case 
         read_lengths = [30] * 20
@@ -117,14 +117,14 @@ class Test(unittest.TestCase):
         x1 = range(10)
         x2 = range(10)
         x2.reverse()
-        x3 = x1 + x2
-        y = x3
+        xvals = range(20)
+        data = x1 + x2
         smoothing = 5 
         #expected
-        expected = scipy.interpolate.UnivariateSpline(x3, y, k=3, s=smoothing)
+        expected = scipy.interpolate.UnivariateSpline(xvals, data, k=3, s=smoothing)
         
         #test
-        result = find_univariateSpline(smoothing, x3, y, 3, resid=False)
+        result = find_univariateSpline(smoothing, xvals, data, 3, resid=False)
         
         #hacky test, but they should be about the same
         self.assertAlmostEqual(expected.get_residual(), result.get_residual()) 
@@ -132,7 +132,7 @@ class Test(unittest.TestCase):
         #Case resid is true. Expected: returns residual sum of squared error between the 
         #spline and the actual curve 
         #TODO: write better tests, this only tests very basic case
-        residual = find_univariateSpline(smoothing, x3, y, 3, resid=True)
+        residual = find_univariateSpline(smoothing, xvals, data, 3, resid=True)
         self.assertAlmostEqual(expected.get_residual(), result.get_residual()) 
         
         #this works because the number of turns is 1 so the residual * turns is the residual

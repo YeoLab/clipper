@@ -7,7 +7,17 @@ Created on Jul 25, 2012
 import peaks
 from numpy import Inf
 import scipy
+import sys
+import pysam
 
+def verboseprint(*args):
+        # Print each argument separately so caller doesn't need to
+        # stuff everything to be printed into a single string
+            for arg in args:
+                print arg,
+            print
+            
+verboseprint = lambda *a: None
 """
 interpolate, 
 optimize,
@@ -140,41 +150,31 @@ def get_FDR_cutoff_mean(readlengths, genelength, iterations=100, mincut = 2, alp
 
 """
 
-calls peaks for an individual gene 
+plots spline information
 
-loc - string of all gene locations
-gene_length - effective length of gene
-takes bam file or bam file object.  Serial uses object parallel uses location (name)
-trim collapses redundant reads (same start and stop position) --might not belong here
-margin - space between sections for calling new peaks
-FDR_alpha - false discovery rate, p-value bonferoni correct from peaks script (called in setup)
-user_threshold - user defined FDR thershold (probably should be factored into FDR_alpha
-minreads - min reads in section to try and call peaks
-poisson_cutoff - p-value for signifance cut off for number of reads in peak that gets called - might want to use ashifted distribution
-plotit - makes figures 
-outfile - ???
-w_cutoff - width cutoff, peaks narrower than this are discarted 
-windowssize - for super local calculation distance left and right to look 
-SloP - super local p-value instead of gene-wide p-value
-correct_P - boolean bonferoni correction of p-values from poisson
+spline - spline from scipy
+data - wiggle track to plot
+xvals - where to plot
+threshold - line to draw so peaks don't go below threshold
 
 """
 
-def plotSpline(spline, data, xvals, threshold=None):
+def plotSpline(spline, data, xvals, section, threshold=None ):
     """
     Plot a smoothing spline and real data
     """
-    
-    verboseprint("plotting")
+    import matplotlib.pyplot as plt 
+    #verboseprint("plotting")
+    #print "plotting"
     f = plt.figure()
+    plt.title(section)
     ax1 = f.add_subplot(111)
     ax1.plot(xvals, data)
-    ax1.plot(xvals, spline.__call__(xvals))
+    ax1.plot(xvals, spline(xvals))
     if threshold is not None:
         ax1.axhline(y=threshold)
-    f.show()
+    plt.show()
     
-    pass
 
 """
 
@@ -208,7 +208,7 @@ def find_univariateSpline(x, xdata, ydata, k, weight=None, resid=True):
         #need to explain why this happens Mike
         if resid is True:
             #knots = spline.get_knots()
-            func = spline.__call__(xdata)
+            func = spline(xdata)
             turns = sum(abs(diff(sign(diff(func)))))/2 # number of turns in the function
             err = sqrt((spline.get_residual())*(turns**4))
             return(err)
@@ -227,6 +227,10 @@ threshold is an integer
 
 """
 def plotSections(wiggle, sections, threshold):
+    import matplotlib.pyplot as plt
+    from matplotlib.path import Path
+    import matplotlib.patches as patches
+    
     f = plt.figure()
     ax = f.add_subplot(111)
     ax.plot(wiggle)
@@ -235,7 +239,7 @@ def plotSections(wiggle, sections, threshold):
         #mark active sections
         positions = list() 
         codes = list()
-        start, stop = map(int, sect.split("|"))
+        start, stop = sect
         positions.append([start, 0.6])
         codes.append(Path.MOVETO)
         positions.append([stop, 0.6])
@@ -295,6 +299,27 @@ def poissonP(reads_in_gene, reads_in_peak, gene_length, peak_length):
         print e
         return 1
 
+"""
+
+calls peaks for an individual gene 
+
+loc - string of all gene locations
+gene_length - effective length of gene
+takes bam file or bam file object.  Serial uses object parallel uses location (name)
+trim collapses redundant reads (same start and stop position) --might not belong here
+margin - space between sections for calling new peaks
+FDR_alpha - false discovery rate, p-value bonferoni correct from peaks script (called in setup)
+user_threshold - user defined FDR thershold (probably should be factored into FDR_alpha
+minreads - min reads in section to try and call peaks
+poisson_cutoff - p-value for signifance cut off for number of reads in peak that gets called - might want to use ashifted distribution
+plotit - makes figures 
+outfile - ???
+w_cutoff - width cutoff, peaks narrower than this are discarted 
+windowssize - for super local calculation distance left and right to look 
+SloP - super local p-value instead of gene-wide p-value
+correct_P - boolean bonferoni correction of p-values from poisson
+
+"""
 def call_peaks(loc, gene_length, bam_fileobj=None, bam_file=None, margin=25, FDR_alpha=0.05,user_threshold=None,
                minreads=20, poisson_cutoff=0.05, plotit=False,  outfile=None, w_cutoff=10, windowsize=1000, SloP = False, correct_P = False):
     #setup
@@ -314,11 +339,55 @@ def call_peaks(loc, gene_length, bam_fileobj=None, bam_file=None, margin=25, FDR
 
     #need to document reads to wiggle
     #wiggle, pos_counts, lengths = readsToWiggle_pysam_foo(subset_reads, tx_start, tx_end, signstrand, "center")
-    wiggle, pos_counts, lengths = peaks.readsToWiggle_pysam_foo(subset_reads, tx_start, tx_end, signstrand, "center")
+    wiggle, jxns, pos_counts, lengths, allreads = peaks.readsToWiggle_pysam(subset_reads, tx_start, tx_end, signstrand, "center")
     r = peaks_from_info(list(wiggle), pos_counts, lengths, loc, gene_length, margin, FDR_alpha,user_threshold,minreads, poisson_cutoff, plotit, outfile, w_cutoff, windowsize, SloP, correct_P)
 
     return r
 
+
+def generate_starts_and_stops(threshold, sect_length, xvals, spline):
+    from numpy import diff, sign, append, insert, array
+    
+    #finds all turns, and generate areas to call peaks in
+    starts = xvals[diff(sign(spline(xvals) - threshold)) > 0]
+    stops = xvals[diff(sign(spline(xvals) - threshold)) < 0]
+    
+    #correct for if we start above threshold or end before going below the threshold
+    #make sure that the start is not a minima
+    if len(starts) < len(stops):
+        starts = insert(starts, 0, 0)
+    if len(stops) < len(starts):
+        stops = append(stops, [sect_length - 1]) #because thats what the old code did
+    
+    #error correction incase my logic is wrong here, assuming that starts and stops
+    #are always paired, and the only two cases of not being pared are if the spline starts above
+    #the cutoff or the spline starts below the cutoff
+    assert len(starts) == len(stops)
+    
+    ### important note: for getting values x->y [inclusive] you must index an array as ar[x:(y+1)]|                     or else you end up with one-too-few values, the second index is non-inclusive
+    #append local minima:
+    local_minima = xvals[diff(sign(spline(xvals) - spline(xvals + 1))) < 0]
+    
+    #append to list any local minima above threshold
+    if any(local_minima >= threshold):
+        for val in local_minima:
+            if spline(val) >= threshold:
+                starts = append(starts, val)
+                stops = append(stops, val)
+    
+    starts = array(sorted(set(starts)))
+    stops  = array(sorted(set(stops)))
+    starts_and_stops = []
+    ret_stops = stops
+    ret_starts = starts
+    
+    #get all contigous start and stops pairs
+    while len(starts) > 0:
+        stop = stops[stops > starts[0]][0]
+        starts_and_stops.append((starts[0], stop))
+        starts = starts[starts >= stop]
+        
+    return starts_and_stops, ret_starts, ret_stops
 
 """
 
@@ -334,13 +403,14 @@ def peaks_from_info(wiggle, pos_counts, lengths, loc, gene_length, margin=25, FD
 
     #this is how things need to be for parallization to work
     import peaks
-    from numpy import arange, diff, sign, array
+    from numpy import arange, diff, sign, array, append, insert
     from random import sample as rs
     import math
-    from call_peak import find_univariateSpline, poissonP
+    from call_peak import find_univariateSpline, poissonP, plotSections, plotSpline, generate_starts_and_stops
     peakDict = {}
     import scipy  
     from scipy import optimize 
+    
     
     #these are what is built in this dict, complicated enough that it might be worth turning into an object
     #peakDict['clusters'] = {}
@@ -377,9 +447,10 @@ def peaks_from_info(wiggle, pos_counts, lengths, loc, gene_length, margin=25, FD
     verboseprint("Testing %s" %(loc))
     verboseprint("Gene threshold is: %d" %(gene_threshold))
     
+    #print wiggle
+    #print margin
     sections = peaks.find_sections(wiggle, margin)
-
-    
+    print sections
     if plotit is True:      
         plotSections(wiggle, sections, gene_threshold)
 
@@ -421,7 +492,7 @@ def peaks_from_info(wiggle, pos_counts, lengths, loc, gene_length, margin=25, FD
 
         #if wiggle track never excides threshold
         if max(data) < threshold:
-            verboseprint("data not high enough, stopping")
+            verboseprint("data does not excede threshold, stopping")
             continue
         
         #fitting splines logic, black magic 
@@ -481,56 +552,20 @@ def peaks_from_info(wiggle, pos_counts, lengths, loc, gene_length, margin=25, FD
         #if we are going to save and output as a pickle fi is %s" %(str(cutoff))
         #final fit spline
             spline = find_univariateSpline(cutoff, xvals, data, degree, weights, resid=False)
+          
             if plotit is True:
-                plotSpline(spline, data, xvals, threshold)
+                plotSpline(spline, data, xvals, peakn, threshold)
             
-            #function inside function, remove later
-            def thresh(threhold):
-                return threshold
-            #starts = xvals[diff(sign(spline(xvals) - spline(xvals+1))) < 0]
-            
-            #finds all turns 
-            starts = xvals[diff(sign(spline(xvals) - thresh(xvals))) > 0]
-            stops = xvals[diff(sign(spline(xvals) - thresh(xvals))) < 0]
-            ### important note: for getting values x->y [inclusive] you must index an array as ar[x:(y+1)]|                     or else you end up with one-too-few values, the second index is non-inclusive
-            #append local minima:
-            local_minima = xvals[diff(sign(spline(xvals) - spline(xvals+1))) < 0]
-            
-            #append to list any local minima above threshold
-            if any(local_minima >= threshold):
-                startlist = list(starts)
-                stoplist = list(stops)                
-                for val in local_minima:
-                    if spline(val) >= threshold:
-                        startlist.append(val)
-                        stoplist.append(val)
-                starts = array(sorted(startlist))
-                stops = array(sorted(stoplist))
 
-            #make sure that the start is not a minima 
-            if spline(xvals)[0] > threshold:# add a 0 to the beginning of "starts"
-                l = list(starts) ## this is HACKED... i couldn't figure out a clean way to do it.
-                l.append(0)
-                for i in starts:
-                    l.append(i)
-                starts = array(l)
-            
-            #removes duplicates 
-            starts = array(sorted(set(starts)))
-            stops = array(sorted(set(stops)))
 
-            #plt.plot(starts)
-            #plt.plot(stops)
-            #plt.draw()
+            starts_and_stops, starts, stops = generate_starts_and_stops(threshold, sect_length, xvals, spline)
+
             
             #walks along spline, and calls peaks along spline
             #for each start, take the next stop and find the peak between the start and the stop
-            for p_start in starts: #subsections that are above threshold
-                
-                try:
-                    p_stop = stops[stops > p_start][0]
-                except:
-                    p_stop = sect_length -1
+            #this is where I need to fix, some peaks starts start right after another start, but not on top of it
+            #make sure the next start is after the previous stop
+            for p_start, p_stop in starts_and_stops: #subsections that are above threshold
                 try:
                     peaks = map(lambda x: x+p_start, xvals[diff(sign(diff(spline(xvals[p_start:(p_stop+1)]))))<0])  #peaks with-in this subsection, indexed from section (not subsection) start
                     verboseprint( "I found %d peaks" %(len(peaks)))
@@ -538,12 +573,12 @@ def peaks_from_info(wiggle, pos_counts, lengths, loc, gene_length, margin=25, FD
                     continue
                 
                 #handles logic if there are multiple peaks between start and stop
-                if peaks.__len__() <=0:
+                if len(peaks) <= 0:
                     continue
-                if peaks.__len__() is 1:
+                if len(peaks) is 1:
                     #gets reads in peak
                     Nreads_in_peak = sum(cts[p_start:(p_stop+1)])
-                    verboseprint("Peak %d - %d has %d reads" %(p_start, (p_stop+1), Nreads_in_peak))
+                    verboseprint("Peak %d (%d - %d) has %d reads" %(peakn, p_start, (p_stop+1), Nreads_in_peak))
                     
                     #makes sure there enough reads
                     if Nreads_in_peak < minreads or max(data[p_start:(p_stop+1)]) < threshold:
@@ -641,6 +676,9 @@ def peaks_from_info(wiggle, pos_counts, lengths, loc, gene_length, margin=25, FD
                         if any(valleys < subpeak):
                             subpeak_start = valleys[valleys < subpeak][-1]
                         else:
+                            print starts
+                            print subpeak
+                            print peaks
                             subpeak_start = starts[starts < subpeak][-1]
                         if any(valleys > subpeak):
                             subpeak_stop = valleys[valleys > subpeak][0]
@@ -699,7 +737,8 @@ def peaks_from_info(wiggle, pos_counts, lengths, loc, gene_length, margin=25, FD
                         peakDict['clusters'][bedline]['Nreads'] = Nreads_in_peak
                         peakDict['clusters'][bedline]['size'] = peak_length
                         peakn+=1
-        except :
+        except NameError as e:
+            print >> sys.stderr, e
             print >>sys.stderr,  "spline fitting failed for %s" %(loc)
             raise
             

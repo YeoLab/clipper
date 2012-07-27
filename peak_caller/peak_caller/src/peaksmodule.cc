@@ -222,59 +222,57 @@ extern "C" PyObject *peaks_find_sections(PyObject *self, PyObject *args) {
   int margin;
   int start = 0;
   int stop = 0;
-  bool highlight = false;
+  bool in_section = false;
   int gap = 0;
- 
+  int loc = 0; //initalize outside because we need to use for the end catch
+
   //parse args
   if(!PyArg_ParseTuple(args, "Oi", &wiggle, &margin)) {
       return NULL;
     }
+  
   int wiggle_size = PyList_Size(wiggle); 
-  int loc = 0; //initalize outside because we need to use for the end catch
-
+  
   //walk along the wiggle track looking for gaps wider than the margin, when that happens output the region
   for (; loc < wiggle_size; loc++) { 
     double cur_wiggle_value = PyFloat_AsDouble(PyList_GetItem(wiggle, loc));
-    stop = loc;
 
-    //If the current value is non-zero advance 
+    //If the current value is non-zero assume you are in a section and if you are not in a section set this location as the start of the section 
     if (cur_wiggle_value > 0) {
       gap = 0;
       
-      //sets the new start after 
-      if ( !highlight ) { 
-	start = loc - margin;
-	
-	//make sure we don't go negative
-	if (start < 0) {
-	  start = 0;
-	}
+      //if not in section mark this location as the first part of a section
+      if(!in_section) {
+	start = loc;
       }
-      highlight = true;
+
+      in_section = true;
+      //sets the new start after 
+      
     } else {
       gap += 1;
-    }
-    
-    //reset and add region to list of sections
-    if (highlight && gap > margin) {
-      highlight = false;
-      gap = 0;
 
-      
-      PyObject *section = PyTuple_New(2);
-      PyTuple_SetItem(section, 0, PyInt_FromLong(start));
-      PyTuple_SetItem(section, 1, PyInt_FromLong(stop));
+      //sets new section if any only if we just left a section 
+      if(in_section && gap > margin ) {
+	in_section = false;
+	stop = loc - gap + 1; //sets the stop to the last location that a real value has been seen
+	
+	//adds section to list
+	PyObject *section = PyTuple_New(2);
+	PyTuple_SetItem(section, 0, PyInt_FromLong(start));
+	PyTuple_SetItem(section, 1, PyInt_FromLong(stop));
      
-      sections.push_back(section);
+	sections.push_back(section);
+      }
     }
   }
 
   //catch last potental section
-  if ( highlight ) {
+  if ( in_section ) {
  
     PyObject *section = PyTuple_New(2);
     PyTuple_SetItem(section, 0, PyInt_FromLong(start));
-    PyTuple_SetItem(section, 1, PyInt_FromLong(stop));
+    PyTuple_SetItem(section, 1, PyInt_FromLong(loc - (gap + 1)));
    
     sections.push_back(section);
 
@@ -426,8 +424,8 @@ extern "C" PyObject *peaks_readsToWiggle_pysam(PyObject *self, PyObject *args) {
 
       Py_DECREF(cur);
       int wig_index = pos-tx_start;
-      //wiggle[wig_index]++;
-      wiggle[wig_index] += 1.0 / positions_size;
+      wiggle[wig_index]++;
+      //wiggle[wig_index] += 1.0 / positions_size;
  
     }
     //item == read
