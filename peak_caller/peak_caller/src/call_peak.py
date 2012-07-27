@@ -344,7 +344,19 @@ def call_peaks(loc, gene_length, bam_fileobj=None, bam_file=None, margin=25, FDR
 
     return r
 
+"""
 
+generates start and stop positions for calling peaks on.  Helper function that was abstracted 
+from peaks_from_info
+
+threshold -- threshold for what is siginifant peak
+sect_length -- the length of the section that we will attempt to call peaks on
+xvals -- the location of all the xvalues we are looking at
+spline -- spline object from find_univarateSpline
+
+returns list of tuples(start, stop) used for calling peaks
+
+"""
 def generate_starts_and_stops(threshold, sect_length, xvals, spline):
     from numpy import diff, sign, append, insert, array
     
@@ -383,7 +395,12 @@ def generate_starts_and_stops(threshold, sect_length, xvals, spline):
     
     #get all contigous start and stops pairs
     while len(starts) > 0:
-        stop = stops[stops > starts[0]][0]
+        stop_list = stops[stops > starts[0]]
+        
+        #if there are no more stops left exit the loop and return the currently found starts and stops
+        if len(stop_list) == 0:
+            break 
+        stop = stop_list[0]
         starts_and_stops.append((starts[0], stop))
         starts = starts[starts >= stop]
         
@@ -550,13 +567,12 @@ def peaks_from_info(wiggle, pos_counts, lengths, loc, gene_length, margin=25, FD
             verboseprint ("optimized smoothing parameter")
         #if we are going to save and output as a pickle fi is %s" %(str(cutoff))
         #final fit spline
+
             spline = find_univariateSpline(cutoff, xvals, data, degree, weights, resid=False)
           
             if plotit is True:
                 plotSpline(spline, data, xvals, peakn, threshold)
             
-
-
             starts_and_stops, starts, stops = generate_starts_and_stops(threshold, sect_length, xvals, spline)
 
             
