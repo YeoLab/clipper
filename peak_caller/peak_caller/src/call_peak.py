@@ -339,7 +339,7 @@ def call_peaks(loc, gene_length, bam_fileobj=None, bam_file=None, margin=25, FDR
 
     #need to document reads to wiggle
     #wiggle, pos_counts, lengths = readsToWiggle_pysam_foo(subset_reads, tx_start, tx_end, signstrand, "center")
-    wiggle, jxns, pos_counts, lengths, allreads = peaks.readsToWiggle_pysam(subset_reads, tx_start, tx_end, signstrand, "center")
+    wiggle, jxns, pos_counts, lengths, allreads = peaks.readsToWiggle_pysam(subset_reads, tx_start, tx_end, signstrand, "center", False)
     r = peaks_from_info(list(wiggle), pos_counts, lengths, loc, gene_length, margin, FDR_alpha,user_threshold,minreads, poisson_cutoff, plotit, outfile, w_cutoff, windowsize, SloP, correct_P)
 
     return r
