@@ -23,7 +23,7 @@ else:
     print "not in triton or nas, this may cause some problems, hopefully not"
     
 
-pybedtools.set_tempdir(pkg_resources.resource_filename(__name__, "../pybedtools_tmp"))
+#pybedtools.set_tempdir(pkg_resources.resource_filename(__name__, "../pybedtools_tmp"))
 
 
 """

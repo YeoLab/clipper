@@ -77,7 +77,7 @@ class test_peakfinder(unittest.TestCase):
         main(options)
         print os.getcwd()
         tested = open(os.getcwd() + "/peak_results.BED")
-        correct = open(pkg_resources.resource_filename(__name__, "../test/peak_results.BED"))
+        correct = open(pkg_resources.resource_filename(__name__, "../test/peak_results_no_overlap.BED"))
         
         #problem with tracks being different
         tested_tool = pybedtools.BedTool(tested)
@@ -139,13 +139,32 @@ class test_peakfinder(unittest.TestCase):
         
         #tests to make sure there are no overlaps
         tested = open(os.getcwd() + "/peak_results.BED")
-        tested_tool2 = pybedtools.BedTool(tested)
-        result = tested_tool2.merge(n=True)
-        self.assertEqual(result, 0, "there are overlaps in the output file") 
+        tested_tool2 = pybedtools.BedTool(tested).saveas(os.getcwd() + "/foo.bed")
+        result = tested_tool2.intersect(tested_tool2)
+        self.assertEqual(len(result), len(tested_tool2), "there are overlaps in the output file") 
         
         #cleanup
         #os.remove(pkg_resources.resource_filename(__name__, "../src/peak_results.BED"))
+       
+       
+    """
+    
+    Performs unit tests on trim_reads
+    
+    """ 
+    
+    def test_trim_reads(self):
+        pass
+        #does standard test assuming no melformed input
+        #test_file = pkg_resources.resource_filename(__name__, "../test/allup_test.bam")
+        #print type(test_file)
+        #outfile = trim_reads(test_file)
+        #correct = pysam.Samfile(pkg_resources.resource_filename(__name__, "../test/rmdup_test.bam"))
+        #test = pysam.Samfile(outfile)
         
+        #for t, c in zip(correct, test):
+        #    assert t == c
+            
     """
     
     Performs unit tests on check_for_index function

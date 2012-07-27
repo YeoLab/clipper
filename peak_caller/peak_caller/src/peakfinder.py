@@ -7,9 +7,6 @@ import os
 import sys
 from subprocess import Popen, PIPE, call
 from numpy import *
-import matplotlib.pyplot as plt
-import matplotlib.patches as patches
-from matplotlib.path import Path
 import pickle
 import time
 import pybedtools
@@ -30,6 +27,26 @@ def verboseprint(*args):
                 print arg,
             print
 #verboseprint = lambda *a: None
+
+"""
+
+Wrapper to remove PCR duplicate reads from bed file
+
+Input
+bamfile -- location of bamfile on disk
+assumes .bam ending of bam file
+returns bamfile_trimed.bam file
+"""
+
+def trim_reads(bamfile):
+    from pysam import rmdup
+    if not os.path.exists(bamfile):
+        raise NameError("file %s does not exist" % (bamfile))
+    
+    outfile = ".".join(bamfile.split(".")[:-1])
+    outfile += "_trimmed.bam"
+    rmdup("-S", bamfile, outfile)
+    return outfile
 """
 
 Checks to make sure a BAM file has an index, if the index does not exist it is created
@@ -251,16 +268,17 @@ def main(options):
         running_list.append(genes[gene])
         verboseprint(lengths[gene])
         length_list.append(lengths[gene])
+        
+        #for debugging purposes, sometimes 
+        #call_peaks(genes[gene], lengths[gene], None, bamfile,  margin, options.FDR_alpha, options.threshold, 
+        #                       minreads,  poisson_cutoff,  options.plotit,  None, 10, 1000, options.SloP, False,) 
 
-    #print running_list[23918]
+ 
     combined_list = zip(running_list, length_list)
   
-    #result = [call_peaks(gene, length, None, bamfile,  margin, options.FDR_alpha, options.threshold, 
-    #                           minreads,  poisson_cutoff,  False,  None, 10, 1000, options.SloP, False) for gene, length in combined_list]
-    #print result
     jobs = [job_server.submit(call_peaks, 
                               args = (gene, length, None, bamfile,  margin, options.FDR_alpha, options.threshold, 
-                               minreads,  poisson_cutoff,  False,  None, 10, 1000, options.SloP, False,), 
+                               minreads,  poisson_cutoff,  options.plotit,  None, 10, 1000, options.SloP, False,), 
                               depfuncs = (peaks_from_info, get_FDR_cutoff_mean, 
                                           verboseprint,),
                               modules = ("pysam", "os", "sys", "scipy", "math", "time", "pybedtools", 
@@ -396,6 +414,10 @@ if __name__ == "__main__":
     if not (options.bam and ((options.species) or (options.geneBEDfile and options.geneMRNAfile and options.genePREMRNAfile))):
         parser.print_help()
         exit()
+    
+    #If triming option is set use pysam to remove duplicate reads for us, trims strictly ignoring paired end and strandness
+    if options.trim:
+        options.bam = trim_reads(options.bam)
         
     check_for_index(options.bam)
     
