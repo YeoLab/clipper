@@ -298,10 +298,10 @@ extern "C" PyObject *peaks_readsToWiggle_pysam(PyObject *self, PyObject *args) {
   int tx_end;
   char *keepstrand;
   char *usePos;
-  
-  //"Oiiss"
+  PyObject *fractional_input;
+  bool makeFractional; //flag to return either whole number coverage or coverage normalzied by length of reads
   //parse args
-  if(!PyArg_ParseTuple(args, "Oiiss", &reads, &tx_start, &tx_end, &keepstrand, &usePos)) {
+  if(!PyArg_ParseTuple(args, "OiissO", &reads, &tx_start, &tx_end, &keepstrand, &usePos, &fractional_input)) {
       return NULL;
   }
   
@@ -310,9 +310,10 @@ extern "C" PyObject *peaks_readsToWiggle_pysam(PyObject *self, PyObject *args) {
     	PyErr_SetString(PyExc_NameError, "usePos must be either center, start or end");
 	return NULL;
   }
-
+  makeFractional = PyObject_IsTrue(fractional_input);
   //set list sizes to do calculations on (NEVER SET BEFORE parsing the tuple)
-  std::vector<int> wiggle(tx_end - tx_start + 1, 0); 
+  
+  std::vector<double> wiggle(tx_end - tx_start + 1, 0);    
   std::vector<int> pos_counts(tx_end - tx_start + 1, 0);
   std::vector<int> lengths;
 
@@ -424,9 +425,11 @@ extern "C" PyObject *peaks_readsToWiggle_pysam(PyObject *self, PyObject *args) {
 
       Py_DECREF(cur);
       int wig_index = pos-tx_start;
-      wiggle[wig_index]++;
-      //wiggle[wig_index] += 1.0 / positions_size;
- 
+      if (makeFractional) {
+	wiggle[wig_index] += 1.0 / positions_size;
+      } else {
+	wiggle[wig_index]++;
+      }
     }
     //item == read
     
@@ -458,7 +461,12 @@ extern "C" PyObject *peaks_readsToWiggle_pysam(PyObject *self, PyObject *args) {
   
   //transform vector to pylist
   for (int i = 0; i < wiggle.size(); i++) {
-    PyList_SetItem(retWiggle, i, PyInt_FromLong(wiggle[i]));
+    if(makeFractional) {
+      PyList_SetItem(retWiggle, i, PyFloat_FromDouble(wiggle[i]));
+    } else {
+      PyList_SetItem(retWiggle, i, PyInt_FromLong(wiggle[i]));
+    }
+    
     PyList_SetItem(retPos_counts, i, PyInt_FromLong(pos_counts[i]));
   }
  
