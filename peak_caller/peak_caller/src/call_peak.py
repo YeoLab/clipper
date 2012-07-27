@@ -450,7 +450,6 @@ def peaks_from_info(wiggle, pos_counts, lengths, loc, gene_length, margin=25, FD
     #print wiggle
     #print margin
     sections = peaks.find_sections(wiggle, margin)
-    print sections
     if plotit is True:      
         plotSections(wiggle, sections, gene_threshold)
 
@@ -676,9 +675,6 @@ def peaks_from_info(wiggle, pos_counts, lengths, loc, gene_length, margin=25, FD
                         if any(valleys < subpeak):
                             subpeak_start = valleys[valleys < subpeak][-1]
                         else:
-                            print starts
-                            print subpeak
-                            print peaks
                             subpeak_start = starts[starts < subpeak][-1]
                         if any(valleys > subpeak):
                             subpeak_stop = valleys[valleys > subpeak][0]
