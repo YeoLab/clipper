@@ -303,7 +303,8 @@ def main(options):
     
     #is this a missed indent?
     for gener in results:
-        if gener['clusters'].keys() is None:
+        if gener['clusters'] is None:
+            print >> sys.stderr, gener, "no clusters"
             continue
         
         for cluster in gener['clusters'].keys():
@@ -311,7 +312,8 @@ def main(options):
                 transcriptomeP = poissonP(transcriptome_reads, gener['clusters'][cluster]['Nreads'], transcriptome_size, gener['clusters'][cluster]['size'])
                 if math.isnan(transcriptomeP):
                     print "Transcriptome P is NaN, transcriptome_reads = %d, cluster reads = %d, transcriptome_size = %d, cluster_size = %d" %(transcriptome_reads, gener['clusters'][cluster]['Nreads'], transcriptome_size, gener['clusters'][cluster]['size'])
-
+                    continue
+                
                 if transcriptomeP > poisson_cutoff:
                     print "%s\n Failed Transcriptome cutoff with %s reads, pval: %s" %(cluster, gener['clusters'][cluster]['Nreads'], transcriptomeP)
                     continue

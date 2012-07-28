@@ -7,6 +7,7 @@ import unittest
 from peak_caller.src.call_peak import *
 import peaks
 from numpy import *
+from numpy.testing import *
 from scipy import interpolate
 class Test(unittest.TestCase):
 
@@ -197,13 +198,92 @@ class Test(unittest.TestCase):
     def test_peaks_from_info(self):
         pass
 
-    """
+    """    
     
     tests generating start and stops function, this is kind of a badly written function,
     need better tests and edge cases 
     
     """
-    def test_generate_starts_and_stops(self):
+    def test_get_start_stop_pairs_above_threshold(self):
+        
+        #Test general flow
+        values = array([1,2,3,4,5,5,5,3,2,1])
+        starts_and_stops, starts, stops = get_start_stop_pairs_above_threshold(3, values)
+        assert_array_equal(starts_and_stops, [(3,6)])
+        assert_array_equal(starts, [3])
+        assert_array_equal(stops, [6])
+        
+        #Test starting above threshold
+        values = array([4,4,5,5,5,3,2,1])
+        starts_and_stops, starts, stops = get_start_stop_pairs_above_threshold(3, values)
+        assert_array_equal(starts_and_stops, [(0,4)])
+        assert_array_equal(starts, [0])
+        assert_array_equal(stops, [4])
+
+        #Test ending above threshold
+        values = array([1,2,3,4,5,5,5,5,5,5])
+        starts_and_stops, starts, stops = get_start_stop_pairs_above_threshold(3, values)
+        assert_array_equal(starts_and_stops, [(3,9)])
+        assert_array_equal(starts, [3])
+        assert_array_equal(stops, [9])
+        
+        #Test local minima 
+        values = array([1,2,3,4,5,5,4,5,5,3])
+        starts_and_stops, starts, stops = get_start_stop_pairs_above_threshold(3, values)
+        assert_array_equal(starts_and_stops, [(3,6), (6,8)])
+        assert_array_equal(starts, [3,6])
+        assert_array_equal(stops, [6,8])
+        
+        #Test Two peaks
+        values = array([1,2,3,4,5,5,2,5,5,3])
+        starts_and_stops, starts, stops = get_start_stop_pairs_above_threshold(3, values)
+        assert_array_equal(starts_and_stops, [(3,5), (7,8)])
+        assert_array_equal(starts, [3,7])
+        assert_array_equal(stops, [5,8])
+        
+        values = array([1,2,3,4,5,5,2,2,5,4,4,3])
+        starts_and_stops, starts, stops = get_start_stop_pairs_above_threshold(3, values)
+        assert_array_equal(starts_and_stops, [(3,5), (8,10)])
+        assert_array_equal(starts, [3,8])
+        assert_array_equal(stops, [5,10])
+        
+        #test two peaks starting above 
+        values = array([5,5,5,5,5,5,2,2,5,4,4,3])
+        starts_and_stops, starts, stops = get_start_stop_pairs_above_threshold(3, values)
+        assert_array_equal(starts_and_stops, [(0,5), (8,10)])
+        assert_array_equal(starts, [0,8])
+        assert_array_equal(stops, [5,10])
+        
+        #test two peaks ending above
+        values = array([1,2,3,4,5,5,2,2,5,4,4,4])
+        starts_and_stops, starts, stops = get_start_stop_pairs_above_threshold(3, values)
+        assert_array_equal(starts_and_stops, [(3,5), (8,11)])
+        assert_array_equal(starts, [3,8])
+        assert_array_equal(stops, [5,11])
+        
+        #test two peaks with one local minima
+        values = array([5,5,5,4,5,5,2,2,5,4,4,3])
+        starts_and_stops, starts, stops = get_start_stop_pairs_above_threshold(3, values)
+        assert_array_equal(starts_and_stops, [(0,3), (3,5), (8,10)])
+        assert_array_equal(starts, [0, 3, 8])
+        assert_array_equal(stops, [3, 5,10])
+        
+        #test two peaks with two local minima
+        values = array([1,2,3,4,5,5,2,2,5,4,5,5])
+        starts_and_stops, starts, stops = get_start_stop_pairs_above_threshold(3, values)
+        assert_array_equal(starts_and_stops, [(3,5), (8,9), (9, 11)])
+        assert_array_equal(starts, [3,8,9])
+        assert_array_equal(stops, [5,9,11])
+        
+    """
+    regresstion test to make sure I didn't break anything
+    tests generating start and stops function, this is kind of a badly written function,
+    need better tests and edge cases 
+    
+    """
+    def test_get_start_stop_pairs_above_threshold_regression(self):
+        
+        #test to make sure stuff doesn't break, should have made regression test...
         cutoff = 71.5879289615 
         xvals = array([ 0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22,
                   23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45,
@@ -214,8 +294,9 @@ class Test(unittest.TestCase):
         threshold = 3
         sect_length = 69 #might not be nessessary
         spline = find_univariateSpline(cutoff, xvals, data, degree, weights, resid=False)
-
-        starts_and_stops, starts, stops = generate_starts_and_stops(threshold, sect_length, xvals, spline)
+        
+        starts_and_stops, starts, stops = get_start_stop_pairs_above_threshold(threshold, spline(xvals))
+        
         
 if __name__ == "__main__":
     #import sys;sys.argv = ['', 'Test.testName']

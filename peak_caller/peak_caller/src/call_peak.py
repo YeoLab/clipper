@@ -342,10 +342,14 @@ def call_peaks(loc, gene_length, bam_fileobj=None, bam_file=None, margin=25, FDR
 
 """
 
+Idea here is to call all regions above a given threshold and return start stop pairs for those regions
+added twist is that when everthere is a local minima above the threshold we will treat that as a breakpoint
+
 generates start and stop positions for calling peaks on.  Helper function that was abstracted 
 from peaks_from_info
 
 threshold -- threshold for what is siginifant peak
+values -- the values (as a numpy array) arranged from 0-length of the section
 sect_length -- the length of the section that we will attempt to call peaks on
 xvals -- the location of all the xvalues we are looking at
 spline -- spline object from find_univarateSpline
@@ -353,42 +357,44 @@ spline -- spline object from find_univarateSpline
 returns list of tuples(start, stop) used for calling peaks
 
 """
-def generate_starts_and_stops(threshold, sect_length, xvals, spline):
-    from numpy import diff, sign, append, insert, array
+def get_start_stop_pairs_above_threshold(threshold, values):
+    from numpy import diff, sign, append, insert, array, arange, r_
     
+    xlocs = arange(0, len(values))
     #finds all turns, and generate areas to call peaks in
-    starts = xvals[diff(sign(spline(xvals) - threshold)) > 0]
-    stops = xvals[diff(sign(spline(xvals) - threshold)) < 0]
+    starts = xlocs[r_[False, diff(values > threshold)] & (values > threshold)]
+    stops  = xlocs[r_[diff(values > threshold),False] & (values > threshold)]
     
     #correct for if we start above threshold or end before going below the threshold
     #make sure that the start is not a minima
     if len(starts) < len(stops):
         starts = insert(starts, 0, 0)
     if len(stops) < len(starts):
-        stops = append(stops, [sect_length - 1]) #because thats what the old code did
-    
+        stops = append(stops, [len(values) - 1]) #last stop is at the end if it doesn't go below thres before
+
     #error correction incase my logic is wrong here, assuming that starts and stops
     #are always paired, and the only two cases of not being pared are if the spline starts above
     #the cutoff or the spline starts below the cutoff
     assert len(starts) == len(stops)
     
     ### important note: for getting values x->y [inclusive] you must index an array as ar[x:(y+1)]|                     or else you end up with one-too-few values, the second index is non-inclusive
-    #append local minima:
-    local_minima = xvals[diff(sign(spline(xvals) - spline(xvals + 1))) < 0]
+    
+    #gets all local minima, function taken from:
+    #http://stackoverflow.com/questions/4624970/finding-local-maxima-minima-with-numpy-in-a-1d-numpy-array
+    local_minima = r_[True, values[1:] < values[:-1]] & r_[values[:-1] < values[1:], True]
     
     #append to list any local minima above threshold
-    if any(local_minima >= threshold):
-        for val in local_minima:
-            if spline(val) >= threshold:
-                starts = append(starts, val)
-                stops = append(stops, val)
+    
+    for i, minima in enumerate(local_minima):
+        if minima and values[i] > threshold:
+            starts = append(starts, i)
+            stops = append(stops, i)
     
     starts = array(sorted(set(starts)))
     stops  = array(sorted(set(stops)))
     starts_and_stops = []
     ret_stops = stops
     ret_starts = starts
-    
     #get all contigous start and stops pairs
     while len(starts) > 0:
         stop_list = stops[stops > starts[0]]
@@ -419,7 +425,7 @@ def peaks_from_info(wiggle, pos_counts, lengths, loc, gene_length, margin=25, FD
     from numpy import arange, diff, sign, array
     from random import sample as rs
     import math
-    from call_peak import find_univariateSpline, poissonP, plotSections, plotSpline, generate_starts_and_stops
+    from call_peak import find_univariateSpline, poissonP, plotSections, plotSpline, get_start_stop_pairs_above_threshold
     peakDict = {}
     import scipy  
     from scipy import optimize 
@@ -569,7 +575,7 @@ def peaks_from_info(wiggle, pos_counts, lengths, loc, gene_length, margin=25, FD
             if plotit is True:
                 plotSpline(spline, data, xvals, peakn, threshold)
             
-            starts_and_stops, starts, stops = generate_starts_and_stops(threshold, sect_length, xvals, spline)
+            starts_and_stops, starts, stops = get_start_stop_pairs_above_threshold(threshold, spline(xvals))
 
             
             #walks along spline, and calls peaks along spline
