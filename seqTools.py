@@ -8,9 +8,10 @@ import random
 import pickle
 from numpy import *
 import subprocess
-from bx.bbi.bigwig_file import BigWigFile
 import pysam
 from subprocess import Popen, PIPE
+import pkg_resources
+import gc
 host = Popen(["hostname"], stdout=PIPE).communicate()[0].strip()
 
 #this appears unused now for peak calling stuff
@@ -19,10 +20,12 @@ if "optiputer" in host or "compute" in host:
 elif "tcc" in host or "triton" in host:
     basedir = "/projects"
 else:
-    print "Where am I?"
-    raise Exception
+    print "not in triton or nas, this may cause some problems, hopefully not"
+    
+
 
 pybedtools.set_tempdir(basedir + "/scratch/lovci/pybedtools_tmp")
+
 
 
 
@@ -219,8 +222,8 @@ def build_assigned_from_existing(assigned_dir, clusters, regions, nrand):
 def readsToWiggle_pysam(reads, tx_start, tx_end, keepstrand=None, trim=False, usePos='center'):
 
     """
-
     Takes a list of reads from a bam file object and converts them to wiggle format
+
 
     Paramaters
     ----------
@@ -245,21 +248,26 @@ def readsToWiggle_pysam(reads, tx_start, tx_end, keepstrand=None, trim=False, us
     jxns = {}
     lengths = list()
     seenreads = {}
+    
+    #process for each read
     for read in reads:
+        
+        #skips opposite strand if trim only keeps one strand
         if read.is_reverse is True and keepstrand is "+":
             continue
         if read.is_reverse is False and keepstrand is "-":
             continue
+        
         aligned_positions = read.positions
+        
+        # skip reads that fall outside the gene bounds
         if aligned_positions[0] < tx_start or aligned_positions[-1] > tx_end:
-            continue # skip reads that fall outside the gene bounds
-        readpos = str(aligned_positions[0]) +"-" + str(aligned_positions[-1])
+            continue 
+        
+        #set up      
         read_start = aligned_positions[0]
         read_stop = aligned_positions[-1]
         
-        if trim is True and readpos in seenreads:
-            continue
-        seenreads[readpos] = 1
         if read.qlen > 0:
             lengths.append(read.qlen)
         else:
@@ -315,7 +323,6 @@ def readsToWiggle_pysam(reads, tx_start, tx_end, keepstrand=None, trim=False, us
                 print "junction parsing broke"
                 pass
     return wiggle, jxns, pos_counts, lengths, allreads
-
 
 def revcom(seq):
     """
