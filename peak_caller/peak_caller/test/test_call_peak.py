@@ -211,71 +211,95 @@ class Test(unittest.TestCase):
         #Test general flow
         values = array([1,2,3,4,5,5,5,3,2,1])
         starts_and_stops, starts, stops = get_start_stop_pairs_above_threshold(3, values)
-        assert_array_equal(starts_and_stops, [(3,6)])
-        assert_array_equal(starts, [3])
-        assert_array_equal(stops, [6])
+        assert_array_equal(starts_and_stops, [(2,7)])
+        assert_array_equal(starts, [2])
+        assert_array_equal(stops, [7])
         
         #Test starting above threshold
         values = array([4,4,5,5,5,3,2,1])
         starts_and_stops, starts, stops = get_start_stop_pairs_above_threshold(3, values)
-        assert_array_equal(starts_and_stops, [(0,4)])
+        assert_array_equal(starts_and_stops, [(0,5)])
         assert_array_equal(starts, [0])
-        assert_array_equal(stops, [4])
+        assert_array_equal(stops, [5])
 
         #Test ending above threshold
         values = array([1,2,3,4,5,5,5,5,5,5])
         starts_and_stops, starts, stops = get_start_stop_pairs_above_threshold(3, values)
-        assert_array_equal(starts_and_stops, [(3,9)])
-        assert_array_equal(starts, [3])
+        assert_array_equal(starts_and_stops, [(2,9)])
+        assert_array_equal(starts, [2])
         assert_array_equal(stops, [9])
         
         #Test local minima 
         values = array([1,2,3,4,5,5,4,5,5,3])
         starts_and_stops, starts, stops = get_start_stop_pairs_above_threshold(3, values)
-        assert_array_equal(starts_and_stops, [(3,6), (6,8)])
-        assert_array_equal(starts, [3,6])
-        assert_array_equal(stops, [6,8])
+        assert_array_equal(starts_and_stops, [(2,6), (6,9)])
+        assert_array_equal(starts, [2, 6])
+        assert_array_equal(stops, [6,9])
         
         #Test Two peaks
         values = array([1,2,3,4,5,5,2,5,5,3])
         starts_and_stops, starts, stops = get_start_stop_pairs_above_threshold(3, values)
-        assert_array_equal(starts_and_stops, [(3,5), (7,8)])
-        assert_array_equal(starts, [3,7])
-        assert_array_equal(stops, [5,8])
+        assert_array_equal(starts_and_stops, [(2,5), (7,9)])
+        assert_array_equal(starts, [2,7])
+        assert_array_equal(stops, [5,9])
         
         values = array([1,2,3,4,5,5,2,2,5,4,4,3])
         starts_and_stops, starts, stops = get_start_stop_pairs_above_threshold(3, values)
-        assert_array_equal(starts_and_stops, [(3,5), (8,10)])
-        assert_array_equal(starts, [3,8])
-        assert_array_equal(stops, [5,10])
+        assert_array_equal(starts_and_stops, [(2,5), (8,11)])
+        assert_array_equal(starts, [2,8])
+        assert_array_equal(stops, [5,11])
         
         #test two peaks starting above 
         values = array([5,5,5,5,5,5,2,2,5,4,4,3])
         starts_and_stops, starts, stops = get_start_stop_pairs_above_threshold(3, values)
-        assert_array_equal(starts_and_stops, [(0,5), (8,10)])
+        assert_array_equal(starts_and_stops, [(0,5), (8,11)])
         assert_array_equal(starts, [0,8])
-        assert_array_equal(stops, [5,10])
+        assert_array_equal(stops, [5,11])
         
         #test two peaks ending above
         values = array([1,2,3,4,5,5,2,2,5,4,4,4])
         starts_and_stops, starts, stops = get_start_stop_pairs_above_threshold(3, values)
-        assert_array_equal(starts_and_stops, [(3,5), (8,11)])
-        assert_array_equal(starts, [3,8])
+        assert_array_equal(starts_and_stops, [(2,5), (8,11)])
+        assert_array_equal(starts, [2,8])
         assert_array_equal(stops, [5,11])
         
         #test two peaks with one local minima
         values = array([5,5,5,4,5,5,2,2,5,4,4,3])
         starts_and_stops, starts, stops = get_start_stop_pairs_above_threshold(3, values)
-        assert_array_equal(starts_and_stops, [(0,3), (3,5), (8,10)])
+        assert_array_equal(starts_and_stops, [(0,3), (3,5), (8,11)])
         assert_array_equal(starts, [0, 3, 8])
-        assert_array_equal(stops, [3, 5,10])
+        assert_array_equal(stops, [3, 5,11])
         
         #test two peaks with two local minima
         values = array([1,2,3,4,5,5,2,2,5,4,5,5])
         starts_and_stops, starts, stops = get_start_stop_pairs_above_threshold(3, values)
-        assert_array_equal(starts_and_stops, [(3,5), (8,9), (9, 11)])
-        assert_array_equal(starts, [3,8,9])
+        assert_array_equal(starts_and_stops, [(2,5), (8,9), (9, 11)])
+        assert_array_equal(starts, [2,8,9])
         assert_array_equal(stops, [5,9,11])
+        
+        #more complicated version
+        values = array([3,2,1,2,3,4,3,2,1,2,3,4,5,4,3,2,3,4,5,3,2,0,3])
+        threshold = 2
+        starts_and_stops, starts, stops = get_start_stop_pairs_above_threshold(threshold, values)
+        assert_array_equal(starts_and_stops, [(0,1), (3,7), (9, 15), (15,20)])
+        assert_array_equal(starts, [0, 3, 9, 15])
+        assert_array_equal(stops, [1, 7, 15, 20])
+        
+        #more complicated version
+        values = array([3,2,1,2,3,4,3,2,1,2,3,4,5,4,3,2,3,4,5,3,2,0,2, 3])
+        threshold = 2
+        starts_and_stops, starts, stops = get_start_stop_pairs_above_threshold(threshold, values)
+        assert_array_equal(starts_and_stops, [(0,1), (3,7), (9, 15), (15,20), (22, 23)])
+        assert_array_equal(starts, [0, 3, 9, 15, 22])
+        assert_array_equal(stops, [1, 7, 15, 20, 23])
+        
+                #more complicated version
+        values = array([0,0,0, 3, 0, 0 ,0])
+        threshold = 2
+        starts_and_stops, starts, stops = get_start_stop_pairs_above_threshold(threshold, values)
+        assert_array_equal(starts_and_stops, [])
+        assert_array_equal(starts, [])
+        assert_array_equal(stops, [])
         
     """
     regresstion test to make sure I didn't break anything

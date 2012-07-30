@@ -162,8 +162,6 @@ def plotSpline(spline, data, xvals, section, threshold=None ):
     Plot a smoothing spline and real data
     """
     import matplotlib.pyplot as plt 
-    #verboseprint("plotting")
-    #print "plotting"
     f = plt.figure()
     plt.title(section)
     ax1 = f.add_subplot(111)
@@ -320,7 +318,6 @@ def call_peaks(loc, gene_length, bam_fileobj=None, bam_file=None, margin=25, FDR
                minreads=20, poisson_cutoff=0.05, plotit=False,  w_cutoff=10, windowsize=1000, SloP = False, correct_P = False):
     #setup
     chrom, gene_name, tx_start, tx_end, signstrand = loc.split("|")
-    print >> sys.stderr, loc
     
     #logic reading bam files
     if bam_file is None and bam_fileobj is None:
@@ -361,17 +358,11 @@ def get_start_stop_pairs_above_threshold(threshold, values):
     from numpy import diff, sign, append, insert, array, arange, r_
     
     xlocs = arange(0, len(values))
-    #finds all turns, and generate areas to call peaks in
-    starts = xlocs[r_[False, diff(values > threshold)] & (values > threshold)]
-    stops  = xlocs[r_[diff(values > threshold),False] & (values > threshold)]
+    #finds all turns, and generate areas to call peaks in, also makes sure starting and stopping above 
+    #maxima is caught
+    starts = xlocs[r_[True, diff(values >= threshold)] & (values >= threshold)]
+    stops  = xlocs[r_[diff(values >= threshold),True] & (values >= threshold)]
     
-    #correct for if we start above threshold or end before going below the threshold
-    #make sure that the start is not a minima
-    if len(starts) < len(stops):
-        starts = insert(starts, 0, 0)
-    if len(stops) < len(starts):
-        stops = append(stops, [len(values) - 1]) #last stop is at the end if it doesn't go below thres before
-
     #error correction incase my logic is wrong here, assuming that starts and stops
     #are always paired, and the only two cases of not being pared are if the spline starts above
     #the cutoff or the spline starts below the cutoff
@@ -381,20 +372,19 @@ def get_start_stop_pairs_above_threshold(threshold, values):
     
     #gets all local minima, function taken from:
     #http://stackoverflow.com/questions/4624970/finding-local-maxima-minima-with-numpy-in-a-1d-numpy-array
-    local_minima = r_[True, values[1:] < values[:-1]] & r_[values[:-1] < values[1:], True]
+    #Can't have local minima at start or end, that would get caught by previous check, really need to think
+    #about that more
+    local_minima = r_[False, values[1:] < values[:-1]] & r_[values[:-1] < values[1:], False]
     
     #append to list any local minima above threshold
-    
     for i, minima in enumerate(local_minima):
-        if minima and values[i] > threshold:
+        if minima and values[i] >= threshold:
             starts = append(starts, i)
             stops = append(stops, i)
     
     starts = array(sorted(set(starts)))
     stops  = array(sorted(set(stops)))
     starts_and_stops = []
-    ret_stops = stops
-    ret_starts = starts
     #get all contigous start and stops pairs
     while len(starts) > 0:
         stop_list = stops[stops > starts[0]]
@@ -405,8 +395,10 @@ def get_start_stop_pairs_above_threshold(threshold, values):
         stop = stop_list[0]
         starts_and_stops.append((starts[0], stop))
         starts = starts[starts >= stop]
-        
-    return starts_and_stops, ret_starts, ret_stops
+    
+    starts = map(lambda x: x[0], starts_and_stops)
+    stops  = map(lambda x: x[1], starts_and_stops)
+    return starts_and_stops, starts, stops
 
 """
 
@@ -425,7 +417,7 @@ def peaks_from_info(wiggle, pos_counts, lengths, loc, gene_length, margin=25, FD
     from numpy import arange, diff, sign, array
     from random import sample as rs
     import math
-    from call_peak import find_univariateSpline, poissonP, plotSections, plotSpline, get_start_stop_pairs_above_threshold
+    from src.call_peak import find_univariateSpline, poissonP, plotSections, plotSpline, get_start_stop_pairs_above_threshold
     peakDict = {}
     import scipy  
     from scipy import optimize 
