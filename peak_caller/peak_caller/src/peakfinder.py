@@ -14,8 +14,8 @@ import pp
 import math
 from call_peak import call_peaks, peaks_from_info, get_FDR_cutoff_mean, poissonP
 import logging
-logging.basicConfig(level=logging.INFO)
-
+#logging.basicConfig(level=logging.INFO)
+logging.disable(logging.INFO)
 
 #define verbose printing here for test cases
 global varboseprint
@@ -216,7 +216,6 @@ def main(options):
     margin = int(options.margin)
     
     #this should be fixed, args should initally be ints if passed
-    print options.maxgenes
     if options.maxgenes is not None:
         maxgenes = int(options.maxgenes)
 
@@ -256,7 +255,7 @@ def main(options):
         
         #There is a better way of doing timing.  
         t=time.strftime('%X %x %Z')
-        verboseprint (geneinfo+ " started:"+str(t))
+        verboseprint(geneinfo+ " started:"+str(t))
         transcriptome_size += lengths[gene]
         #TODO make it so transcript size isn't always used
         #this is a filter operation, should make it as such
@@ -349,7 +348,7 @@ def main(options):
     return 1
  
 
-if __name__ == "__main__":
+def call_main():
     
     usage="\npython peakfinder.py -b <bamfile> -s <hg18/hg19/mm9>\n OR \npython peakfinder.py -b <bamfile> --customBED <BEDfile> --customMRNA <mRNA lengths> --customPREMRNA <premRNA lengths>"
     description="Fitted Accurate Peaks. Michael Lovci 2012. CLIP peakfinder that uses fitted smoothing splines to define clusters of binding.  Computation is performed in parallel using MPI.  You may decide to use the pre-built gene lists by setting the --species parameter or alternatively you can define your own list of genes to test in BED6/12 format and provide files containing the length of each gene in PREMRNA form and MRNA form (both are required). Questions should be directed to michaeltlovci@gmail.com."
@@ -392,6 +391,7 @@ if __name__ == "__main__":
     
     
     #creates verbose or scilent output mode
+    global verboseprint
     if options.verbose:
         def verboseprint(*args):
         # Print each argument separately so caller doesn't need to

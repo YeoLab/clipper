@@ -1,8 +1,8 @@
-from distutils.core import Extension
-from setuptools import setup, find_packages
+from setuptools import setup, find_packages, Extension
 
 peaks = Extension("src/peaks", sources = ['src/peaksmodule.cc'],
-                  extra_compile_args = ['-O0'] 
+#for debugging
+#                  extra_compile_args = ['-O0'] 
 )                 
 setup(
     name = "FindPeaks",
@@ -18,9 +18,16 @@ setup(
                         'numpy >= 1.5.1 ',
                         'scipy >= 0.8.0',
                         'matplotlib >= 1.1.0',
-                        #'deap >= 0.8',
+
                         'pybedtools >= 0.6',
                         ],
+      
+    setup_requires = ["setuptools_git >= 0.3",],
+    
+    entry_points = {
+                    'console_scripts': [
+                                        'find_peaks = src.peakfinder:call_main',],
+                    },
     #metadata for upload to PyPI
     author = "Michael Lovci and Gabriel Pratt",
     author_email = "mlovci@ucsd.edu",
