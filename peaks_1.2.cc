@@ -1,4 +1,6 @@
 #include <iostream>
+#include <string.h>
+#include <strings.h>
 using std::cerr;
 using std::cin;
 using std::cout;
