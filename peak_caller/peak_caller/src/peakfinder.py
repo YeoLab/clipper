@@ -324,7 +324,7 @@ def main(options):
         
         #for debugging purposes, sometimes 
         #call_peaks(genes[gene], lengths[gene], None, bamfile,  margin, options.FDR_alpha, options.threshold, 
-        #                       minreads,  poisson_cutoff,  options.plotit,  None, 10, 1000, options.SloP, False,) 
+        #                       minreads,  poisson_cutoff,  options.plotit, 10, 1000, options.SloP, False,) 
 
  
     combined_list = zip(running_list, length_list)
@@ -475,3 +475,7 @@ def call_main():
     
     verboseprint("Starting peak calling")        
     main(options)
+
+#so hacky... need to factor some of this out
+if __name__ == "__main__":
+    call_main()
