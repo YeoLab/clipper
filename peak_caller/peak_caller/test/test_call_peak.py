@@ -123,24 +123,29 @@ class Test(unittest.TestCase):
         expected = interpolate.UnivariateSpline(xvals, data, k=3, s=smoothing)
         
         #test
-        result = find_univariateSpline(smoothing, xvals, data, 3, resid=False)
+        result = find_univariateSpline(smoothing, xvals, data, 3)
         
         #hacky test, but they should be about the same
         self.assertAlmostEqual(expected.get_residual(), result.get_residual()) 
         
-        #Case resid is true. Expected: returns residual sum of squared error between the 
-        #spline and the actual curve 
-        #TODO: write better tests, this only tests very basic case
-        residual = find_univariateSpline(smoothing, xvals, data, 3, resid=True)
-        self.assertAlmostEqual(expected.get_residual(), result.get_residual()) 
-        
-        #this works because the number of turns is 1 so the residual * turns is the residual
+        #tests error mode
+        assert None == find_univariateSpline(None, None, None, None)
+    def test_find_splineResiduals(self):
+        #setup 
+        x1 = range(10)
+        x2 = range(10)
+        x2.reverse()
+        xvals = range(20)
+        data = x1 + x2
+        smoothing = 5 
+        #expected
+        expected = interpolate.UnivariateSpline(xvals, data, k=3, s=smoothing)
+        residual = find_splineResiduals(smoothing, xvals, data, 3)
         self.assertAlmostEqual(residual, sqrt(expected.get_residual()))
         
-        #Case: calculation of univarate spline breaks
-        #There should be more error handling this is a general catch, we should be more sensetavie
-        #to different types of errors
-        assert Inf == find_univariateSpline(None, None, None, None, resid=True)
+        #tests error mode
+        assert Inf == find_splineResiduals(None, None, None, None)
+        
         
     """
     
@@ -319,7 +324,7 @@ class Test(unittest.TestCase):
         weights = None
         threshold = 3
         sect_length = 69 #might not be nessessary
-        spline = find_univariateSpline(cutoff, xvals, data, degree, weights, resid=False)
+        spline = find_univariateSpline(cutoff, xvals, data, degree, weights)
         
         starts_and_stops, starts, stops = get_start_stop_pairs_above_threshold(threshold, spline(xvals))
         

@@ -26,17 +26,20 @@ def verboseprint(*args):
                 print arg,
             print
 
-"""
 
-Wrapper to remove PCR duplicate reads from bed file
-
-Input
-bamfile -- location of bamfile on disk
-assumes .bam ending of bam file
-returns bamfile_trimed.bam file
-"""
 
 def trim_reads(bamfile):
+    
+    """
+
+    Wrapper to remove PCR duplicate reads from bed file
+    
+    Input
+    bamfile -- location of bamfile on disk
+    assumes .bam ending of bam file
+    returns bamfile_trimed.bam file
+    
+    """
     
     if not os.path.exists(bamfile):
         raise NameError("file %s does not exist" % (bamfile))
@@ -45,19 +48,21 @@ def trim_reads(bamfile):
     outfile += "_trimmed.bam"
     rmdup("-S", bamfile, outfile)
     return outfile
-"""
-
-Checks to make sure a BAM file has an index, if the index does not exist it is created
-
-Usage undefined if file does not exist (check is made earlier in program)
-bamfile - a path to a bam file
-
-Returns 1 
-TODO make it so a failaure returns 0
-"""
-
 
 def check_for_index(bamfile, make = True):
+    
+    """
+
+    Checks to make sure a BAM file has an index, if the index does not exist it is created
+    
+    Usage undefined if file does not exist (check is made earlier in program)
+    bamfile - a path to a bam file
+    
+    Returns 1 
+    TODO make it so a failaure returns 0
+
+    """
+
     if not os.path.exists(bamfile):
         raise NameError("file %s does not exist" % (bamfile))
     
@@ -131,21 +136,23 @@ def get_FDR_cutoff_mode(readlengths, genelength, iterations=1000, mincut = 2, al
 
 
 
-"""
 
-Loads bed file into a dictionary with the key being the name and a string being the value
-
-Input:
-BED -- a bed file to load
-
-Return:
-A dictionary with the key being the name position of the bed file and the values being the
-ordered bed file
-
-TODO: Refactor to used bedtools instead
-
-"""
 def build_geneinfo(BED):
+    
+    """
+
+    Loads bed file into a dictionary with the key being the name and a string being the value
+    
+    Input:
+    BED -- a bed file to load
+    
+    Return:
+    A dictionary with the key being the name position of the bed file and the values being the
+    ordered bed file
+    
+    TODO: Refactor to used bedtools instead
+    
+    """
     
     #opens bed file, either zipped or unzipped
     try:
@@ -162,19 +169,21 @@ def build_geneinfo(BED):
     bedfile.close()
     return GI
 
-"""
-
-Builds a dictionary of gene names and lengths of mappable regions in that gene
-
-Input:
-A two column file with the first column being the gene name and the second column being the
-mappable length of the gene
-
-Return:
-A dictionary with the key being the name of the gene and the value being the length
-
-"""
 def build_lengths(f):
+    
+    """
+    
+    Builds a dictionary of gene names and lengths of mappable regions in that gene
+    
+    Input:
+    A two column file with the first column being the gene name and the second column being the
+    mappable length of the gene
+    
+    Return:
+    A dictionary with the key being the name of the gene and the value being the length
+    
+    """
+    
     FI=open(f,"r")
     gene_lengths = {}
 
@@ -187,32 +196,34 @@ def build_lengths(f):
     return gene_lengths
 
 
-"""
 
-Creates a dictionary containing all information needed to perform peak calling calcluations 
-for a single species
-
-Paramaters
------------
-species: string currently not used
-chrs: list specifying all the chromosomes in a given species
-bed: path to a bed file that contains information on genes (custom file *STRUCTURE_genes.BED.gz)
-mrna: path to a file that contains mRNA lengths (custom CSV file contains gene names follwed by gene lengths)
-premrna: path to a file that contains pre-mRNA lengths (custom CSV file contains gene names follwed by gene lengths_
-
-Returns dict of all items passed to it
-
-TODO:  Add checking to verify that file are actually passed
-"""
 def add_species(species, chrs, bed, mrna, premrna):
-        par = dict()
-        
-        #this is non-pythonic, should just combine all lists
-        par["chrs"] = [item for sublist in chrs for item in sublist] #expand sublists
-        par["gene_bed"] = bed
-        par["mRNA"] = mrna
-        par["premRNA"] = premrna
-        return par
+    
+    """
+
+    Creates a dictionary containing all information needed to perform peak calling calcluations 
+    for a single species
+    
+    Paramaters
+    -----------
+    species: string currently not used
+    chrs: list specifying all the chromosomes in a given species
+    bed: path to a bed file that contains information on genes (custom file *STRUCTURE_genes.BED.gz)
+    mrna: path to a file that contains mRNA lengths (custom CSV file contains gene names follwed by gene lengths)
+    premrna: path to a file that contains pre-mRNA lengths (custom CSV file contains gene names follwed by gene lengths_
+    
+    Returns dict of all items passed to it
+    
+    TODO:  Add checking to verify that file are actually passed
+    """
+    par = dict()
+    
+    #this is non-pythonic, should just combine all lists
+    par["chrs"] = [item for sublist in chrs for item in sublist] #expand sublists
+    par["gene_bed"] = bed
+    par["mRNA"] = mrna
+    par["premRNA"] = premrna
+    return par
         
 def main(options):
     
@@ -323,8 +334,8 @@ def main(options):
         length_list.append(lengths[gene])
         
         #for debugging purposes, sometimes 
-        #call_peaks(genes[gene], lengths[gene], None, bamfile,  margin, options.FDR_alpha, options.threshold, 
-        #                       minreads,  poisson_cutoff,  options.plotit, 10, 1000, options.SloP, False,) 
+        call_peaks(genes[gene], lengths[gene], None, bamfile,  margin, options.FDR_alpha, options.threshold, 
+                               minreads,  poisson_cutoff,  options.plotit, 10, 1000, options.SloP, False,) 
 
  
     combined_list = zip(running_list, length_list)
