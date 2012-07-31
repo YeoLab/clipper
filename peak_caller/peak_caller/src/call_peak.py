@@ -16,65 +16,11 @@ def verboseprint(*args):
                 print arg,
             print
             
-"""
-interpolate, 
-optimize,
-linalg,
- misc,
- from scipy import   stats
-Finds contiguous (within margin) regions that have reads, the area between covered locations
-is defined as regions without any coverage
-
-Input:
-data - wiggle track in list form each value is the coverage at that location
-margin - distance between sections 
-
-Output:
-A list of strings in the form "start_location|stop_location"
-ie [50|60, 70|80] 
-
-TODO: Modify to allow for thresholded margins 
-
-def find_sections(data, margin):
-
-    sections = list()
-    start = 0
-    stop = 0
-    highlight = False
-    gap = 0
-    margin = int(margin)
-    
-    #walk along wiggle track until a gap is length of margin, when that happens reset, call that a region
-    #and reset
-    for i, val in enumerate(data):
-        stop = i
-        if val > 0:
-            gap=0
-            if highlight is False:
-                start = i - margin
-                if start < 0:
-                    start =0
-            highlight=True
-        else:
-            gap += 1
-        if highlight is True and gap > margin:
-            #reset
-            highlight=False
-            gap=0
-            sect = str(start) + "|" + str(stop)
-            sections.append(sect)
-    
-    #catches last section
-    #really need to get rid of all this string parsing
-    if highlight is True:
-        sect = str(start) + "|" + str(stop)
-        sections.append(sect)
-    return(sections)
-    """
-    
 def get_FDR_cutoff_mode(readlengths, genelength, iterations=1000, mincut = 2, alpha=.05):
     """
+    
     Find randomized method, as in FOX2ES NSMB paper.
+    
     """
     if readlengths.__len__() < 20: # if you have very few reads on a gene, don't waste time trying to find a cutoff
         return mincut
@@ -111,6 +57,7 @@ def get_FDR_cutoff_mode(readlengths, genelength, iterations=1000, mincut = 2, al
 
 def get_FDR_cutoff_mean(readlengths, genelength, iterations=100, mincut = 2, alpha = 0.05):
     """
+    
     Find randomized method, as in FOX2ES NSMB paper.
     MEAN, not MODE
     scatter reads, calcaluate number of reads to pass fdr threshold, takes average observed cutoff
@@ -120,11 +67,10 @@ def get_FDR_cutoff_mean(readlengths, genelength, iterations=100, mincut = 2, alp
     mincut -- min threshold possible to return
     alpha -- FDR alpha 
     
-   
-    
     Returns an int, the number of reads needed to meet the FDR cutoff
     TODO: Allow the minimum cutoff to be paramaritizied
     TODO: double check math on this
+    
     """
     
     if len(readlengths) < 20: # if you have very few reads on a gene, don't waste time trying to find a cutoff        
@@ -146,20 +92,18 @@ def get_FDR_cutoff_mean(readlengths, genelength, iterations=100, mincut = 2, alp
         cutoff = mincut
     return int(round(cutoff, 0))
 
-"""
 
-plots spline information
-
-spline - spline from scipy
-data - wiggle track to plot
-xvals - where to plot
-threshold - line to draw so peaks don't go below threshold
-
-"""
 
 def plotSpline(spline, data, xvals, section, threshold=None ):
     """
-    Plot a smoothing spline and real data
+    
+    plots spline information
+    
+    spline - spline from scipy
+    data - wiggle track to plot
+    xvals - where to plot
+    threshold - line to draw so peaks don't go below threshold
+    
     """
     import matplotlib.pyplot as plt 
     f = plt.figure()
@@ -172,56 +116,79 @@ def plotSpline(spline, data, xvals, section, threshold=None ):
     plt.show()
     
 
-"""
 
-Calculate a smoothing spline for ydata in xdata then return complexity-penalized residuals
-or return the smoothing spline if resid ==False
 
-Parameters:
-x -- Int, range of spline
-xdata -- list, wiggle track positions   
-ydata -- list, wiggle track coverage 
-k -- int, degree of spline
-
-Output: spline object and error if asked for by setting resid, probably want to factor out error calcluation into 
-second function
-
-refer to scipy documentation for futher questions.
-This functions results are undefined if all requiered argunments are not supplied
-"""
-
-def find_univariateSpline(x, xdata, ydata, k, weight=None, resid=True):
+def find_splineResiduals(x, xdata, ydata, k, weight=None):
+    
+    """
+    
+    Returns complexity penalized residuals from a smoothing spline
+    
+    x -- Int, range of spline
+    xdata -- list, wiggle track positions   
+    ydata -- list, wiggle track coverage 
+    k -- int, degree of spline
+    
+    """
+    #imports nessessary things
     from numpy import diff, sign
     from math import sqrt
+    
+    spline = find_univariateSpline(x, xdata, ydata, k, weight=None)
+    
+    #catches spline fitting error
+    if spline is None:
+        return Inf
+    
+    #calculates residuals
+    func = spline(xdata)
+    turns = sum(abs(diff(sign(diff(func)))))/2 # number of turns in the function
+    err = sqrt((spline.get_residual())*(turns**4))
+    return(err)
+    
+def find_univariateSpline(x, xdata, ydata, k, weight=None):
+    
+    """
+    
+    Calculate a smoothing spline for ydata in xdata then return complexity-penalized residuals
+    or return the smoothing spline if resid ==False
+    
+    Parameters:
+    x -- Int, range of spline
+    xdata -- list, wiggle track positions   
+    ydata -- list, wiggle track coverage 
+    k -- int, degree of spline
+    
+    Output: spline object and error if asked for by setting resid, probably want to factor out error calcluation into 
+    second function
+    
+    refer to scipy documentation for futher questions.
+    This functions results are undefined if all requiered argunments are not supplied
+
+    """
     from scipy import interpolate
+    
     try:
+        print xdata, ydata, x, k, weight
         spline = interpolate.UnivariateSpline(xdata, ydata, s=x,k=k, w=weight)
-        #plotSpline(spline, ydata, xdata, 33)        
-        #computationally intensive 
-        
-        #this section calclauates error of splines based on residuals * number of turns
-        #need to explain why this happens Mike
-        if resid is True:
-            #knots = spline.get_knots()
-            func = spline(xdata)
-            turns = sum(abs(diff(sign(diff(func)))))/2 # number of turns in the function
-            err = sqrt((spline.get_residual())*(turns**4))
-            return(err)
-        else:
-            return(spline)
+        return(spline)
+    
     except Exception as e:
-        print e
-        return(Inf)
+        verboseprint("failed to build spline", e)
+        return None
 
-"""
 
-Plots each section individually, I think
-Wiggle is a list representing a wiggle track
-sections is a list of strings of format "start|stop" where start and stop are both integers
-threshold is an integer 
-
-"""
 def plotSections(wiggle, sections, threshold):
+    
+    """
+    
+    Plots each section individually, I think
+    Wiggle is a list representing a wiggle track
+    sections is a list of strings of format "start|stop" where start and stop are both integers
+    threshold is an integer 
+    
+    """
+    
     import matplotlib.pyplot as plt
     from matplotlib.path import Path
     import matplotlib.patches as patches
@@ -252,6 +219,9 @@ def plotSections(wiggle, sections, threshold):
         ax.add_patch(patch)
     plt.show()
 
+
+def poissonP(reads_in_gene, reads_in_peak, gene_length, peak_length):
+    
     """
     
     scipy.stats.poisson.cdf
@@ -272,7 +242,7 @@ def plotSections(wiggle, sections, threshold):
     If calcluation fails returns 1
     
     """
-def poissonP(reads_in_gene, reads_in_peak, gene_length, peak_length):
+    
     from scipy import stats
     try:
         #lam is estimate of the lambda value
@@ -293,29 +263,32 @@ def poissonP(reads_in_gene, reads_in_peak, gene_length, peak_length):
         print e
         return 1
 
-"""
 
-calls peaks for an individual gene 
-
-loc - string of all gene locations
-gene_length - effective length of gene
-takes bam file or bam file object.  Serial uses object parallel uses location (name)
-trim collapses redundant reads (same start and stop position) --might not belong here
-margin - space between sections for calling new peaks
-FDR_alpha - false discovery rate, p-value bonferoni correct from peaks script (called in setup)
-user_threshold - user defined FDR thershold (probably should be factored into FDR_alpha
-minreads - min reads in section to try and call peaks
-poisson_cutoff - p-value for signifance cut off for number of reads in peak that gets called - might want to use ashifted distribution
-plotit - makes figures 
-
-w_cutoff - width cutoff, peaks narrower than this are discarted 
-windowssize - for super local calculation distance left and right to look 
-SloP - super local p-value instead of gene-wide p-value
-correct_P - boolean bonferoni correction of p-values from poisson
-
-"""
 def call_peaks(loc, gene_length, bam_fileobj=None, bam_file=None, margin=25, FDR_alpha=0.05,user_threshold=None,
                minreads=20, poisson_cutoff=0.05, plotit=False,  w_cutoff=10, windowsize=1000, SloP = False, correct_P = False):
+    
+    """
+
+    calls peaks for an individual gene 
+    
+    loc - string of all gene locations
+    gene_length - effective length of gene
+    takes bam file or bam file object.  Serial uses object parallel uses location (name)
+    trim collapses redundant reads (same start and stop position) --might not belong here
+    margin - space between sections for calling new peaks
+    FDR_alpha - false discovery rate, p-value bonferoni correct from peaks script (called in setup)
+    user_threshold - user defined FDR thershold (probably should be factored into FDR_alpha
+    minreads - min reads in section to try and call peaks
+    poisson_cutoff - p-value for signifance cut off for number of reads in peak that gets called - might want to use ashifted distribution
+    plotit - makes figures 
+    
+    w_cutoff - width cutoff, peaks narrower than this are discarted 
+    windowssize - for super local calculation distance left and right to look 
+    SloP - super local p-value instead of gene-wide p-value
+    correct_P - boolean bonferoni correction of p-values from poisson
+    
+    """
+    
     #setup
     chrom, gene_name, tx_start, tx_end, signstrand = loc.split("|")
 
@@ -338,24 +311,27 @@ def call_peaks(loc, gene_length, bam_fileobj=None, bam_file=None, margin=25, FDR
 
     return r
 
-"""
 
-Idea here is to call all regions above a given threshold and return start stop pairs for those regions
-added twist is that when everthere is a local minima above the threshold we will treat that as a breakpoint
-
-generates start and stop positions for calling peaks on.  Helper function that was abstracted 
-from peaks_from_info
-
-threshold -- threshold for what is siginifant peak
-values -- the values (as a numpy array) arranged from 0-length of the section
-sect_length -- the length of the section that we will attempt to call peaks on
-xvals -- the location of all the xvalues we are looking at
-spline -- spline object from find_univarateSpline
-
-returns list of tuples(start, stop) used for calling peaks
-
-"""
 def get_start_stop_pairs_above_threshold(threshold, values):
+    
+    """
+
+    Idea here is to call all regions above a given threshold and return start stop pairs for those regions
+    added twist is that when everthere is a local minima above the threshold we will treat that as a breakpoint
+    
+    generates start and stop positions for calling peaks on.  Helper function that was abstracted 
+    from peaks_from_info
+    
+    threshold -- threshold for what is siginifant peak
+    values -- the values (as a numpy array) arranged from 0-length of the section
+    sect_length -- the length of the section that we will attempt to call peaks on
+    xvals -- the location of all the xvalues we are looking at
+    spline -- spline object from find_univarateSpline
+    
+    returns list of tuples(start, stop) used for calling peaks
+    
+    """
+    
     from numpy import diff, sign, append, insert, array, arange, r_
     
     xlocs = arange(0, len(values))
@@ -403,24 +379,26 @@ def get_start_stop_pairs_above_threshold(threshold, values):
     return starts_and_stops, starts, stops
 
 
-"""
 
-same args as before 
-wiggle is converted from bam file
-pos_counts - one point per read instead of coverage of entire read
-lengths - lengths aligned portions of reads 
-rest are the same fix later
-
-"""
 def peaks_from_info(wiggle, pos_counts, lengths, loc, gene_length, margin=25, FDR_alpha=0.05,user_threshold=None,
                                    minreads=20, poisson_cutoff=0.05, plotit=False, w_cutoff=10, windowsize=1000, SloP = False, correct_P = False):
+
+    """
+    
+    same args as before 
+    wiggle is converted from bam file
+    pos_counts - one point per read instead of coverage of entire read
+    lengths - lengths aligned portions of reads 
+    rest are the same fix later
+    
+    """
 
     #this is how things need to be for parallization to work
     import peaks
     from numpy import arange, diff, sign, array
     from random import sample as rs
     import math
-    from src.call_peak import find_univariateSpline, poissonP, plotSections, plotSpline, get_start_stop_pairs_above_threshold
+    from src.call_peak import find_splineResiduals, find_univariateSpline, poissonP, plotSections, plotSpline, get_start_stop_pairs_above_threshold
     peakDict = {}
     import scipy  
     from scipy import optimize 
@@ -524,12 +502,12 @@ def peaks_from_info(wiggle, pos_counts, lengths, loc, gene_length, margin=25, FD
            
             
             #step 2, refine so as not to runinto local minima later, try to come up with a good way of getting optimal paramater
-            error  = find_univariateSpline(x1, xvals, data, degree, weights, resid=True)
+            error  = find_splineResiduals(x1, xvals, data, degree, weights)
             for i in range(2, 11):
                 x2 = x1*i
                 
                 #tries find optimal initial smooting paraater in this loop
-                err = find_univariateSpline(x2, xvals, data, degree, weights, resid=True)
+                err = find_splineResiduals(x2, xvals, data, degree, weights)
                 if err < error:
                     x0 = x2
                     useme = i
@@ -547,7 +525,7 @@ def peaks_from_info(wiggle, pos_counts, lengths, loc, gene_length, margin=25, FD
                         break
                     
                     #TODO make verbose a global variable so I can display stuff again
-                    sp = optimize.minimize(find_univariateSpline, x0, args=(xvals, data, degree, weights),
+                    sp = optimize.minimize(find_splineResiduals, x0, args=(xvals, data, degree, weights),
                                                  options={'disp':False}, method="Powell")
                     #fit a smoothing spline using an optimal parameter for smoothing and with weights proportional to the number of reads aligned at each position if weights is set
                     if sp.success is True:
@@ -557,15 +535,16 @@ def peaks_from_info(wiggle, pos_counts, lengths, loc, gene_length, margin=25, FD
                     x0 += sect_length
             except Exception as e:
                 print >>sys.stderr, e
-                print >>sys.stderr,  "%s failed spline fitting at section %s with sp: %s" %(loc, sect)
-                continue
+                raise
+                #print >>sys.stderr,  "%s failed spline fitting at section %s with sp: %s" %(loc, sect)
+                #continue
 
        
             verboseprint ("optimized smoothing parameter")
         #if we are going to save and output as a pickle fi is %s" %(str(cutoff))
         #final fit spline
 
-            spline = find_univariateSpline(cutoff, xvals, data, degree, weights, resid=False)
+            spline = find_univariateSpline(cutoff, xvals, data, degree, weights)
           
             if plotit is True:
                 plotSpline(spline, data, xvals, peakn, threshold)
