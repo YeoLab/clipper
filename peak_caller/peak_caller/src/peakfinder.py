@@ -77,66 +77,6 @@ def check_for_index(bamfile, make = True):
         
         return 1
 
-
-def get_FDR_cutoff_mode(readlengths, genelength, iterations=1000, mincut = 2, alpha=.05):
-
-
-    """
-    Find randomized threshold for signficance, as in FOX2ES NSMB paper.
-
-    Find the most frequently observed height against a random background.
-
-    Calls a C++ function called peaks to calculate the height of reads for which the
-    Benjamani-Hochberg corrected p-value is significant, with respect to a background of
-    the same number of equally-lengthed random reads scattered across a fake gene of the
-    same effective (alignable, maybe other consierations) length.  The source for this
-    is included in the repo as peaks_1.2.cc 
-
-    """
-
-    if readlengths.__len__() < 20: # if you have very few reads on a gene, don't waste time trying to find a cutoff
-        return mincut
-    cmd = "./peaks"
-    bad = 1
-    tries=0
-
-    while bad == 1 and tries < 5:
-
-        #problems opening other connections sometimes... make sure to try a couple times
-
-        try:
-            process = Popen([cmd, "-f", "stdin", "-L",str(genelength),"-r", str(iterations), "-a", str(alpha)], stdin=PIPE, stdout=PIPE)
-            results, err = process.communicate("\n".join(map(str, readlengths)))
-            return_val = process.wait()
-            bad=0
-
-        except OSError:
-            print "Couldn't open a process for thresholding, trying again"
-            tries +=1
-        
-    if bad == 1:
-        return "error"
-
-    obs = 0
-    cutoff = mincut #initialize the observed cutoff
-
-    for x in results.split("\n"): #parse the results
-        if x == "":
-            continue
-        try:
-            cut, n_observed = map(int, x.strip().split("\t"))
-        except:
-            pass
-        if n_observed >= obs and cut > cutoff: #take the most frequently observed 
-            obs = n_observed
-            cutoff = cut
-    if cutoff < mincut:
-        cutoff = mincut            
-    return int(cutoff)
-
-
-
-
 def build_geneinfo(BED):
     
     """
@@ -289,8 +229,6 @@ def main(options):
     if options.maxgenes is not None:
         maxgenes = int(options.maxgenes)
 
-    
-    #unwrapping the options is really unnessessary, this could be refactored to remove the unwrapping
     minreads = int(options.minreads)
     poisson_cutoff = options.poisson_cutoff
 
@@ -330,12 +268,13 @@ def main(options):
         #TODO make it so transcript size isn't always used
         #this is a filter operation, should make it as such
         running_list.append(genes[gene])
-        verboseprint(lengths[gene])
         length_list.append(lengths[gene])
         
+        verboseprint(lengths[gene])
+        
         #for debugging purposes, sometimes 
-        call_peaks(genes[gene], lengths[gene], None, bamfile,  margin, options.FDR_alpha, options.threshold, 
-                               minreads,  poisson_cutoff,  options.plotit, 10, 1000, options.SloP, False,) 
+        #call_peaks(genes[gene], lengths[gene], None, bamfile,  margin, options.FDR_alpha, options.threshold, 
+        #                       minreads,  poisson_cutoff,  options.plotit, 10, 1000, options.SloP, False,) 
 
  
     combined_list = zip(running_list, length_list)
