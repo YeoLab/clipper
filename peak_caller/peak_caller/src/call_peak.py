@@ -398,8 +398,8 @@ def get_start_stop_pairs_above_threshold(threshold, values):
         starts_and_stops.append((starts[0], stop))
         starts = starts[starts >= stop]
     
-    starts = map(lambda x: x[0], starts_and_stops)
-    stops  = map(lambda x: x[1], starts_and_stops)
+    starts = array(map(lambda x: x[0], starts_and_stops))
+    stops  = array(map(lambda x: x[1], starts_and_stops))
     return starts_and_stops, starts, stops
 
 
