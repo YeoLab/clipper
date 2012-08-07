@@ -18,7 +18,7 @@ setup(
                         'numpy >= 1.5.1 ',
                         'scipy >= 0.8.0',
                         'matplotlib >= 1.1.0',
-
+                        'pp >= 1.6.2'
                         'pybedtools >= 0.6',
                         ],
       
@@ -26,7 +26,7 @@ setup(
     
     entry_points = {
                     'console_scripts': [
-                                        'find_peaks = src.peakfinder:call_main',],
+                                        'clipper = src.peakfinder:call_main',],
                     },
     #metadata for upload to PyPI
     author = "Michael Lovci and Gabriel Pratt",
