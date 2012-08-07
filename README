@@ -1,0 +1,6 @@
+CLIPper - CLIP peak enrichment recognition
+
+A tool to detect CLIP-seq peaks.
+
+Install:
+easy_install clipper
