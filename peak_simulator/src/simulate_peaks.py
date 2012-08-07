@@ -14,6 +14,7 @@ import numpy
 from numpy import array, round, arange, cumsum, where, zeros
 import pysam
 import pybedtools
+from optparse import OptionParser
 
 
 def assign_peaks(genome, peak_size, num_peaks):
@@ -33,8 +34,20 @@ def assign_peaks(genome, peak_size, num_peaks):
     
     peaks = set([])
     for x in range(num_peaks):
-        start = random.randrange(0, len(genome))
-        stop  = start + peak_size
+        duplicate = False
+        
+        #Small potental for infinate loop here
+        while not duplicate:
+            duplicate = False
+            start = random.randrange(0, len(genome))
+            stop  = start + peak_size
+            
+            #make sure the included peak has no overlaps, if it is re-generate start and stop sites
+            for cur_start, cur_stop in peaks:
+                if (cur_start < start and cur_stop > start) or (cur_start < stop and cur_stop > stop):
+                    duplicate = True
+                    break
+                
         peaks.add((start, stop))
     
     return peaks
@@ -200,12 +213,30 @@ def output_bed(peaks, outfile):
     tool.saveas(outfile
                 )
 def run():
-    peaks = assign_peaks(range(60000), 50, 50)
+    
+    usage=""    
+    description=""    
+    parser = OptionParser(usage=usage, description=description)
+
+    parser.add_option("--genome", "-g", dest="bed", help="A bed file defining the genome (or transcriptiome) to distribute reads across", type="string", metavar="FILE.bam")
+    parser.add_option("--reads", "-r", type="int", dest="reads", help="The aproximate number of reads to assign")
+    parser.add_option("--peak_size", "-p", type="int", dest="peak_size", help="The size of peaks to create")
+    parser.add_option("--num_peaks", "-n", type="int", dest="num_peaks", help="The number of peaks to create")
+    parser.add_option("--peak_coeff", "-c", type="int", dest="peak_coeff", help="Coefficent that increases the weight of peak locations, higher value = more obvious peaks")
+
+    parser.add_option("--outfile", "-o", dest="outfile", default="out", help="a bed and bam file root for outputting results, default:%default")
+    
+    #Things to add
+    #Distribution, 
+    
+    (options,args) = parser.parse_args()
+
+    peaks = assign_peaks(range(60000), options.peak_size, options.num_peaks)
     background_weights = distribute_background_weights(range(60000))
-    total_weights = distribute_peak_weights(peaks, background_weights ,5)
-    reads = distribute_reads(total_weights, 60000)
-    output_bam(reads, 50, "foo.bam")
-    output_bed(peaks, "foo.bed")
+    total_weights = distribute_peak_weights(peaks, background_weights ,options.peak_coeff)
+    reads = distribute_reads(total_weights, options.reads)
+    output_bam(reads, 50, options.outfile + ".bam")
+    output_bed(peaks, options.outfile + ".bed")
     #
     #pass
 
