@@ -2,5 +2,21 @@ CLIPper - CLIP peak enrichment recognition
 
 A tool to detect CLIP-seq peaks.
 
+
 Install:
+
+Until the next version of scipy comes out we are stuck using rc1.  Get it here:
+http://sourceforge.net/projects/scipy/files/scipy/0.11.0rc1/
+and install like a normal python package.
+
+Then
+
 easy_install clipper
+
+or 
+
+python setup.py install
+
+Run 
+
+clipper -h
