@@ -49,7 +49,7 @@ def trim_reads(bamfile):
     rmdup("-S", bamfile, outfile)
     return outfile
 
-def check_for_index(bamfile, make = True):
+def check_for_index(bamfile, make=True):
     
     """
 
@@ -69,7 +69,7 @@ def check_for_index(bamfile, make = True):
     if os.path.exists(bamfile + ".bai"):
         return 1
     else:
-        verboseprint("Index for %s does not exist, indexing bamfile" %(bamfile))
+        verboseprint("Index for %s does not exist, indexing bamfile" % (bamfile))
         process = call(["samtools", "index", str(bamfile)])
         
         if process == -11: 
@@ -124,12 +124,12 @@ def build_lengths(f):
     
     """
     
-    FI=open(f,"r")
+    FI = open(f, "r")
     gene_lengths = {}
 
     for line in FI.readlines():
         name, gene_length = line.strip().split("\t")
-        gene_lengths[name]=int(gene_length)
+        gene_lengths[name] = int(gene_length)
 
     FI.close()
 
@@ -171,7 +171,7 @@ def main(options):
     bamfile = options.bam
     if os.path.exists(bamfile):
         bamfile = os.path.abspath(bamfile) #re-set to include the full path to bamfile
-        verboseprint("bam file is set to %s\n" %(bamfile))
+        verboseprint("bam file is set to %s\n" % (bamfile))
     else:
         sys.stderr.write("Bam file not defined")
         raise IOError
@@ -189,36 +189,36 @@ def main(options):
 
     lenfile = ""
     
-    species_parameters["hg19"] = add_species("hg19", [range(1,22), "X", "Y"],
+    species_parameters["hg19"] = add_species("hg19", [range(1, 22), "X", "Y"],
                                              pkg_resources.resource_filename(__name__, "../data/hg19.AS.STRUCTURE_genes.BED.gz"),
                                              pkg_resources.resource_filename(__name__, "../data/hg19.AS.STRUCTURE_mRNA.lengths"),
                                              pkg_resources.resource_filename(__name__, "../data/hg19.AS.STRUCTURE_premRNA.lengths"))
-    species_parameters["hg18"] = add_species("hg18", [range(1,22), "X", "Y"],
+    species_parameters["hg18"] = add_species("hg18", [range(1, 22), "X", "Y"],
                                              pkg_resources.resource_filename(__name__, "../data/hg18.AS.STRUCTURE_genes.BED.gz"),
                                              pkg_resources.resource_filename(__name__, "../data/hg18.AS.STRUCTURE_mRNA.lengths"),
                                              pkg_resources.resource_filename(__name__, "../data/hg18.AS.STRUCTURE_premRNA.lengths"))
-    species_parameters["mm9"] = add_species("mm9", [range(1,19), "X", "Y"],
-                                             pkg_resources.resource_filename(__name__,"../data/mm9.AS.STRUCTURE_genes.BED.gz"),
-                                             pkg_resources.resource_filename(__name__,"../data/mm9.AS.STRUCTURE_mRNA.lengths"),
-                                             pkg_resources.resource_filename(__name__,"../data/mm9.AS.STRUCTURE_premRNA.lengths"))
+    species_parameters["mm9"] = add_species("mm9", [range(1, 19), "X", "Y"],
+                                             pkg_resources.resource_filename(__name__, "../data/mm9.AS.STRUCTURE_genes.BED.gz"),
+                                             pkg_resources.resource_filename(__name__, "../data/mm9.AS.STRUCTURE_mRNA.lengths"),
+                                             pkg_resources.resource_filename(__name__, "../data/mm9.AS.STRUCTURE_premRNA.lengths"))
     acceptable_species = ",".join(species_parameters.keys())
     
     #error checking
     if species is not None and geneBed is not None:
-        print "You shouldn't set both geneBed and species, defaults exist for %s" %(acceptable_species)
+        print "You shouldn't set both geneBed and species, defaults exist for %s" % (acceptable_species)
         exit()
     if species is not None and species not in species_parameters:
-        print "Defaults don't exist for your species: %s. Please choose from: %s or supply \"geneBed\"+\"geneMRNA\"+\"genePREMRNA\"" %(species, acceptable_species)
+        print "Defaults don't exist for your species: %s. Please choose from: %s or supply \"geneBed\"+\"geneMRNA\"+\"genePREMRNA\"" % (species, acceptable_species)
         exit()
     if species is None:
         species = "custom"
-        species_parameters["custom"] = add_species("custom", [range(1,22), "X", "Y"], geneBed, genemRNA, genePREmRNA)
+        species_parameters["custom"] = add_species("custom", [range(1, 22), "X", "Y"], geneBed, genemRNA, genePREmRNA)
 
     #error checking done, this does... something.  This is more setup phase  Uses pre-mrnas?
     if options.premRNA is True:
-        lenfile=species_parameters[species]["premRNA"]
+        lenfile = species_parameters[species]["premRNA"]
     else:
-        lenfile=species_parameters[species]["mRNA"]
+        lenfile = species_parameters[species]["mRNA"]
     
     #builds dict to do processing on, 
     lengths = build_lengths(lenfile)
@@ -249,7 +249,7 @@ def main(options):
     
     #I think this calls peaks for each gene in the gene list, which could be every gene in the genome
     running_list = []
-    length_list  = []
+    length_list = []
     
     for n, gene in enumerate(gene_list):
         #again, hacky should be factored to a single if statement, need to be more explicit about code paths
@@ -262,8 +262,8 @@ def main(options):
         geneinfo = genes[gene]
         
         #There is a better way of doing timing.  
-        t=time.strftime('%X %x %Z')
-        verboseprint(geneinfo+ " started:"+str(t))
+        t = time.strftime('%X %x %Z')
+        verboseprint(geneinfo + " started:" + str(t))
         transcriptome_size += lengths[gene]
         #TODO make it so transcript size isn't always used
         #this is a filter operation, should make it as such
@@ -279,12 +279,12 @@ def main(options):
  
     combined_list = zip(running_list, length_list)
   
-    jobs = [job_server.submit(call_peaks, 
-                              args = (gene, length, None, bamfile,  margin, options.FDR_alpha, options.threshold, 
-                               minreads,  poisson_cutoff,  options.plotit, 10, 1000, options.SloP, False,), 
-                              depfuncs = (peaks_from_info, get_FDR_cutoff_mean, 
+    jobs = [job_server.submit(call_peaks,
+                              args=(gene, length, None, bamfile, margin, options.FDR_alpha, options.threshold,
+                               minreads, poisson_cutoff, options.plotit, 10, 1000, options.SloP, False,),
+                              depfuncs=(peaks_from_info, get_FDR_cutoff_mean,
                                           verboseprint,),
-                              modules = ("pysam", "os", "sys", "scipy", "math", "time", 
+                              modules=("pysam", "os", "sys", "scipy", "math", "time",
                                "random", "peaks"),) for gene, length in combined_list]
 
     for job in jobs:
@@ -295,7 +295,7 @@ def main(options):
     #we should factor instead create a method or object to handle all file output
     if options.save_pickle is True:
         pickle_file = open(options.outfile + ".pickle", 'w')
-        pickle.dump(results, file = pickle_file)                
+        pickle.dump(results, file=pickle_file)                
     
     #combine results
     allpeaks = set([])
@@ -307,7 +307,7 @@ def main(options):
         if gene_result is not None:
             verboseprint("nreads", gene_result['nreads'])
             transcriptome_reads += gene_result['nreads']
-    print "Transcriptome size is %d, transcriptome reads are %d" %(transcriptome_size, transcriptome_reads)
+    print "Transcriptome size is %d, transcriptome reads are %d" % (transcriptome_size, transcriptome_reads)
     
     #is this a missed indent?
     for gener in results:
@@ -319,11 +319,11 @@ def main(options):
             try:
                 transcriptomeP = poissonP(transcriptome_reads, gener['clusters'][cluster]['Nreads'], transcriptome_size, gener['clusters'][cluster]['size'])
                 if math.isnan(transcriptomeP):
-                    print "Transcriptome P is NaN, transcriptome_reads = %d, cluster reads = %d, transcriptome_size = %d, cluster_size = %d" %(transcriptome_reads, gener['clusters'][cluster]['Nreads'], transcriptome_size, gener['clusters'][cluster]['size'])
+                    print "Transcriptome P is NaN, transcriptome_reads = %d, cluster reads = %d, transcriptome_size = %d, cluster_size = %d" % (transcriptome_reads, gener['clusters'][cluster]['Nreads'], transcriptome_size, gener['clusters'][cluster]['size'])
                     continue
                 
                 if transcriptomeP > poisson_cutoff:
-                    print "%s\n Failed Transcriptome cutoff with %s reads, pval: %s" %(cluster, gener['clusters'][cluster]['Nreads'], transcriptomeP)
+                    print "%s\n Failed Transcriptome cutoff with %s reads, pval: %s" % (cluster, gener['clusters'][cluster]['Nreads'], transcriptomeP)
                     continue
                 
                 min_pval = 1
@@ -334,7 +334,7 @@ def main(options):
                 if corrected_SloP_pval < poisson_cutoff or corrected_Gene_pval < poisson_cutoff:
                     min_pval = min([corrected_SloP_pval, corrected_Gene_pval])
                 else:
-                    verboseprint("Failed Gene Pvalue: %s and failed SloP Pvalue: %s for cluster %s" %(corrected_Gene_pval, corrected_SloP_pval, cluster))
+                    verboseprint("Failed Gene Pvalue: %s and failed SloP Pvalue: %s for cluster %s" % (corrected_Gene_pval, corrected_SloP_pval, cluster))
                     continue
 
 
@@ -344,23 +344,23 @@ def main(options):
                 allpeaks.add(bedline)
 
             except NameError as e:
-                print >>sys.stderr,  e
-                print >>sys.stderr,  "parsing failed"
+                print >> sys.stderr, e
+                print >> sys.stderr, "parsing failed"
                 raise e
         
     #again redundant code 
     outbed = options.outfile + ".BED"
-    color=options.color
-    pybedtools.BedTool("\n".join(allpeaks), from_string=True).sort(stream=True).saveas(outbed, trackline="track name=\"%s\" visibility=2 colorByStrand=\"%s %s\"" %(outbed, color, color))
-    print "wrote peaks to %s" %(options.outfile)
+    color = options.color
+    pybedtools.BedTool("\n".join(allpeaks), from_string=True).sort(stream=True).saveas(outbed, trackline="track name=\"%s\" visibility=2 colorByStrand=\"%s %s\"" % (outbed, color, color))
+    print "wrote peaks to %s" % (options.outfile)
     "\n".join(allpeaks)
     return 1
  
 
 def call_main():
     
-    usage="\npython peakfinder.py -b <bamfile> -s <hg18/hg19/mm9>\n OR \npython peakfinder.py -b <bamfile> --customBED <BEDfile> --customMRNA <mRNA lengths> --customPREMRNA <premRNA lengths>"
-    description="Fitted Accurate Peaks. Michael Lovci 2012. CLIP peakfinder that uses fitted smoothing splines to define clusters of binding.  Computation is performed in parallel using MPI.  You may decide to use the pre-built gene lists by setting the --species parameter or alternatively you can define your own list of genes to test in BED6/12 format and provide files containing the length of each gene in PREMRNA form and MRNA form (both are required). Questions should be directed to michaeltlovci@gmail.com."
+    usage = "\npython peakfinder.py -b <bamfile> -s <hg18/hg19/mm9>\n OR \npython peakfinder.py -b <bamfile> --customBED <BEDfile> --customMRNA <mRNA lengths> --customPREMRNA <premRNA lengths>"
+    description = "Fitted Accurate Peaks. Michael Lovci 2012. CLIP peakfinder that uses fitted smoothing splines to define clusters of binding.  Computation is performed in parallel using MPI.  You may decide to use the pre-built gene lists by setting the --species parameter or alternatively you can define your own list of genes to test in BED6/12 format and provide files containing the length of each gene in PREMRNA form and MRNA form (both are required). Questions should be directed to michaeltlovci@gmail.com."
     parser = OptionParser(usage=usage, description=description)
 
     parser.add_option("--bam", "-b", dest="bam", help="A bam file to call peaks on", type="string", metavar="FILE.bam")
@@ -382,12 +382,12 @@ def call_main():
     parser.add_option("--threshold", dest="threshold", type="int", default=None, help="Skip FDR calculation and set a threshold yourself")
     parser.add_option("--maxgenes", dest="maxgenes", default=None, help="stop computation after this many genes, for testing", metavar="NGENES")
     parser.add_option("--processors", dest="np", default="autodetect", help="Number of processors to use. Default: All processors on machine", type="str", metavar="NP")
-    parser.add_option("--superlocal", action = "store_true", dest="SloP", default=False, help="Use super-local p-values, counting reads in a 1KB window around peaks")
+    parser.add_option("--superlocal", action="store_true", dest="SloP", default=False, help="Use super-local p-values, counting reads in a 1KB window around peaks")
     parser.add_option("--color", dest="color", default="0,0,0", help="R,G,B Color for BED track output, default:black (0,0,0)")
     parser.add_option("--plot", "-p", dest="plotit", action="store_true", help="make figures of the fits", default=False)
     parser.add_option("--verbose", "-q", dest="verbose", action="store_true", help="suppress notifications")
-    parser.add_option("--save-pickle", dest="save_pickle", default=False, action = "store_true", help="Save a pickle file containing the analysis")
-    (options,args) = parser.parse_args()
+    parser.add_option("--save-pickle", dest="save_pickle", default=False, action="store_true", help="Save a pickle file containing the analysis")
+    (options, args) = parser.parse_args()
     
     
     #creates verbose or scilent output mode
