@@ -4,8 +4,13 @@ peaks = Extension("src/peaks", sources = ['src/peaksmodule.cc'],
 #for debugging
 #                  extra_compile_args = ['-O0'] 
 )                 
+
+with open("README") as file:
+    long_description = file.read()
+
 setup(
-    name = "FindPeaks",
+    name = "clipper",
+    long_description = long_description,
     version = "0.1",
     packages = find_packages(),
     ext_modules = [peaks],
@@ -32,9 +37,9 @@ setup(
     author = "Michael Lovci and Gabriel Pratt",
     author_email = "mlovci@ucsd.edu",
     description = "A set of scripts for calling peaks on CLIP-seq data",
-    license = "TBD",
+    license = "GPL2",
     keywords = "CLIP-seq, peaks, bioinformatics",
-    url = "http://yeolab.ucsd.edu/",
+    url = "https://github.com/YeoLab/clipper",
     
     #Other stuff I feel like including here
     include_package_data = True,
