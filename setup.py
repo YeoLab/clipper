@@ -18,7 +18,7 @@ setup(
         '' : ['*.lengths', '*.gz', '*.bam', '*.bai']
         },
     
-    install_requires = ['setuptools >= 0.6', 
+    install_requires = ['setuptools', 
                         'pysam >= 0.6',
                         'numpy >= 1.5.1 ',
                         'scipy >= 0.8.0',
