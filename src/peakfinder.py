@@ -45,7 +45,7 @@ def trim_reads(bamfile):
         raise NameError("file %s does not exist" % (bamfile))
     
     outfile = ".".join(bamfile.split(".")[:-1])
-    outfile += "_trimmed.bam"
+    outfile += ".rmdup.bam"
     rmdup("-S", bamfile, outfile)
     return outfile
 
@@ -210,9 +210,9 @@ def main(options):
     if species is not None and species not in species_parameters:
         print "Defaults don't exist for your species: %s. Please choose from: %s or supply \"geneBed\"+\"geneMRNA\"+\"genePREMRNA\"" % (species, acceptable_species)
         exit()
-    if species is None:
-        species = "custom"
-        species_parameters["custom"] = add_species("custom", [range(1, 22), "X", "Y"], geneBed, genemRNA, genePREmRNA)
+    #if species is None:
+        #species = "custom"
+        #species_parameters["custom"] = add_species("custom", [range(1,22), "X", "Y"], geneBed, genemRNA, genePREmRNA) ##warning: set to 1..22, for human, fix this in the future
 
     #error checking done, this does... something.  This is more setup phase  Uses pre-mrnas?
     if options.premRNA is True:
@@ -359,8 +359,9 @@ def main(options):
 
 def call_main():
     
-    usage = "\npython peakfinder.py -b <bamfile> -s <hg18/hg19/mm9>\n OR \npython peakfinder.py -b <bamfile> --customBED <BEDfile> --customMRNA <mRNA lengths> --customPREMRNA <premRNA lengths>"
-    description = "Fitted Accurate Peaks. Michael Lovci 2012. CLIP peakfinder that uses fitted smoothing splines to define clusters of binding.  Computation is performed in parallel using MPI.  You may decide to use the pre-built gene lists by setting the --species parameter or alternatively you can define your own list of genes to test in BED6/12 format and provide files containing the length of each gene in PREMRNA form and MRNA form (both are required). Questions should be directed to michaeltlovci@gmail.com."
+    usage="\npython peakfinder.py -b <bamfile> -s <hg18/hg19/mm9>\n OR \npython peakfinder.py -b <bamfile> --customBED <BEDfile> --customMRNA <mRNA lengths> --customPREMRNA <premRNA lengths>"
+    description="CLIPper. Michael Lovci, Gabriel Pratt 2012. CLIP peakfinder that uses fitted smoothing splines to define clusters of binding.  Computation is performed in parallel using parallelPython. Refer to: https://github.com/YeoLab/clipper/wiki for instructions. Questions should be directed to michaeltlovci@gmail.com."
+
     parser = OptionParser(usage=usage, description=description)
 
     parser.add_option("--bam", "-b", dest="bam", help="A bam file to call peaks on", type="string", metavar="FILE.bam")
@@ -408,7 +409,7 @@ def call_main():
         parser.print_help()
         exit()
     
-    #If triming option is set use pysam to remove duplicate reads for us, trims strictly ignoring paired end and strandness
+    #If triming option is set use samtools to remove duplicate reads for us, trims strictly ignoring paired end and strandness
     if options.trim:
         options.bam = trim_reads(options.bam)
     
@@ -417,6 +418,6 @@ def call_main():
     verboseprint("Starting peak calling")        
     main(options)
 
-#so hacky... need to factor some of this out
+
 if __name__ == "__main__":
     call_main()
