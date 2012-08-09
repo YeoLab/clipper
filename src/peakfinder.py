@@ -20,11 +20,16 @@ logging.disable(logging.INFO)
 #define verbose printing here for test cases
 global varboseprint
 def verboseprint(*args):
-        # Print each argument separately so caller doesn't need to
-        # stuff everything to be printed into a single string
-            for arg in args:
-                print arg,
-            print
+    """
+    
+    wrapper print function to print commands only if a flag at runtime is set
+    
+    """
+    # Print each argument separately so caller doesn't need to
+    # stuff everything to be printed into a single string
+    for arg in args:
+        print arg,
+    print
 
 
 
@@ -69,7 +74,8 @@ def check_for_index(bamfile, make=True):
     if os.path.exists(bamfile + ".bai"):
         return 1
     else:
-        verboseprint("Index for %s does not exist, indexing bamfile" % (bamfile))
+        verboseprint("Index for %s does not exist, indexing bamfile" 
+                     % (bamfile))
         process = call(["samtools", "index", str(bamfile)])
         
         if process == -11: 
@@ -359,8 +365,15 @@ def main(options):
 
 def call_main():
     
-    usage="\npython peakfinder.py -b <bamfile> -s <hg18/hg19/mm9>\n OR \npython peakfinder.py -b <bamfile> --customBED <BEDfile> --customMRNA <mRNA lengths> --customPREMRNA <premRNA lengths>"
-    description="CLIPper. Michael Lovci, Gabriel Pratt 2012. CLIP peakfinder that uses fitted smoothing splines to define clusters of binding.  Computation is performed in parallel using parallelPython. Refer to: https://github.com/YeoLab/clipper/wiki for instructions. Questions should be directed to michaeltlovci@gmail.com."
+    usage = """\npython peakfinder.py -b <bamfile> -s <hg18/hg19/mm9>\n OR 
+    \npython peakfinder.py -b <bamfile> --customBED <BEDfile> --customMRNA 
+    <mRNA lengths> --customPREMRNA <premRNA lengths>"""
+    description = """CLIPper. Michael Lovci, Gabriel Pratt 2012. 
+                     CLIP peakfinder that uses fitted smoothing splines to 
+                     define clusters of binding.  Computation is performed in
+                     parallel using parallelPython. 
+                     Refer to: https://github.com/YeoLab/clipper/wiki for instructions. 
+                     Questions should be directed to michaeltlovci@gmail.com."""
 
     parser = OptionParser(usage=usage, description=description)
 
@@ -409,7 +422,8 @@ def call_main():
         parser.print_help()
         exit()
     
-    #If triming option is set use samtools to remove duplicate reads for us, trims strictly ignoring paired end and strandness
+    #If triming option is set use samtools to remove duplicate 
+    #reads for us, trims strictly ignoring paired end and strandness
     if options.trim:
         options.bam = trim_reads(options.bam)
     
