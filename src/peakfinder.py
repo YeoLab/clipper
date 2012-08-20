@@ -20,11 +20,18 @@ logging.disable(logging.INFO)
 #define verbose printing here for test cases
 global varboseprint
 def verboseprint(*args):
-        # Print each argument separately so caller doesn't need to
-        # stuff everything to be printed into a single string
-            for arg in args:
-                print arg,
-            print
+
+    """
+    
+    wrapper print function to print commands only if a flag at runtime is set
+    
+    """
+    # Print each argument separately so caller doesn't need to
+    # stuff everything to be printed into a single string
+    for arg in args:
+        print arg,
+    print
+
 
 
 
@@ -69,7 +76,8 @@ def check_for_index(bamfile, make=True):
     if os.path.exists(bamfile + ".bai"):
         return 1
     else:
-        verboseprint("Index for %s does not exist, indexing bamfile" % (bamfile))
+        verboseprint("Index for %s does not exist, indexing bamfile" 
+                     % (bamfile))
         process = call(["samtools", "index", str(bamfile)])
         
         if process == -11: 
@@ -359,8 +367,16 @@ def main(options):
 
 def call_main():
     
-    usage="\npython peakfinder.py -b <bamfile> -s <hg18/hg19/mm9>\n OR \npython peakfinder.py -b <bamfile> --customBED <BEDfile> --customMRNA <mRNA lengths> --customPREMRNA <premRNA lengths>"
-    description="CLIPper. Michael Lovci, Gabriel Pratt 2012. CLIP peakfinder that uses fitted smoothing splines to define clusters of binding.  Computation is performed in parallel using parallelPython. Refer to: https://github.com/YeoLab/clipper/wiki for instructions. Questions should be directed to michaeltlovci@gmail.com."
+    usage = """\npython peakfinder.py -b <bamfile> -s <hg18/hg19/mm9>\n OR 
+    \npython peakfinder.py -b <bamfile> --customBED <BEDfile> --customMRNA 
+    <mRNA lengths> --customPREMRNA <premRNA lengths>"""
+    description = """CLIPper. Michael Lovci, Gabriel Pratt 2012. 
+                     CLIP peakfinder that uses fitted smoothing splines to 
+                     define clusters of binding.  Computation is performed in
+                     parallel using parallelPython. 
+                     Refer to: https://github.com/YeoLab/clipper/wiki for instructions. 
+                     Questions should be directed to michaeltlovci@gmail.com."""
+
 
     parser = OptionParser(usage=usage, description=description)
 
@@ -369,9 +385,13 @@ def call_main():
     parser.add_option("--species", "-s", dest="species", help="A species for your peak-finding, either hg19 or mm9")
     
     #we don't have custom scripts or documentation to support this right now, removing until those get added in
+
     #parser.add_option("--customBED", dest="geneBEDfile", help="bed file to call peaks on, must come withOUT species and with customMRNA and customPREMRNA", metavar="BEDFILE")
     #parser.add_option("--customMRNA", dest="geneMRNAfile", help="file with mRNA lengths for your bed file in format: GENENAME<tab>LEN", metavar="FILE")
     #parser.add_option("--customPREMRNA", dest="genePREMRNAfile", help="file with pre-mRNA lengths for your bed file in format: GENENAME<tab>LEN", metavar="FILE")
+    parser.add_option("--customBED", dest="geneBEDfile", help=SUPPRESS_HELP)
+    parser.add_option("--customMRNA", dest="geneMRNAfile", help=SUPPRESS_HELP)
+    parser.add_option("--customPREMRNA", dest="genePREMRNAfile", help=SUPPRESS_HELP)
     parser.add_option("--outfile", "-o", dest="outfile", default="fitted_clusters", help="a bed file output, default:%default")
     parser.add_option("--gene", "-g", dest="gene", action="append", help="A specific gene you'd like try", metavar="GENENAME")
     parser.add_option("--minreads", dest="minreads", help="minimum reads required for a section to start the fitting process.  Default:%default", default=3, type="int", metavar="NREADS")
@@ -409,7 +429,9 @@ def call_main():
         parser.print_help()
         exit()
     
-    #If triming option is set use samtools to remove duplicate reads for us, trims strictly ignoring paired end and strandness
+    #If triming option is set use samtools to remove duplicate 
+    #reads for us, trims strictly ignoring paired end and strandness
+
     if options.trim:
         options.bam = trim_reads(options.bam)
     
