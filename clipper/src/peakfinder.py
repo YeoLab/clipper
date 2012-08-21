@@ -27,11 +27,13 @@ logging.disable(logging.INFO)
 #define verbose printing here for test cases
 global varboseprint
 def verboseprint(*args):
+
     """
     
     wrapper print function to print commands only if a flag at runtime is set
     
     """
+
     # Print each argument separately so caller doesn't need to
     # stuff everything to be printed into a single string
     for arg in args:
@@ -84,6 +86,7 @@ def check_for_index(bamfile, make=True):
         verboseprint("Index for %s does not exist, indexing bamfile" 
                      % (bamfile))
         #result = pysam.index(str(bamfile))
+#TODO fix this, indexing is very fragile
         process = call(["samtools", "index", str(bamfile)])
         
         if process == -11: 
@@ -392,9 +395,13 @@ def call_main():
     parser.add_option("--species", "-s", dest="species", help="A species for your peak-finding, either hg19 or mm9")
     
     #we don't have custom scripts or documentation to support this right now, removing until those get added in
-    parser.add_option("--customBED", dest="geneBEDfile", help="bed file to call peaks on, must come withOUT species and with customMRNA and customPREMRNA", metavar="BEDFILE")
-    parser.add_option("--customMRNA", dest="geneMRNAfile", help="file with mRNA lengths for your bed file in format: GENENAME<tab>LEN", metavar="FILE")
-    parser.add_option("--customPREMRNA", dest="genePREMRNAfile", help="file with pre-mRNA lengths for your bed file in format: GENENAME<tab>LEN", metavar="FILE")
+    #parser.add_option("--customBED", dest="geneBEDfile", help="bed file to call peaks on, must come withOUT species and with customMRNA and customPREMRNA", metavar="BEDFILE")
+    #parser.add_option("--customMRNA", dest="geneMRNAfile", help="file with mRNA lengths for your bed file in format: GENENAME<tab>LEN", metavar="FILE")
+    #parser.add_option("--customPREMRNA", dest="genePREMRNAfile", help="file with pre-mRNA lengths for your bed file in format: GENENAME<tab>LEN", metavar="FILE")
+    parser.add_option("--customBED", dest="geneBEDfile", metavar="BEDFILE", help=SUPPRESS_HELP)
+    parser.add_option("--customMRNA", dest="geneMRNAfile", metavar="FILE", help=SUPPRESS_HELP)
+    parser.add_option("--customPREMRNA", dest="genePREMRNAfile", metavar="FILE", help=SUPPRESS_HELP)
+    
     parser.add_option("--outfile", "-o", dest="outfile", default="fitted_clusters", help="a bed file output, default:%default")
     parser.add_option("--gene", "-g", dest="gene", action="append", help="A specific gene you'd like try", metavar="GENENAME")
     parser.add_option("--minreads", dest="minreads", help="minimum reads required for a section to start the fitting process.  Default:%default", default=3, type="int", metavar="NREADS")
