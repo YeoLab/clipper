@@ -6,7 +6,7 @@ import unittest
 import scipy
 import pkg_resources
 import pybedtools
-
+            
 class test_peakfinder(unittest.TestCase):
     
     parser = None
