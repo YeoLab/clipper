@@ -3,7 +3,6 @@ from optparse import OptionParser, SUPPRESS_HELP
 import os
 import sys
 from subprocess import call
-import pysam
 import pickle
 import time
 import pybedtools
@@ -59,7 +58,7 @@ def trim_reads(bamfile):
     rmdup("-S", bamfile, outfile)
     return outfile
 
-def check_for_index(bamfile, make=True):
+def check_for_index(bamfile):
     
     """
 
@@ -113,14 +112,14 @@ def build_geneinfo(bed):
     except:
         bedfile = open(bed, "r")
         
-    GI = dict()
+    gene_info = dict()
     
     for line in bedfile.readlines():
         chromosome, start, stop, name, score, signstrand = line.strip().split("\t")
         chromosome.replace("chr", "")
-        GI[name] = "|".join([chromosome, name, start, stop, str(signstrand)])
+        gene_info[name] = "|".join([chromosome, name, start, stop, str(signstrand)])
     bedfile.close()
-    return GI
+    return gene_info
 
 def build_lengths(length_file):
     
@@ -137,14 +136,14 @@ def build_lengths(length_file):
     
     """
     
-    FI = open(length_file, "r")
+    handle = open(length_file, "r")
     gene_lengths = {}
 
-    for line in FI.readlines():
+    for line in handle.readlines():
         name, gene_length = line.strip().split("\t")
         gene_lengths[name] = int(gene_length)
 
-    FI.close()
+    handle.close()
 
     return gene_lengths
 
@@ -353,24 +352,25 @@ def main(options):
         
         for cluster in gener['clusters'].keys():
             try:
-                transcriptomeP = poissonP(transcriptome_reads, gener['clusters'][cluster]['Nreads'], transcriptome_size, gener['clusters'][cluster]['size'])
-                if math.isnan(transcriptomeP):
+                transcriptome_p = poissonP(transcriptome_reads, gener['clusters'][cluster]['Nreads'], transcriptome_size, gener['clusters'][cluster]['size'])
+                if math.isnan(transcriptome_p):
                     print "Transcriptome P is NaN, transcriptome_reads = %d, cluster reads = %d, transcriptome_size = %d, cluster_size = %d" % (transcriptome_reads, gener['clusters'][cluster]['Nreads'], transcriptome_size, gener['clusters'][cluster]['size'])
                     continue
                 
-                if transcriptomeP > poisson_cutoff:
-                    print "%s\n Failed Transcriptome cutoff with %s reads, pval: %s" % (cluster, gener['clusters'][cluster]['Nreads'], transcriptomeP)
+                if transcriptome_p > poisson_cutoff:
+                    print "%s\n Failed Transcriptome cutoff with %s reads, pval: %s" % (cluster, gener['clusters'][cluster]['Nreads'], transcriptome_p)
                     continue
                 
                 min_pval = 1
 
                 corrected_SloP_pval = gener['clusters'][cluster]['SloP']
-                corrected_Gene_pval = gener['clusters'][cluster]['GeneP']
+                corrected_gene_pval = gener['clusters'][cluster]['GeneP']
 
-                if corrected_SloP_pval < poisson_cutoff or corrected_Gene_pval < poisson_cutoff:
-                    min_pval = min([corrected_SloP_pval, corrected_Gene_pval])
+                if (corrected_SloP_pval < poisson_cutoff or 
+                    corrected_gene_pval < poisson_cutoff):
+                    min_pval = min([corrected_SloP_pval, corrected_gene_pval])
                 else:
-                    verboseprint("Failed Gene Pvalue: %s and failed SloP Pvalue: %s for cluster %s" % (corrected_Gene_pval, corrected_SloP_pval, cluster))
+                    verboseprint("Failed Gene Pvalue: %s and failed SloP Pvalue: %s for cluster %s" % (corrected_gene_pval, corrected_SloP_pval, cluster))
                     continue
 
 
@@ -379,10 +379,10 @@ def main(options):
                 bedline = "%s\t%d\t%d\t%s\t%s\t%s\t%d\t%d" % (chrom, int(g_start), int(g_stop), peak_name, min_pval, signstrand, int(thick_start), int(thick_stop))
                 allpeaks.add(bedline)
 
-            except NameError as e:
-                print >> sys.stderr, e
+            except NameError as error:
+                print >> sys.stderr, error
                 print >> sys.stderr, "parsing failed"
-                raise e
+                raise error
         
     #again redundant code 
     outbed = options.outfile + ".BED"

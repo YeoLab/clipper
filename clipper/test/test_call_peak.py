@@ -103,7 +103,7 @@ class Test(unittest.TestCase):
             
     """
     
-    Performs unit testing on find_univariateSpline
+    Performs unit testing on find_univariate_spline
     As this is mostly a wrapper for a scipy function I will not test spline calling
     beyond basics.
     
@@ -130,13 +130,13 @@ class Test(unittest.TestCase):
         expected = interpolate.UnivariateSpline(xvals, data, k=3, s=smoothing)
         
         #test
-        result = find_univariateSpline(smoothing, xvals, data, 3)
+        result = find_univariate_spline(smoothing, xvals, data, 3)
         
         #hacky test, but they should be about the same
         self.assertAlmostEqual(expected.get_residual(), result.get_residual()) 
         
         #tests error mode
-        assert None == find_univariateSpline(None, None, None, None)
+        assert None == find_univariate_spline(None, None, None, None)
     def test_find_splineResiduals(self):
         #setup 
         x1 = range(10)
@@ -147,11 +147,11 @@ class Test(unittest.TestCase):
         smoothing = 5 
         #expected
         expected = interpolate.UnivariateSpline(xvals, data, k=3, s=smoothing)
-        residual = find_splineResiduals(smoothing, xvals, data, 3)
+        residual = find_spline_residuals(smoothing, xvals, data, 3)
         self.assertAlmostEqual(residual, sqrt(expected.get_residual()))
         
         #tests error mode
-        assert Inf == find_splineResiduals(None, None, None, None)
+        assert Inf == find_spline_residuals(None, None, None, None)
         
         
     """
@@ -331,7 +331,7 @@ class Test(unittest.TestCase):
         weights = None
         threshold = 3
         sect_length = 69 #might not be nessessary
-        spline = find_univariateSpline(cutoff, xvals, data, degree, weights)
+        spline = find_univariate_spline(cutoff, xvals, data, degree, weights)
         
         starts_and_stops, starts, stops = get_start_stop_pairs_above_threshold(threshold, spline(xvals))
         
