@@ -5,7 +5,7 @@ peaks = Extension("clipper.src.peaks", sources = ['clipper/src/peaksmodule.cc'],
 #                  extra_compile_args = ['-O0'] 
 )                 
 
-print find_packages()
+
 with open("README") as file:
     long_description = file.read()
 
@@ -22,7 +22,7 @@ setup(
     install_requires = ['setuptools', 
                         'pysam >= 0.6',
                         'numpy >= 1.5.1 ',
-                        'scipy >= 0.8.0',
+ #                       'scipy >= 0.8.0',
                         'matplotlib >= 1.1.0',
                         'pp >= 1.6.2',
                         'pybedtools >= 0.6',

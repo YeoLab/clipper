@@ -289,8 +289,8 @@ def call_peaks(loc, gene_length, bam_fileobj=None, bam_file=None, margin=25, FDR
     correct_P - boolean bonferoni correction of p-values from poisson
     
     """
-
-    from clipper.src.peaks import * 
+    
+    from clipper.src.peaks import readsToWiggle_pysam 
     
     #setup
     chrom, gene_name, tx_start, tx_end, signstrand = loc.split("|")
@@ -308,7 +308,6 @@ def call_peaks(loc, gene_length, bam_fileobj=None, bam_file=None, margin=25, FDR
     subset_reads = bam_fileobj.fetch(reference=chrom, start=tx_start, end=tx_end)
 
     #need to document reads to wiggle
-    #wiggle, pos_counts, lengths = readsToWiggle_pysam_foo(subset_reads, tx_start, tx_end, signstrand, "center")
     wiggle, jxns, pos_counts, lengths, allreads = readsToWiggle_pysam(subset_reads, tx_start, tx_end, signstrand, "center", False)
     r = peaks_from_info(list(wiggle), pos_counts, lengths, loc, gene_length, margin, FDR_alpha, user_threshold, minreads, poisson_cutoff, plotit, w_cutoff, windowsize, SloP, correct_P)
 
@@ -403,8 +402,15 @@ def peaks_from_info(wiggle, pos_counts, lengths, loc, gene_length, margin=25, FD
     import math
     from clipper.src.call_peak import find_splineResiduals, find_univariateSpline, poissonP, plotSections, plotSpline, get_start_stop_pairs_above_threshold
     peakDict = {}
-    import scipy  
-    from scipy import optimize 
+
+
+
+    import scipy
+    #from scipy.optimize import minpack2
+    import scipy.optimize
+    
+
+    #from scipy.optimize import minimize 
 
     
     #these are what is built in this dict, complicated enough that it might be worth turning into an object
