@@ -8,6 +8,7 @@ from numpy import Inf
 import sys
 import pysam
 from clipper.src.peaks import *
+from scipy import optimize
 
 def verboseprint(*args):
         # Print each argument separately so caller doesn't need to

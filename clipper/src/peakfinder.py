@@ -9,22 +9,18 @@ import time
 import pybedtools
 import gzip
 import pkg_resources
-import pp
+#import pp
 import math
+import multiprocessing 
 
-
-from clipper.src.call_peak import call_peaks, peaks_from_info, get_FDR_cutoff_mean, poissonP
-
-import clipper
-
-from clipper.src.peaks import readsToWiggle_pysam
-
+from clipper.src.call_peak import call_peaks, poissonP
 
 import logging
 #logging.basicConfig(level=logging.INFO)
 logging.disable(logging.INFO)
 
 #define verbose printing here for test cases
+#get rid of this and switch to logging
 global varboseprint
 def verboseprint(*args):
 
@@ -94,7 +90,7 @@ def check_for_index(bamfile, make=True):
         
         return 1
 
-def build_geneinfo(BED):
+def build_geneinfo(bed):
     
     """
 
@@ -113,9 +109,9 @@ def build_geneinfo(BED):
     
     #opens bed file, either zipped or unzipped
     try:
-        bedfile = gzip.open(BED, "rb")
+        bedfile = gzip.open(bed, "rb")
     except:
-        bedfile = open(BED, "r")
+        bedfile = open(bed, "r")
         
     GI = dict()
     
@@ -126,7 +122,7 @@ def build_geneinfo(BED):
     bedfile.close()
     return GI
 
-def build_lengths(f):
+def build_lengths(length_file):
     
     """
     
@@ -141,7 +137,7 @@ def build_lengths(f):
     
     """
     
-    FI = open(f, "r")
+    FI = open(length_file, "r")
     gene_lengths = {}
 
     for line in FI.readlines():
@@ -176,18 +172,28 @@ def add_species(species, chrs, bed, mrna, premrna):
     par = dict()
     
     #this is non-pythonic, should just combine all lists
-    par["chrs"] = [item for sublist in chrs for item in sublist] #expand sublists
+    #expand sublists
+    par["chrs"] = [item for sublist in chrs for item in sublist] 
     par["gene_bed"] = bed
     par["mRNA"] = mrna
     par["premRNA"] = premrna
     return par
-        
+    
+def func_star(varables):
+    """ covert f([1,2]) to f(1,2) """
+    return call_peaks(*varables)
+
 def main(options):
     
-    job_server = pp.Server(ncpus=options.np)
+    if options.np == 'autodetect':
+        options.np = multiprocessing.cpu_count()
+    pool = multiprocessing.Pool(options.np)
+    #job_server = pp.Server(ncpus=options.np) #old pp stuff
     bamfile = options.bam
+    
     if os.path.exists(bamfile):
-        bamfile = os.path.abspath(bamfile) #re-set to include the full path to bamfile
+        #re-set to include the full path to bamfile
+        bamfile = os.path.abspath(bamfile) 
         verboseprint("bam file is set to %s\n" % (bamfile))
     else:
         sys.stderr.write("Bam file not defined")
@@ -201,12 +207,14 @@ def main(options):
     species_parameters = dict()
 
     if species is None: #and geneBed is None:
-        print "You must set either \"species\" or \"geneBed\"+\"geneMRNA\"+\"genePREMRNA\""
+        print """You must set either \"species\" or 
+        \"geneBed\"+\"geneMRNA\"+\"genePREMRNA\""""
         exit()
 
     #error checking
     #if species is not None and geneBed is not None:
-    #    print "You shouldn't set both geneBed and species, defaults exist for %s" % (acceptable_species)
+    #    print """You shouldn't set both geneBed and 
+    #species, defaults exist for %s" % (acceptable_species)"""
     #    exit()
     #if species is not None and species not in species_parameters:
     #    print "Defaults don't exist for your species: %s. Please choose from: %s or supply \"geneBed\"+\"geneMRNA\"+\"genePREMRNA\"" % (species, acceptable_species)
@@ -226,14 +234,14 @@ def main(options):
                                              pkg_resources.resource_filename(__name__, "../data/mm9.AS.STRUCTURE_genes.BED.gz"),
                                              pkg_resources.resource_filename(__name__, "../data/mm9.AS.STRUCTURE_mRNA.lengths"),
                                              pkg_resources.resource_filename(__name__, "../data/mm9.AS.STRUCTURE_premRNA.lengths"))
-    acceptable_species = ",".join(species_parameters.keys())
+    #acceptable_species = ",".join(species_parameters.keys())
     
 
     #if species is None:
         #species = "custom"
         #species_parameters["custom"] = add_species("custom", [range(1,22), "X", "Y"], geneBed, genemRNA, genePREmRNA) ##warning: set to 1..22, for human, fix this in the future
 
-    #error checking done, this does... something.  This is more setup phase  Uses pre-mrnas?
+    #Selects mRNA or preMRNA lengths 
     if options.premRNA is True:
         lenfile = species_parameters[species]["premRNA"]
     else:
@@ -251,14 +259,14 @@ def main(options):
     minreads = int(options.minreads)
     poisson_cutoff = options.poisson_cutoff
 
-    g = options.gene 
+    gene = options.gene 
     
     gene_list = list()
     
     #gets all the genes to call peaks on
     try:
-        if len(g) > 0:
-            gene_list = g
+        if len(gene) > 0:
+            gene_list = gene
     except:
         gene_list = genes.keys()
                 
@@ -266,23 +274,25 @@ def main(options):
     results = []
     transcriptome_size = 0
     
-    #I think this calls peaks for each gene in the gene list, which could be every gene in the genome
+    #I think this calls peaks for each gene in the gene list, 
+    #which could be every gene in the genome
     running_list = []
     length_list = []
     
-    for n, gene in enumerate(gene_list):
-        #again, hacky should be factored to a single if statement, need to be more explicit about code paths
+    for gene_number, gene in enumerate(gene_list):
+        #again, hacky should be factored to a single if statement, 
+        #need to be more explicit about code paths
         if options.maxgenes == None:
             pass
         else:
-            if n >= maxgenes:
+            if gene_number >= maxgenes:
                 break
             
         geneinfo = genes[gene]
         
         #There is a better way of doing timing.  
-        t = time.strftime('%X %x %Z')
-        verboseprint(geneinfo + " started:" + str(t))
+        start_time = time.strftime('%X %x %Z')
+        verboseprint(geneinfo + " started:" + str(start_time))
         transcriptome_size += lengths[gene]
         #TODO make it so transcript size isn't always used
         #this is a filter operation, should make it as such
@@ -297,21 +307,28 @@ def main(options):
 
  
     combined_list = zip(running_list, length_list)
-  
-    jobs = [job_server.submit(call_peaks,
-                              args=(gene, length, None, bamfile, margin, options.FDR_alpha, options.threshold,
-                               minreads, poisson_cutoff, options.plotit, 10, 1000, options.SloP, False,),
-                              depfuncs=(peaks_from_info, get_FDR_cutoff_mean,
-                                          verboseprint),
-                              modules=("pysam", "os", "sys", "scipy", "math", "time",
-                               "random", 'clipper'),) for gene, length in combined_list]
+    
+    tasks =  [(gene, length, None, bamfile, margin, options.FDR_alpha, 
+               options.threshold, minreads, poisson_cutoff, 
+               options.plotit, 10, 1000, options.SloP, False)
+              for gene, length in combined_list]
+
+    jobs = pool.map(func_star, tasks)
+    #jobs = [job_server.submit(call_peaks,
+    #                          args=(gene, length, None, bamfile, margin, options.FDR_alpha, options.threshold,
+    #                           minreads, poisson_cutoff, options.plotit, 10, 1000, options.SloP, False,),
+    #                          depfuncs=(peaks_from_info, get_FDR_cutoff_mean,
+    #                                      verboseprint),
+    #                          modules=("pysam", "os", "sys", "scipy", "math", "time",
+    #                           "random", 'clipper'),) for gene, length in combined_list]
 
     for job in jobs:
-        results.append(job())   
+        results.append(job)   
     verboseprint("finished with calling peaks")
 
-    #if we are going to save and output as a pickle file we should output as a pickle file
-    #we should factor instead create a method or object to handle all file output
+    #if we are going to save and output as a pickle file we should 
+    #output as a pickle file we should factor instead create a method 
+    #or object to handle all file output
     if options.save_pickle is True:
         pickle_file = open(options.outfile + ".pickle", 'w')
         pickle.dump(results, file=pickle_file)                
