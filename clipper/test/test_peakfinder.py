@@ -1,22 +1,18 @@
-
-from clipper.src.peakfinder import *
-from optparse import OptionParser, SUPPRESS_HELP
-import os
 import unittest 
-import scipy
-import pkg_resources
-import pybedtools
+from clipper.src.peakfinder import *
             
 class test_peakfinder(unittest.TestCase):
     
     parser = None
-    
-    """
-    
-    General setup, currently creates parser for various allup tests
-    
-    """
+
     def setUp(self):
+              
+        """
+        
+        General setup, currently creates parser for various allup tests
+        
+        """
+        
         usage="\npython peakfinder.py -b <bamfile> -s <hg18/hg19/mm9>\n OR \npython peakfinder.py -b <bamfile> --customBED <BEDfile> --customMRNA <mRNA lengths> --customPREMRNA <premRNA lengths>"
         description="Fitted Accurate Peaks. Michael Lovci 2012. CLIP peakfinder that uses fitted smoothing splines to define clusters of binding.  Computation is performed in parallel using MPI.  You may decide to use the pre-built gene lists by setting the --species parameter or alternatively you can define your own list of genes to test in BED6/12 format and provide files containing the length of each gene in PREMRNA form and MRNA form (both are required). Questions should be directed to michaeltlovci@gmail.com."
         self.parser = OptionParser(usage=usage, description=description)
@@ -57,13 +53,14 @@ class test_peakfinder(unittest.TestCase):
 
     
     
-    """
-    
-    Performs basic all up test on entire program (except for main)
-    
-    """
+
     def test_allup(self):
         
+        """
+    
+        Performs basic all up test on entire program (except for main)
+        
+        """
         
         args = ["-b", pkg_resources.resource_filename(__name__, "../test/allup_test.bam"),
                  "-s", "hg19",
@@ -73,7 +70,7 @@ class test_peakfinder(unittest.TestCase):
                    "--outfile=" + os.getcwd() + "/peak_results",
                    "-q"
                 ]    
-        (options,args) = self.parser.parse_args(args)
+        (options, args) = self.parser.parse_args(args)
         main(options)
         print os.getcwd()
         tested = open(os.getcwd() + "/peak_results.BED")
@@ -119,12 +116,14 @@ class test_peakfinder(unittest.TestCase):
         os.remove(pkg_resources.resource_filename(__name__, "../src/peak_results.BED"))
         """
         
-    """
+
+    def test_check_overlaps(self):
+        
+        """
     
-    Checks for overlapping results, we don't want this
-    
-    """
-    def test_checkOverlaps(self):
+        Checks for overlapping results, we don't want this
+        
+        """
         
         args = ["-b", pkg_resources.resource_filename(__name__, "../test/allup_test.bam"),
                  "-s", "hg19",
@@ -134,26 +133,30 @@ class test_peakfinder(unittest.TestCase):
                    "--outfile=" + os.getcwd() + "/peak_results",
                    "-q"
                 ]    
-        (options,args) = self.parser.parse_args(args)
+        (options, args) = self.parser.parse_args(args)
         main(options)
         
         #tests to make sure there are no overlaps
         tested = open(os.getcwd() + "/peak_results.BED")
         tested_tool2 = pybedtools.BedTool(tested).saveas(os.getcwd() + "/foo.bed")
         result = tested_tool2.intersect(tested_tool2)
-        self.assertEqual(len(result), len(tested_tool2), "there are overlaps in the output file") 
+        self.assertEqual(len(result), len(tested_tool2), 
+                         "there are overlaps in the output file") 
         
         #cleanup
         #os.remove(pkg_resources.resource_filename(__name__, "../src/peak_results.BED"))
        
        
-    """
-    
-    Performs unit tests on trim_reads
-    
-    """ 
+
     
     def test_trim_reads(self):
+        
+        """
+    
+        Performs unit tests on trim_reads
+        
+        """ 
+    
         pass
         #does standard test assuming no melformed input
         #test_file = pkg_resources.resource_filename(__name__, "../test/allup_test.bam")
@@ -165,91 +168,109 @@ class test_peakfinder(unittest.TestCase):
         #for t, c in zip(correct, test):
         #    assert t == c
             
-    """
-    
-    Performs unit tests on check_for_index function
-    
-    """
+
     def test_check_for_index(self):
-        #Test if string is null, expected result is operation throws file not exist exception 
-        f = None
-        self.assertRaises(TypeError, check_for_index, f)
+        
+        """
+    
+        Performs unit tests on check_for_index function
+        
+        """
+        
+        #Test if string is null, expected result is operation 
+        #throws file not exist exception 
+        handle = None
+        self.assertRaises(TypeError, check_for_index, handle)
         
         #Test if bam file doesn't exist, expected result is operation throws 
         #file does not exist exception
-        f = "/foo/bar"
-        self.assertRaises(NameError, check_for_index, f)
+        handle = "/foo/bar"
+        self.assertRaises(NameError, check_for_index, handle)
         
-        #Test if file is not bam, but exists expected result is to throw improper file error
-        f = pkg_resources.resource_filename(__name__, "test/test_peakfinder.py")
-        self.assertRaises(NameError, check_for_index, f)
+        #Test if file is not bam, but exists expected 
+        #result is to throw improper file error
+        handle = pkg_resources.resource_filename(__name__, "test/test_peakfinder.py")
+        self.assertRaises(NameError, check_for_index, handle)
         
-        #Test if file is bam and indexed expected result is returns 1 and succedes
+        #Test if file is bam and indexed expected 
+        #result is returns 1 and succedes
         #should also check if file exists, but I'm lazy
-        f = pkg_resources.resource_filename(__name__, "../test/indexed_test.bam")
-        result = check_for_index(f)
+        handle = pkg_resources.resource_filename(__name__, "../test/indexed_test.bam")
+        result = check_for_index(handle)
         assert result == 1
         
-        #Test if file is bam and not indexed, expected result is returns one and succedes
+        #Test if file is bam and not indexed, expected 
+        #result is returns one and succedes
         #should also check if file exists, but I'm lazy
-        f = pkg_resources.resource_filename(__name__, "../test/not_indexed_test.bam")
-        result = check_for_index(f)
+        handle = pkg_resources.resource_filename(__name__, "../test/not_indexed_test.bam")
+        result = check_for_index(handle)
         assert result == 1
         
         #cleanup (should be in taredown)
         os.remove(pkg_resources.resource_filename(__name__, "../test/not_indexed_test.bam.bai"))
     
-    """
-    
-    Performs unit testing on build_geneinfo
-    
-    I'm hopefully going to remove this method soon so no testing for now
-    
-    """ 
+
     def test_build_geneinfo(self):
+        
+        """
+    
+        Performs unit testing on build_geneinfo
+        
+        I'm hopefully going to remove this method soon so no testing for now
+        
+        """ 
         pass
     
-    """
-    
-    Performs unit testing on build_lengths
-    
-    I'm hopefully going to remove this method soon so no unit testing for now
-    
-    """
+
     def test_build_lengths(self):
+        
+        """
+    
+        Performs unit testing on build_lengths
+        
+        I'm hopefully going to remove this method soon so no unit testing for now
+        
+        """
         pass
     
-    """
-    
-    Performs unit testing on add_species
-    
-    I'll probably refactor this a bit so I won't work to hard on testing this
-    """
+
     def test_add_species(self):
+        
+        """
+    
+        Performs unit testing on add_species
+        
+        I'll probably refactor this a bit so I won't work to hard on testing this
+       
+        """
+        
         #Case: object is returned as expected
-        result = add_species("hg19", [range(1,22), "X", "Y"],
-                                        "foo",
-                                        "bar",
+        result = add_species("hg19", [range(1, 22), "X", "Y"], 
+                                        "foo", 
+                                        "bar", 
                                         "baz")
         
-        assert result == {"chrs" : range(1,22) + ["X"] + ["Y"],
-                          "gene_bed" : "foo",
-                          "mRNA" : "bar",
-                          "premRNA" : "baz"}
+        self.assertEqual(result, {"chrs" : range(1, 22) + ["X"] + ["Y"], 
+                          "gene_bed" : "foo", 
+                          "mRNA" : "bar", 
+                          "premRNA" : "baz"})
                         
-    """
-    
-    Performs unit testing on main
-    
-    Mostly testing validation and input here
-        
-    """
+
     def test_main(self):
+        
+        """
+    
+        Performs unit testing on main
+        
+        Mostly testing validation and input here
+        TODO: fill in test...    
+        
+        """
         pass
     
     def tearDown(self):
         pass
         
-if __name__ =='__main__':
+if __name__ == '__main__':
     unittest.main()
     os.remove(pkg_resources.resource_filename(__name__, "../src/peak_results.BED"))

@@ -20,27 +20,32 @@ def verboseprint(*args):
 class Test(unittest.TestCase):
 
 
-    """
-    
-    Performs unit tests on get_FDR_cutoff_mode function
-    Function is currently deperacated, tests not done
-    
-    """
+
     def test_get_FDR_cutoff_mode(self):
+        
+        """
+    
+        Performs unit tests on get_FDR_cutoff_mode function
+        Function is currently deperacated, tests not done
+        
+        """
+        
         pass
     
-    """
-    
-    Performs unit tests on get_FDR_cutoff_mean function
-    
-    Difficult to test because of random sampling
-    
-    TODO: Figure out how to manually calculate FDR cutoff, right now 
-    I just took the old result and am using that.  Math appears to be correct,
-    but this is a really bad practice
-    
-    """
+
     def test_get_FDR_cutoff_mean(self):
+        
+        """
+    
+        Performs unit tests on get_FDR_cutoff_mean function
+        
+        Difficult to test because of random sampling
+        
+        TODO: Figure out how to manually calculate FDR cutoff, right now 
+        I just took the old result and am using that.  Math appears to be correct,
+        but this is a really bad practice
+        
+        """
         
         #Case: Not enough reads, expected result: returns the passed min cutoff 
         result = get_FDR_cutoff_mean([], 100)
@@ -74,24 +79,27 @@ class Test(unittest.TestCase):
         result = get_FDR_cutoff_mean(read_lengths, 100, mincut = 20)
         assert result == 20
         
+
+    def test_plotSpline(self):
+        
         """
     
-    Quality control function, not important to main running of program
-    Not tested
-    
-    """
-    def test_plotSpline(self):
+        Quality control function, not important to main running of program
+        Not tested
+        
+        """
+        
         pass
         #plotSections([5] * 10, ["1|5", "7|9"], 3)
         #assert 1 == 0
     
-    """
-    
-    tests plotSections function, appears to have computer specific issues
-    
-    """
+
     def test_plotSections(self):
+        
         """
+    
+        tests plotSections function, appears to have computer specific issues
+        
 
         Plots each section individually, I think
         Wiggle is a list representing a wiggle track
@@ -99,24 +107,28 @@ class Test(unittest.TestCase):
         threshold is an integer 
 
         """     
+        
         pass
             
-    """
-    
-    Performs unit testing on find_univariate_spline
-    As this is mostly a wrapper for a scipy function I will not test spline calling
-    beyond basics.
-    
-    These tests will verify that the resid logic works, and eventually these 
-    will be factored into two functions.  Its bad form to have to toggle your return
-    value in the function
-    
-    """
+
     def test_find_univariateSpline(self):
+        
+        """
+    
+        Performs unit testing on find_univariate_spline
+        As this is mostly a wrapper for a scipy function I will not test spline calling
+        beyond basics.
+        
+        These tests will verify that the resid logic works, and eventually these 
+        will be factored into two functions.  Its bad form to have to toggle your return
+        value in the function
+        
+        """
         
         #Case null inputs, expected:  Everything goes to hell, not testing
         
-        #Case resid is false, expected: returns univariateSpline spline, just verifies that it is the same as 
+        #Case resid is false, expected: returns univariateSpline 
+        #spline, just verifies that it is the same as 
         #the scipy result
         
         #setup 
@@ -137,7 +149,15 @@ class Test(unittest.TestCase):
         
         #tests error mode
         assert None == find_univariate_spline(None, None, None, None)
-    def test_find_splineResiduals(self):
+    
+    def test_find_spline_residuals(self):
+        
+        """
+        
+        Test for find_spline_residuals function
+        
+        """
+        
         #setup 
         x1 = range(10)
         x2 = range(10)
@@ -154,14 +174,17 @@ class Test(unittest.TestCase):
         assert Inf == find_spline_residuals(None, None, None, None)
         
         
-    """
-    
-    Performs unit testing on poissonP
-    
-    Will not test math behind calling poisson fuction more than nessessary as it has already been tested by scipy
-    
-    """ 
+
     def test_poissonP(self):
+        
+        """
+    
+        Performs unit testing on poissonP
+        
+        Will not test math behind calling poisson fuction more than nessessary as it has already been tested by scipy
+        
+        """ 
+        
         #Case: fewer than 3 reads fall within a peak region: Expected result should return as though there are 3 expected reads
         result = poissonP(50, 3, 50, 2)
         self.assertAlmostEqual(result, (1 - 0.64723188878223115)) #manually calculated on personal computer stats.poisson.cdf(3, 3)
@@ -174,19 +197,21 @@ class Test(unittest.TestCase):
         result = poissonP(None, None, None, None)    
         assert 1 == result
     
-    """
-    
-    Performs unit testing on call_peaks
-    
-    will not test peaks_from_info here, just the error handling of call peaks
-    Need to create a dummy call peaks function or stub or something to keep everything from
-    getting called
-    
-    The way this is currently written it is difficult to test logic other than error checking
-    
-    """ 
     
     def test_call_peaks(self):
+        
+        """
+    
+        Performs unit testing on call_peaks
+        
+        will not test peaks_from_info here, just the error handling of call peaks
+        Need to create a dummy call peaks function or stub or something to keep everything from
+        getting called
+        
+        The way this is currently written it is difficult to test logic other than error checking
+        
+        """ 
+
         #peaks_from_info = poissonP
         """call_peaks("chr1|foo|5|10|-", 
                    50, 
@@ -199,24 +224,29 @@ class Test(unittest.TestCase):
         
         #Case: Both bam file and object are passed
     
-    """
-    
-    Performs unit testing on peaks_from_info
-    
-    Testing of this is currently handled in the allup test
-    This method is currently to complicated to test as is
-    
-    """
+
     def test_peaks_from_info(self):
+        
+        """
+    
+        Performs unit testing on peaks_from_info
+        
+        Testing of this is currently handled in the allup test
+        This method is currently to complicated to test as is
+        
+        """
+        
         pass
 
-    """    
-    
-    tests generating start and stops function, this is kind of a badly written function,
-    need better tests and edge cases 
-    
-    """
+
     def test_get_start_stop_pairs_above_threshold(self):
+        
+        """    
+    
+        tests generating start and stops function, this is kind of a badly written function,
+        need better tests and edge cases 
+        
+        """
         
         #need to add null and empty inputs 
         
@@ -313,13 +343,16 @@ class Test(unittest.TestCase):
         assert_array_equal(starts, [])
         assert_array_equal(stops, [])
         
-    """
-    regresstion test to make sure I didn't break anything
-    tests generating start and stops function, this is kind of a badly written function,
-    need better tests and edge cases 
-    
-    """
+
     def test_get_start_stop_pairs_above_threshold_regression(self):
+        
+        """
+        
+        regresstion test to make sure I didn't break anything
+        tests generating start and stops function, this is kind of a badly written function,
+        need better tests and edge cases 
+        
+        """
         
         #test to make sure stuff doesn't break, should have made regression test...
         cutoff = 71.5879289615 
@@ -330,7 +363,7 @@ class Test(unittest.TestCase):
         degree = 3 
         weights = None
         threshold = 3
-        sect_length = 69 #might not be nessessary
+
         spline = find_univariate_spline(cutoff, xvals, data, degree, weights)
         
         starts_and_stops, starts, stops = get_start_stop_pairs_above_threshold(threshold, spline(xvals))
