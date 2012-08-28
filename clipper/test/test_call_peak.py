@@ -10,12 +10,6 @@ from numpy import *
 from numpy.testing import *
 from scipy import interpolate
 
-def verboseprint(*args):
-        # Print each argument separately so caller doesn't need to
-        # stuff everything to be printed into a single string
-            for arg in args:
-                print arg,
-            print
             
 class Test(unittest.TestCase):
 

@@ -1,10 +1,9 @@
 import unittest 
 from clipper.src.peakfinder import *
-            
+import pkg_resources           
 class test_peakfinder(unittest.TestCase):
     
     parser = None
-
     def setUp(self):
               
         """
@@ -87,36 +86,7 @@ class test_peakfinder(unittest.TestCase):
         
         #cleanup
         #os.remove(pkg_resources.resource_filename(__name__, "../src/peak_results.BED"))
-    
-    """
-    def test_plotting(self):
-        args = ["-b", pkg_resources.resource_filename(__name__, "../test/allup_test.bam"),
-                 "-s", "hg19",
-                  "-g", "ENSG00000198901", 
-                  "--serial", 
-                  "--job_name=peak_test",
-                   "--outfile=" + pkg_resources.resource_filename(__name__, "../src/peak_results"),
-                   "-q",
-                   "-p",
-                ]
-               
-        (options,args) = self.parser.parse_args(args)
-        main(options)
-
-        tested = open(pkg_resources.resource_filename(__name__, "../src/peak_results.BED"))
-        correct = open(pkg_resources.resource_filename(__name__, "../test/peak_results.BED"))
-        
-        #problem with tracks being different
-        tested.next()
-        correct.next()
-        for test, correct in zip(tested, correct):
-            self.assertEqual(test, correct)
-        
-        #cleanup
-        os.remove(pkg_resources.resource_filename(__name__, "../src/peak_results.BED"))
-        """
-        
-
+ 
     def test_check_overlaps(self):
         
         """
@@ -156,17 +126,16 @@ class test_peakfinder(unittest.TestCase):
         Performs unit tests on trim_reads
         
         """ 
-    
-        pass
+
         #does standard test assuming no melformed input
-        #test_file = pkg_resources.resource_filename(__name__, "../test/allup_test.bam")
+        test_file = pkg_resources.resource_filename(__name__, "../test/allup_test.bam")
         #print type(test_file)
-        #outfile = trim_reads(test_file)
-        #correct = pysam.Samfile(pkg_resources.resource_filename(__name__, "../test/rmdup_test.bam"))
-        #test = pysam.Samfile(outfile)
+        outfile = trim_reads(test_file)
+        correct = pysam.Samfile(pkg_resources.resource_filename(__name__, "../test/rmdup_test.bam"))
+        test = pysam.Samfile(outfile)
         
-        #for t, c in zip(correct, test):
-        #    assert t == c
+        for t, c in zip(correct, test):
+            assert t == c
             
 
     def test_check_for_index(self):
@@ -211,7 +180,7 @@ class test_peakfinder(unittest.TestCase):
     
 
     def test_build_geneinfo(self):
-        
+        self.maxDiff = 10000000
         """
     
         Performs unit testing on build_geneinfo
@@ -219,9 +188,28 @@ class test_peakfinder(unittest.TestCase):
         I'm hopefully going to remove this method soon so no testing for now
         
         """ 
-        pass
-    
+        
+        #checks error mode
+        self.assertRaises(TypeError, build_geneinfo, None)
+        
+        self.assertRaises(IOError, build_geneinfo, "foo")
 
+        #checks working mode
+        geneinfo = build_geneinfo(
+                    clipper.data_file("test.AS.STRUCTURE_genes.BED.gz"))
+
+  
+        true_values = {
+        "ENSG00000232113" : ["chr1",  "ENSG00000232113",  173604911,      173606273, "+"],
+        "ENSG00000228150" : ["chr1",  "ENSG00000228150",  10002980,       10010032,  "+"],
+        "ENSG00000223883" : ["chr1",  "ENSG00000223883",  69521580,       69650686,  "+"],
+        "ENSG00000135750" : ["chr1",  "ENSG00000135750",  233749749,      233808258, "+"],
+        "ENSG00000227280" : ["chr1",  "ENSG00000227280",  145373053,      145375554 ,"-"],
+        }
+
+
+        self.assertDictEqual(geneinfo, true_values)
+        
     def test_build_lengths(self):
         
         """
@@ -231,9 +219,25 @@ class test_peakfinder(unittest.TestCase):
         I'm hopefully going to remove this method soon so no unit testing for now
         
         """
-        pass
-    
+        
+        #Checks error mode
+        self.assertRaises(ValueError, build_lengths, None)
+        
+        self.assertRaises(IOError, build_lengths, "foo")
+        
+        #checks working mode
+        lengths = build_lengths(
+                    clipper.data_file("test.AS.STRUCTURE_mRNA.lengths"))
 
+        true = {"ENSG00000232113" : 384,
+                "ENSG00000228150" : 323,
+                "ENSG00000223883" : 437,
+                "ENSG00000135750" : 3141,
+                "ENSG00000227280" : 212,
+                }       
+         
+        self.assertDictEqual(lengths, true)
+        
     def test_add_species(self):
         
         """
@@ -254,8 +258,64 @@ class test_peakfinder(unittest.TestCase):
                           "gene_bed" : "foo", 
                           "mRNA" : "bar", 
                           "premRNA" : "baz"})
-                        
-
+    
+    def test_get_acceptable_species(self):
+        
+        """
+        
+        Test get acceptable species 
+        
+        """
+        
+        result = get_acceptable_species()
+        
+        #just a quick test to make sure it works, probably need to fix this
+        #later
+        self.assertSetEqual(result, set(["test", "hg19", "mm9", "hg18"]))
+    
+      
+    def test_build_transcript_data(self):
+        self.maxDiff = 10000000
+        """
+        
+        Tests building transcript data and returning the proper values
+        
+        Doesn't assume malformed data
+        
+        """
+    
+        #tests error modes    
+        self.assertRaises(ValueError, build_transcript_data, None, None, None, None, True)
+        
+        self.assertRaises(ValueError, build_transcript_data, "foo", "bar", "bar", "bar", True)
+        
+        self.assertRaises(ValueError, build_transcript_data, "bar", None, None, None, True)
+        
+        #tests hg19 to make sure its equal to logic
+        genes, lengths = build_transcript_data("test", None, None, None, True)
+        true_genes = build_geneinfo(clipper.data_file("test.AS.STRUCTURE_genes.BED.gz"))
+        true_lengths   = build_lengths(clipper.data_file("test.AS.STRUCTURE_premRNA.lengths"))
+    
+        self.assertDictEqual(genes, true_genes)
+        self.assertDictEqual(lengths, true_lengths)
+        
+        #tests hg19 on premrna lengths
+        genes, lengths = build_transcript_data("test", None, None, None, False)
+        true_genes = build_geneinfo(clipper.data_file("test.AS.STRUCTURE_genes.BED.gz"))
+        true_lengths  = build_lengths(clipper.data_file("test.AS.STRUCTURE_mRNA.lengths"))
+    
+        self.assertDictEqual(genes, true_genes)
+        self.assertDictEqual(lengths, true_lengths)
+        
+        #Test custom files 
+        #this should all work, 
+        self.assertRaises(IOError, build_transcript_data, None, clipper.data_file("test.AS.STRUCTURE_genes.BED.gz"), None, clipper.data_file("test.AS.STRUCTURE_premRNA.lengths"), False)
+        build_transcript_data(None, clipper.data_file("test.AS.STRUCTURE_genes.BED.gz"), clipper.data_file("test.AS.STRUCTURE_mRNA.lengths"), clipper.data_file("test.AS.STRUCTURE_premRNA.lengths"), True)
+        build_transcript_data(None, clipper.data_file("test.AS.STRUCTURE_genes.BED.gz"), clipper.data_file("test.AS.STRUCTURE_mRNA.lengths"), clipper.data_file("test.AS.STRUCTURE_premRNA.lengths"), False)
+        build_transcript_data(None, clipper.data_file("test.AS.STRUCTURE_genes.BED.gz"), clipper.data_file("test.AS.STRUCTURE_mRNA.lengths"), None, False)
+        build_transcript_data(None, clipper.data_file("test.AS.STRUCTURE_genes.BED.gz"), None, clipper.data_file("test.AS.STRUCTURE_mRNA.lengths"), True)
+    
+    
     def test_main(self):
         
         """

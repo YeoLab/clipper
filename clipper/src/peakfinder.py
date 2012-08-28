@@ -7,11 +7,10 @@ import pickle
 import time
 import pybedtools
 import gzip
-import pkg_resources
 #import pp
 import math
 import multiprocessing 
-
+import clipper
 from clipper.src.call_peak import call_peaks, poissonP
 
 import logging
@@ -102,22 +101,21 @@ def build_geneinfo(bed):
     A dictionary with the key being the name position of the bed file and the values being the
     ordered bed file
     
-    TODO: Refactor to used bedtools instead
-    
     """
     
     #opens bed file, either zipped or unzipped
     try:
         bedfile = gzip.open(bed, "rb")
-    except:
+    except IOError:
         bedfile = open(bed, "r")
         
     gene_info = dict()
     
     for line in bedfile.readlines():
-        chromosome, start, stop, name, score, signstrand = line.strip().split("\t")
-        chromosome.replace("chr", "")
-        gene_info[name] = "|".join([chromosome, name, start, stop, str(signstrand)])
+        chromosome, start, stop, name, score, signstrand = line.strip().split()
+        gene_info[name] = [chromosome, name, int(start), 
+                           int(stop), str(signstrand)]
+    
     bedfile.close()
     return gene_info
 
@@ -136,15 +134,19 @@ def build_lengths(length_file):
     
     """
     
-    handle = open(length_file, "r")
-    gene_lengths = {}
-
-    for line in handle.readlines():
-        name, gene_length = line.strip().split("\t")
-        gene_lengths[name] = int(gene_length)
-
-    handle.close()
-
+    try:
+        handle = open(length_file, "r")
+        gene_lengths = {}
+    
+        for line in handle.readlines():
+            name, gene_length = line.strip().split("\t")
+            gene_lengths[name] = int(gene_length)
+    
+        handle.close()
+        
+    except TypeError:
+        raise ValueError("file %s not found" % length_file)
+    
     return gene_lengths
 
 
@@ -177,17 +179,99 @@ def add_species(species, chrs, bed, mrna, premrna):
     par["mRNA"] = mrna
     par["premRNA"] = premrna
     return par
-    
+ 
 def func_star(varables):
     """ covert f([1,2]) to f(1,2) """
     return call_peaks(*varables)
+
+
+def get_acceptable_species():
+    
+    """
+    
+    Finds all species in data directory 
+    
+    """
+    
+    acceptable_species = set([])
+    for fn in os.listdir(clipper.data_dir()):
+        fn = fn.split(".")[0]
+        
+        if fn == "__init__":
+            continue
+        
+        acceptable_species.add(fn)
+    
+    return acceptable_species
+    
+    
+def build_transcript_data(species, gene_bed, gene_mrna, gene_pre_mrna, pre_mrna):
+    
+    """
+    
+    Generates transcript data structures to call peaks on
+    
+    Allows for either predefined files (from the data directory) 
+    or custom files
+    
+    Accepts species, and genebed, genemrnaand genepremrna options
+    
+    species - the species to run on
+    gene_bed - an abribtary bed file of locations to search for peaks (should be gene locations)
+    gene_mrna - the effective length of the mrna of a gene (unmappable regions removed)
+    gene_premrna - the effective length of the pre-mrna (unmappable regions removed)
+    
+    returns genes and lengths dict
+    
+    """
+    
+    #error checking 
+    
+    acceptable_species = get_acceptable_species()
+    if (species is None and 
+        gene_bed is None and 
+        (gene_mrna is None or gene_premrna is None)):
+        
+        raise ValueError("You must set either \"species\" or \"geneBed\"+\"geneMRNA\"+\"genePREMRNA\"")
+
+    if species is not None and gene_bed is not None:
+        raise ValueError("You shouldn't set both geneBed and species, defaults exist for %s" % (acceptable_species))
+    
+    #Now actually assign values
+    if species is not None:
+        try:
+            gene_bed      = clipper.data_file(species + ".AS.STRUCTURE_genes.BED.gz")
+            gene_mrna     = clipper.data_file(species + ".AS.STRUCTURE_mRNA.lengths")
+            gene_pre_mrna = clipper.data_file(species + ".AS.STRUCTURE_premRNA.lengths")
+            
+        except ValueError:
+            raise ValueError("Defaults don't exist for your species: %s. Please choose from: %s or supply \"geneBed\"+\"geneMRNA\"+\"genePREMRNA\"" % (species, acceptable_species))
+
+    #Selects mRNA or preMRNA lengths
+    if pre_mrna is True:
+        lenfile = gene_pre_mrna
+    else:
+        lenfile = gene_mrna
+
+    if lenfile is None:
+        raise IOError("""didn't pass correct mRNA length file option 
+                    with given length file""")
+        
+    #builds dict to do processing on,
+    genes = build_geneinfo(gene_bed)
+    lengths = build_lengths(lenfile)
+    
+    
+    return genes, lengths
 
 def main(options):
     
     if options.np == 'autodetect':
         options.np = multiprocessing.cpu_count()
     pool = multiprocessing.Pool(options.np)
+    
     #job_server = pp.Server(ncpus=options.np) #old pp stuff
+    
     bamfile = options.bam
     
     if os.path.exists(bamfile):
@@ -198,57 +282,12 @@ def main(options):
         sys.stderr.write("Bam file not defined")
         raise IOError
 
-    species = options.species
-    #geneBed = options.geneBEDfile
-    #genemRNA = options.geneMRNAfile
-    #genePREmRNA = options.genePREMRNAfile
-
-    species_parameters = dict()
-
-    if species is None: #and geneBed is None:
-        print """You must set either \"species\" or 
-        \"geneBed\"+\"geneMRNA\"+\"genePREMRNA\""""
-        exit()
-
-    #error checking
-    #if species is not None and geneBed is not None:
-    #    print """You shouldn't set both geneBed and 
-    #species, defaults exist for %s" % (acceptable_species)"""
-    #    exit()
-    #if species is not None and species not in species_parameters:
-    #    print "Defaults don't exist for your species: %s. Please choose from: %s or supply \"geneBed\"+\"geneMRNA\"+\"genePREMRNA\"" % (species, acceptable_species)
-    #    exit()
-        
-    lenfile = ""
+    genes, lengths = build_transcript_data(options.species, 
+                                           options.geneBEDfile, 
+                                           options.geneMRNAfile, 
+                                           options.genePREMRNAfile,
+                                           options.premRNA)
     
-    species_parameters["hg19"] = add_species("hg19", [range(1, 22), "X", "Y"],
-                                             pkg_resources.resource_filename(__name__, "../data/hg19.AS.STRUCTURE_genes.BED.gz"),
-                                             pkg_resources.resource_filename(__name__, "../data/hg19.AS.STRUCTURE_mRNA.lengths"),
-                                             pkg_resources.resource_filename(__name__, "../data/hg19.AS.STRUCTURE_premRNA.lengths"))
-    species_parameters["hg18"] = add_species("hg18", [range(1, 22), "X", "Y"],
-                                             pkg_resources.resource_filename(__name__, "../data/hg18.AS.STRUCTURE_genes.BED.gz"),
-                                             pkg_resources.resource_filename(__name__, "../data/hg18.AS.STRUCTURE_mRNA.lengths"),
-                                             pkg_resources.resource_filename(__name__, "../data/hg18.AS.STRUCTURE_premRNA.lengths"))
-    species_parameters["mm9"] = add_species("mm9", [range(1, 19), "X", "Y"],
-                                             pkg_resources.resource_filename(__name__, "../data/mm9.AS.STRUCTURE_genes.BED.gz"),
-                                             pkg_resources.resource_filename(__name__, "../data/mm9.AS.STRUCTURE_mRNA.lengths"),
-                                             pkg_resources.resource_filename(__name__, "../data/mm9.AS.STRUCTURE_premRNA.lengths"))
-    #acceptable_species = ",".join(species_parameters.keys())
-    
-
-    #if species is None:
-        #species = "custom"
-        #species_parameters["custom"] = add_species("custom", [range(1,22), "X", "Y"], geneBed, genemRNA, genePREmRNA) ##warning: set to 1..22, for human, fix this in the future
-
-    #Selects mRNA or preMRNA lengths 
-    if options.premRNA is True:
-        lenfile = species_parameters[species]["premRNA"]
-    else:
-        lenfile = species_parameters[species]["mRNA"]
-    
-    #builds dict to do processing on, 
-    lengths = build_lengths(lenfile)
-    genes = build_geneinfo(species_parameters[species]["gene_bed"])
     margin = int(options.margin)
     
     #this should be fixed, args should initally be ints if passed
@@ -258,59 +297,30 @@ def main(options):
     minreads = int(options.minreads)
     poisson_cutoff = options.poisson_cutoff
 
-    gene = options.gene 
-    
-    gene_list = list()
-    
     #gets all the genes to call peaks on
-    try:
-        if len(gene) > 0:
-            gene_list = gene
-    except:
+    if options.gene is not None and len(options.gene ) > 0:
+        gene_list = options.gene
+    else: #selects all genes
         gene_list = genes.keys()
                 
-    
     results = []
-    transcriptome_size = 0
     
-    #I think this calls peaks for each gene in the gene list, 
-    #which could be every gene in the genome
-    running_list = []
-    length_list = []
+    #Set up peak calling by gene
+    running_list = [genes[gene] for gene in gene_list]
+    length_list  = [lengths[gene] for gene in gene_list]
     
-    for gene_number, gene in enumerate(gene_list):
-        #again, hacky should be factored to a single if statement, 
-        #need to be more explicit about code paths
-        if options.maxgenes == None:
-            pass
-        else:
-            if gene_number >= maxgenes:
-                break
-            
-        geneinfo = genes[gene]
-        
-        #There is a better way of doing timing.  
-        start_time = time.strftime('%X %x %Z')
-        verboseprint(geneinfo + " started:" + str(start_time))
-        transcriptome_size += lengths[gene]
-        #TODO make it so transcript size isn't always used
-        #this is a filter operation, should make it as such
-        running_list.append(genes[gene])
-        length_list.append(lengths[gene])
-        
-        verboseprint(lengths[gene])
-        
-        #for debugging purposes, sometimes 
-        #call_peaks(genes[gene], lengths[gene], None, bamfile,  margin, options.FDR_alpha, options.threshold, 
-        #                       minreads,  poisson_cutoff,  options.plotit, 10, 1000, options.SloP, False,) 
-
- 
-    combined_list = zip(running_list, length_list)
+    #truncates for max genes
+    if options.maxgenes is not None:
+        running_list = running_list[:maxgenes]
+        length_list  = length_list[:maxgenes]
     
+    transcriptome_size = sum(length_list)
+    
+    #do the parralization
     tasks =  [(gene, length, None, bamfile, margin, options.FDR_alpha, 
                options.threshold, minreads, poisson_cutoff, 
                options.plotit, 10, 1000, options.SloP, False)
-              for gene, length in combined_list]
+              for gene, length in zip(running_list, length_list)]
 
     jobs = pool.map(func_star, tasks)
     #jobs = [job_server.submit(call_peaks,
@@ -342,7 +352,8 @@ def main(options):
         if gene_result is not None:
             verboseprint("nreads", gene_result['nreads'])
             transcriptome_reads += gene_result['nreads']
-    print "Transcriptome size is %d, transcriptome reads are %d" % (transcriptome_size, transcriptome_reads)
+    print """Transcriptome size is %d, transcriptome 
+             reads are %d""" % (transcriptome_size, transcriptome_reads)
     
     #is this a missed indent?
     for gener in results:
@@ -352,13 +363,25 @@ def main(options):
         
         for cluster in gener['clusters'].keys():
             try:
-                transcriptome_p = poissonP(transcriptome_reads, gener['clusters'][cluster]['Nreads'], transcriptome_size, gener['clusters'][cluster]['size'])
+                transcriptome_p = poissonP(transcriptome_reads, 
+                                           gener['clusters'][cluster]['Nreads'], 
+                                           transcriptome_size, 
+                                           gener['clusters'][cluster]['size'])
                 if math.isnan(transcriptome_p):
-                    print "Transcriptome P is NaN, transcriptome_reads = %d, cluster reads = %d, transcriptome_size = %d, cluster_size = %d" % (transcriptome_reads, gener['clusters'][cluster]['Nreads'], transcriptome_size, gener['clusters'][cluster]['size'])
+                    print """Transcriptome P is NaN, transcriptome_reads = %d, 
+                             cluster reads = %d, transcriptome_size = %d, 
+                             cluster_size = %d""" % (transcriptome_reads, 
+                                                     gener['clusters'][cluster]['Nreads'], 
+                                                     transcriptome_size, 
+                                                     gener['clusters'][cluster]['size'])
+            
                     continue
                 
                 if transcriptome_p > poisson_cutoff:
-                    print "%s\n Failed Transcriptome cutoff with %s reads, pval: %s" % (cluster, gener['clusters'][cluster]['Nreads'], transcriptome_p)
+                    print """%s\n Failed Transcriptome cutoff with %s reads, 
+                            pval: %s""" % (cluster, 
+                                           gener['clusters'][cluster]['Nreads'], 
+                                           transcriptome_p)
                     continue
                 
                 min_pval = 1
@@ -412,13 +435,9 @@ def call_main():
     parser.add_option("--species", "-s", dest="species", help="A species for your peak-finding, either hg19 or mm9")
     
     #we don't have custom scripts or documentation to support this right now, removing until those get added in
-    #parser.add_option("--customBED", dest="geneBEDfile", help="bed file to call peaks on, must come withOUT species and with customMRNA and customPREMRNA", metavar="BEDFILE")
-    #parser.add_option("--customMRNA", dest="geneMRNAfile", help="file with mRNA lengths for your bed file in format: GENENAME<tab>LEN", metavar="FILE")
-    #parser.add_option("--customPREMRNA", dest="genePREMRNAfile", help="file with pre-mRNA lengths for your bed file in format: GENENAME<tab>LEN", metavar="FILE")
-    parser.add_option("--customBED", dest="geneBEDfile", metavar="BEDFILE", help=SUPPRESS_HELP)
-    parser.add_option("--customMRNA", dest="geneMRNAfile", metavar="FILE", help=SUPPRESS_HELP)
-    parser.add_option("--customPREMRNA", dest="genePREMRNAfile", metavar="FILE", help=SUPPRESS_HELP)
-    
+    parser.add_option("--customBED", dest="geneBEDfile", help="bed file to call peaks on, must come withOUT species and with customMRNA and customPREMRNA", metavar="BEDFILE")
+    parser.add_option("--customMRNA", dest="geneMRNAfile", help="file with mRNA lengths for your bed file in format: GENENAME<tab>LEN", metavar="FILE")
+    parser.add_option("--customPREMRNA", dest="genePREMRNAfile", help="file with pre-mRNA lengths for your bed file in format: GENENAME<tab>LEN", metavar="FILE")
     parser.add_option("--outfile", "-o", dest="outfile", default="fitted_clusters", help="a bed file output, default:%default")
     parser.add_option("--gene", "-g", dest="gene", action="append", help="A specific gene you'd like try", metavar="GENENAME")
     parser.add_option("--minreads", dest="minreads", help="minimum reads required for a section to start the fitting process.  Default:%default", default=3, type="int", metavar="NREADS")

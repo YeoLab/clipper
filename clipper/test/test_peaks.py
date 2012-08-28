@@ -3,11 +3,14 @@ Created on Jul 17, 2012
 
 @author: gabrielp
 '''
+
 import unittest
 from clipper.src.peaks import find_sections, readsToWiggle_pysam, shuffle
 from numpy import ones
 import pysam
-import pkg_resources
+import clipper
+import os
+
 class Test(unittest.TestCase):
 
     """
@@ -180,7 +183,7 @@ class Test(unittest.TestCase):
         #assert 1 == 0
     
     def test_readsToWiggle_pysam(self):
-        reads = pysam.Samfile(pkg_resources.resource_filename(__name__, "../test/allup_test.bam"))      
+        reads = pysam.Samfile(os.path.join(clipper.test_dir(), "allup_test.bam"))      
         reads = reads.fetch(region="chr15:91536649-91537641")
         wiggle, jxns, pos_counts, lengths, allreads = readsToWiggle_pysam(reads, 91537632, 91537675, '-', 'center', False)
         
@@ -205,7 +208,7 @@ class Test(unittest.TestCase):
         
         assert lengths == [33, 33, 33, 33, 33, 33, 33, 33, 33, 33, 33]
         
-        reads = pysam.Samfile(pkg_resources.resource_filename(__name__, "../test/allup_test.bam"))      
+        reads = pysam.Samfile(os.path.join(clipper.test_dir(), "allup_test.bam"))      
         reads = reads.fetch(region="chr15:91536649-91537641")
         wiggle, jxns, pos_counts, lengths, allreads = readsToWiggle_pysam(reads, 91537632, 91537675, '-', 'center', True)
         wiggle_true = [0.06060606060606061, 0.06060606060606061, 0.06060606060606061, 0.06060606060606061, 0.06060606060606061, 0.06060606060606061, 0.06060606060606061, 0.06060606060606061, 0.33333333333333326, 0.33333333333333326, 0.33333333333333326, 0.33333333333333326, 0.33333333333333326, 0.33333333333333326, 0.33333333333333326, 0.33333333333333326, 0.33333333333333326, 0.33333333333333326, 0.33333333333333326, 0.33333333333333326, 0.33333333333333326, 0.33333333333333326, 0.33333333333333326, 0.33333333333333326, 0.33333333333333326, 0.33333333333333326, 0.33333333333333326, 0.33333333333333326, 0.33333333333333326, 0.33333333333333326, 0.33333333333333326, 0.33333333333333326, 0.33333333333333326, 0.2727272727272727, 0.2727272727272727, 0.2727272727272727, 0.2727272727272727, 0.2727272727272727, 0.2727272727272727, 0.2727272727272727, 0.2727272727272727, 0.0, 0.0, 0.0]

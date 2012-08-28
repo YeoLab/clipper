@@ -315,7 +315,7 @@ def call_peaks(loc, gene_length, bam_fileobj=None, bam_file=None,
     """
     
     #setup
-    chrom, gene_name, tx_start, tx_end, signstrand = loc.split("|")
+    chrom, gene_name, tx_start, tx_end, signstrand = loc
 
     
     #logic reading bam files
@@ -436,7 +436,7 @@ def peaks_from_info(wiggle, pos_counts, lengths, loc, gene_length,
     #peak_dict['loc'] = loc
     
     #data munging
-    chrom, gene_name, tx_start, tx_end, signstrand = loc.split("|")
+    chrom, gene_name, tx_start, tx_end, signstrand = loc
     tx_start, tx_end = map(int, [tx_start, tx_end])    
     
     #used for poisson calclulation? 
