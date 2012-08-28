@@ -25,7 +25,7 @@ setup(
  #                       'scipy >= 0.8.0',
                         'matplotlib >= 1.1.0',
                         'pp >= 1.6.2',
-                        'pybedtools >= 0.6',
+                        'pybedtools >= 0.5',
                         ],
       
     setup_requires = ["setuptools_git >= 0.3",],
