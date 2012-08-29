@@ -268,7 +268,7 @@ def main(options):
     
     if options.np == 'autodetect':
         options.np = multiprocessing.cpu_count()
-    pool = multiprocessing.Pool(options.np)
+    pool = multiprocessing.Pool(int(options.np))
     
     #job_server = pp.Server(ncpus=options.np) #old pp stuff
     
@@ -321,8 +321,10 @@ def main(options):
                options.threshold, minreads, poisson_cutoff, 
                options.plotit, 10, 1000, options.SloP, False)
               for gene, length in zip(running_list, length_list)]
-
-    jobs = pool.map(func_star, tasks)
+    jobs = []
+    for job in tasks:
+        jobs.append(func_star(job))
+    #jobs = pool.map(func_star, tasks, chunksize=len(tasks) // int(options.np))
     #jobs = [job_server.submit(call_peaks,
     #                          args=(gene, length, None, bamfile, margin, options.FDR_alpha, options.threshold,
     #                           minreads, poisson_cutoff, options.plotit, 10, 1000, options.SloP, False,),
