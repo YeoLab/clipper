@@ -154,6 +154,7 @@ def find_spline_residuals(spline_range, spline_data, ydata, k, weight=None):
     
     """
     
+    #print spline_range
     spline = find_univariate_spline(spline_range, spline_data, ydata, k, weight)
     
     #catches spline fitting error
@@ -165,6 +166,8 @@ def find_spline_residuals(spline_range, spline_data, ydata, k, weight=None):
     
     # number of turns in the function
     turns = sum(abs(diff(sign(diff(func))))) / 2 
+    
+     
     err = sqrt((spline.get_residual()) * (turns ** 4))
     return(err)
     
@@ -190,7 +193,6 @@ def find_univariate_spline(spline_range, spline_data, ydata, k, weight=None):
     """
 
     try:
-        #print xdata, ydata, x, k, weight
         spline = interpolate.UnivariateSpline(spline_data, 
                                               ydata, 
                                               s=spline_range, 
@@ -198,9 +200,11 @@ def find_univariate_spline(spline_range, spline_data, ydata, k, weight=None):
                                               w=weight)
         return(spline)
     
-    except Exception as error:
+    except Exception as error: #This error shouldn't happen anymore
+        print spline_data, ydata, spline_range, k, weight
         verboseprint("failed to build spline", error)
-        return None
+        raise
+        #return None
 
 
 def plot_sections(wiggle, sections, threshold):
@@ -339,32 +343,37 @@ def call_peaks(loc, gene_length, bam_fileobj=None, bam_file=None,
     return result
 
 
-def get_start_stop_pairs_above_threshold(threshold, values):
+def get_regions_above_threshold(threshold, values):
     
     """
 
-    Idea here is to call all regions above a given threshold and return start stop pairs for those regions
-    added twist is that when everthere is a local minima above the threshold we will treat that as a breakpoint
+    Idea here is to call all regions above a given threshold and return start 
+    stop pairs for those regions added twist is that when everthere is a local
+    minima above the threshold we will treat that as a breakpoint
     
     generates start and stop positions for calling peaks on.  Helper function that was abstracted 
     from peaks_from_info
     
     threshold -- threshold for what is siginifant peak
     values -- the values (as a numpy array) arranged from 0-length of the section
-    sect_length -- the length of the section that we will attempt to call peaks on
-    xvals -- the location of all the xvalues we are looking at
-    spline -- spline object from find_univarateSpline
     
     returns list of tuples(start, stop) used for calling peaks
     
     """
     
     xlocs = arange(0, len(values))
-    #finds all turns, and generate areas to call peaks in, also 
+    
+    #finds all turns, between above and below threshold
+    #and generate areas to call peaks in, also 
     #makes sure starting and stopping above maxima is caught
+    #threshold is at or equal to values, need to correct this
     starts = xlocs[r_[True, diff(values >= threshold)] & (values >= threshold)]
     stops = xlocs[r_[diff(values >= threshold), True] & (values >= threshold)]
     
+    stops = stops + 1 #add to fix off by one bug
+    
+    #print "original starts ", starts
+    #print "original stops ", stops
     #error correction incase my logic is wrong here, assuming that starts
     #and stops are always paired, and the only two cases of not being 
     #pared are if the spline starts above the cutoff or the spline starts
@@ -380,7 +389,10 @@ def get_start_stop_pairs_above_threshold(threshold, values):
     #http://stackoverflow.com/questions/4624970/finding-local-maxima-minima-with-numpy-in-a-1d-numpy-array
     #Can't have local minima at start or end, that would get caught by 
     #previous check, really need to think about that more
-    local_minima = r_[False, values[1:] < values[:-1]] & r_[values[:-1] < values[1:], False]
+    #print values
+    local_minima = find_local_minima(values)
+    #print xlocs[local_minima]
+    #r_[False, values[1:] < values[:-1]] & r_[values[:-1] < values[1:], False]
     
     #append to list any local minima above threshold
     for i, minima in enumerate(local_minima):
@@ -391,8 +403,28 @@ def get_start_stop_pairs_above_threshold(threshold, values):
     starts = array(sorted(set(starts)))
     stops = array(sorted(set(stops)))
     starts_and_stops = []
-
+    
+    #print "starts after min: ", starts
+    #print "stops after min: ", stops
+    #making sure we aren't in some strange state
+    assert len(starts) == len(stops)
+    
     #get all contigous start and stops pairs
+    """
+    this was an attempt to fix an off by one bug that I didn't catch
+    before
+    for start, stop in zip(starts, stops):
+        if stop < start:
+            raise ValueError("stop less than start")
+        
+        #peak of length 1
+        elif start == stop:
+            starts_and_stops.append((start, stop + 1))
+            
+        else: #start < stop
+            starts_and_stops.append((start, stop))
+    """
+     
     while len(starts) > 0:
         stop_list = stops[stops > starts[0]]
         
@@ -404,16 +436,84 @@ def get_start_stop_pairs_above_threshold(threshold, values):
         starts_and_stops.append((starts[0], stop))
         starts = starts[starts >= stop]
     
-    starts = array(map(lambda x: x[0], starts_and_stops))
-    stops = array(map(lambda x: x[1], starts_and_stops))
+    starts = array([x[0] for x in starts_and_stops])
+    stops  = array([x[1] for x in starts_and_stops])
     return starts_and_stops, starts, stops
 
-
+def find_local_minima(arr):
+    
+    """
+    
+    Returns a list of boolean values for an array that mark if a value is a local 
+    minima or not True for yes false for no
+    
+    Importantly for ranges of local minima the value in the middle of the range
+    is chosen as the minimum value
+    
+    """
+    
+    #walks through array, finding local minima ranges
+    
+    #hacky way to initalize a new array to all false
+    minima = (arr == -1)
+    min_range_start = 0
+    decreasing = False
+    for i in range(len(arr[:-1])):
+        
+        #array needs to be smooth for this to work, otherwise we'll
+        #run into odd edge cases
+        #update location of minima start until 
+        if arr[i] > arr[i + 1]:
+            min_range_start = i + 1
+            decreasing = True
+        
+        if (arr[i] < arr[i+1]) and decreasing is True:
+            decreasing = False
+            #gets the local minima midpoint
+            minima[(min_range_start + i) / 2] = True
+    
+    return minima
+    
+def find_local_maxima(arr):
+    
+    """
+    
+    Returns a list of boolean values for an array that mark if a value is a local 
+    maxima or not True for yes false for no
+    
+    Importantly for ranges of local maxima the value in the middle of the range
+    is chosen as the minimum value
+    
+    """
+    
+    #walks through array, finding local maxima ranges
+    
+    #hacky way to initalize a new array to all false
+    maxima = (arr == -1)
+    max_range_start = 0
+    increasing = True
+    for i in range(len(arr[:-1])):
+        
+        #update location of maxima start until 
+        if arr[i] < arr[i + 1]:
+            max_range_start = i + 1
+            increasing = True
+        
+        if (arr[i] > arr[i+1]) and increasing is True:
+            increasing = False
+            #gets the local maxima midpoint
+            maxima[(max_range_start + i) / 2] = True
+    
+    #catches last case
+    if increasing: 
+        maxima[(max_range_start + len(arr) - 1) / 2] = True
+        
+    return maxima
 
 def peaks_from_info(wiggle, pos_counts, lengths, loc, gene_length, 
                     margin=25, fdr_alpha=0.05, user_threshold=None,
                     minreads=20, poisson_cutoff=0.05, plotit=False, 
-                    w_cutoff=10, windowsize=1000, SloP=False, 
+                    width_cutoff=10, windowsize=1000, SloP=False, 
                     correct_p=False):
 
     """
@@ -428,7 +528,8 @@ def peaks_from_info(wiggle, pos_counts, lengths, loc, gene_length,
 
     peak_dict = {}
     
-    #these are what is built in this dict, complicated enough that it might be worth turning into an object
+    #these are what is built in this dict, complicated enough that it might 
+    #be worth turning into an object
     #peak_dict['clusters'] = {}
     #peak_dict['sections'] = {}
     #peak_dict['nreads'] = int()
@@ -437,7 +538,7 @@ def peaks_from_info(wiggle, pos_counts, lengths, loc, gene_length,
     
     #data munging
     chrom, gene_name, tx_start, tx_end, signstrand = loc
-    tx_start, tx_end = map(int, [tx_start, tx_end])    
+    tx_start, tx_end = [int(x) for x in [tx_start, tx_end]]    
     
     #used for poisson calclulation? 
     nreads_in_gene = sum(pos_counts)
@@ -452,7 +553,7 @@ def peaks_from_info(wiggle, pos_counts, lengths, loc, gene_length,
     else:
         gene_threshold = user_threshold
     
-    if gene_threshold == "error":
+    if gene_threshold == "best_error":
         verboseprint("""I had a hard time with this one: %s.  
                         I think I'll use a threshold of 50""" % (loc))
         
@@ -526,34 +627,42 @@ def peaks_from_info(wiggle, pos_counts, lengths, loc, gene_length,
         try:
             degree = 3 #cubic spline
             weights = None 
+            
             #for very large windows with many reads a large smoothing 
             #parameter is required.  test several different options 
             #to determine a reasonable inital estimate
             #Goal is to find optimnal smooting paramater in multiple steps
-            #x1 initial estimate of smoothing paramater 
+            #initial_smoothing_value initial estimate of smoothing paramater 
             #step 1, identify good initial value
-            x1 = (sectstop - sectstart + 1)
-            x0 = x1
-            useme = 1
-            
-           
+            initial_smoothing_value = (sectstop - sectstart + 1)
+            best_smoothing_value = initial_smoothing_value
+            best_estimate = 1
             
             #step 2, refine so as not to runinto local minima later, 
             #try to come up with a good way of getting optimal paramater
-            error = find_spline_residuals(x1, xvals, data, degree, weights)
+            best_error = find_spline_residuals(initial_smoothing_value, 
+                                               xvals, 
+                                               data, 
+                                               degree, 
+                                               weights)
+            
             for i in range(2, 11):
-                x2 = x1 * i
+                cur_smoothing_value = initial_smoothing_value * i
                 
                 #tries find optimal initial smooting paraater in this loop
-                err = find_spline_residuals(x2, xvals, data, degree, weights)
-                if err < error:
-                    x0 = x2
-                    useme = i
+                cur_error = find_spline_residuals(cur_smoothing_value, 
+                                                  xvals, 
+                                                  data, 
+                                                  degree, 
+                                                  weights)
+                if cur_error < best_error:
+                    best_smoothing_value = cur_smoothing_value
+                    best_estimate = i
 
          
             verboseprint("""I'm using (region length) * %d as the 
                             initial estimate for the smoothing 
-                            parameter""" % (useme))          
+                            parameter""" % (best_estimate))          
                         
             try:
                 #fine optimization of smooting paramater
@@ -570,46 +679,60 @@ def peaks_from_info(wiggle, pos_counts, lengths, loc, gene_length,
                     if tries == 3: 
                         break
                     
-                    spline = optimize.minimize(find_spline_residuals, x0, 
-                                           args=(xvals, 
-                                                 data, 
-                                                 degree, 
-                                                 weights),
-                                                 options={'disp':False}, 
-                                                 method="Powell")
+                    spline = optimize.minimize(find_spline_residuals, 
+                                               best_smoothing_value, 
+                                               args=(xvals, 
+                                                     data, 
+                                                     degree, 
+                                                     weights),
+                                               options={'disp' : False,
+                                                        #'maxiter' : 1000,
+                                                        }, 
+                                               #method="Powell", # old method
+                                               #method="L-BFGS-B", #abnormal termination sometimes
+                                               method="COBYLA",
+                                               bounds=((.1,None),),
+                                               )
                     
                     #fit a smoothing spline using an optimal parameter 
                     #for smoothing and with weights proportional to the 
                     #number of reads aligned at each position if weights 
                     #is set
-                    if spline.success is True:
+                    if spline.success:
                         cutoff = spline.x
+                        print "cutoff is %s" % (cutoff)
                     else:
+                        print "%s failed spline building at section %s" % (loc, sect)
+                        print spline.message
                         pass
-                    x0 += sect_length
-            except Exception as error:
-                print >> sys.stderr, error
+                    
+                    best_smoothing_value += sect_length
+            except Exception as best_error:
+                print >>sys.stderr,  "%s failed spline fitting at section %s (major crash)" % (loc, sect)
+                print >> sys.stderr, best_error
                 raise
-                #print >>sys.stderr,  "%s failed spline fitting at section %s with sp: %s" %(loc, sect)
-                #continue
+
 
        
             verboseprint ("optimized smoothing parameter")
-        #if we are going to save and output as a pickle fi is %s" %(str(cutoff))
-        #final fit spline
+            #if we are going to save and output as a pickle fi is %s" %(str(cutoff))
+            #final fit spline
 
             spline = find_univariate_spline(cutoff, 
                                             xvals, 
                                             data, 
                                             degree, 
                                             weights)
-          
+            
+            spline_values = array([round(x) for x in spline(xvals)])
             if plotit is True:
                 plot_spline(spline, data, xvals, peakn, threshold)
             
-            starts_and_stops, starts, stops = get_start_stop_pairs_above_threshold(threshold, spline(xvals))
+            starts_and_stops, starts, stops = get_regions_above_threshold(threshold, 
+                                                                          spline_values)
 
             
+
             #walks along spline, and calls peaks along spline
             #for each start, take the next stop and find the peak 
             #between the start and the stop this is where I need to 
@@ -619,29 +742,42 @@ def peaks_from_info(wiggle, pos_counts, lengths, loc, gene_length,
             
             #subsections that are above threshold
             for p_start, p_stop in starts_and_stops: 
-                try:
-                    
-                    #peaks with-in this subsection, indexed from section 
-                    #(not subsection) start
-                    peaks = map(lambda x: x + p_start, xvals[diff(sign(diff(spline(xvals[p_start:(p_stop + 1)])))) < 0])  
-                    verboseprint("I found %d peaks" % (len(peaks)))
-                except:
-                    continue
+            
+                #peaks with-in this subsection, indexed from section 
+                #(not subsection) start
+                #find all local maxima
+                peaks = [x + p_start for x in xvals[find_local_maxima(spline_values[p_start:(p_stop + 1)])]]
+                #map(lambda x: x + p_start, 
+                #            xvals[diff(sign(diff(spline(xvals[p_start:(p_stop + 1)])))) < 0])
+                #print "spline ", spline(xvals)
+                #print "threshold: %s" % (threshold)
+                #print "full spline ", spline_values
+                #print "peaks", peaks
+                #print p_start, p_stop
+                #print starts_and_stops
+                #print "spline values", spline_values[p_start:(p_stop + 1)]  
+                #print "peaks at in section", xvals[find_local_maxima(spline_values[p_start:(p_stop + 1)])]
+                assert len(peaks) in (0,1) #there should be one or zero peaks in every section
                 
                 #handles logic if there are multiple peaks between 
                 #start and stop
                 if len(peaks) <= 0:
                     continue
                 if len(peaks) is 1:
+                    
                     #gets reads in peak
                     n_reads_in_peak = sum(cts[p_start:(p_stop + 1)])
-                    verboseprint("Peak %d (%d - %d) has %d reads" % (peakn, p_start, (p_stop + 1), n_reads_in_peak))
+                    #verboseprint(""""Peak %d (%d - %d) has %d 
+                    #                 reads""" % (peakn, 
+                    #                             p_start, 
+                    #                             (p_stop + 1), 
+                    #                             n_reads_in_peak))
                     
                     #makes sure there enough reads
                     if (n_reads_in_peak < minreads or 
                         max(data[p_start:(p_stop + 1)]) < threshold):
-                        verboseprint("""skipping peak, %d is not enough reads"""
-                                      % (n_reads_in_peak))
+                    #    verboseprint("""skipping peak, %d is not enough reads"""
+                    #                  % (n_reads_in_peak))
                         continue
 
                     #formatting of bed track
@@ -656,20 +792,21 @@ def peaks_from_info(wiggle, pos_counts, lengths, loc, gene_length,
                     thick_start = peak - 2
                     thick_stop = peak + 2
                     
-                    #error checking logic to keep bed files from breaking
+                    #best_error checking logic to keep bed files from breaking
                     if thick_start < g_start:
                         thick_start = g_start
                     if thick_stop > g_stop:
                         thick_stop = g_stop
+                        
                     peak_length = g_stop - g_start + 1
 
-                    #
-                    if peak_length < w_cutoff:#skip really small peaks
+                    #skip really small peaks
+                    if peak_length < width_cutoff:
                         continue
                     peak_name = gene_name + "_" + str(peakn) + "_" + str(int(n_reads_in_peak))
                     
                     #super local logic 
-                    #error check to make sure area is in area of gene
+                    #best_error check to make sure area is in area of gene
                     
                     #distance from gene start
                     if peak - tx_start - windowsize < 0: 
@@ -761,7 +898,7 @@ def peaks_from_info(wiggle, pos_counts, lengths, loc, gene_length,
                             subpeak_stop = stops[stops > subpeak][0]
                         peak_length = subpeak_stop - subpeak_start + 1
                         
-                        if peak_length < w_cutoff:#skip really small peaks
+                        if peak_length < width_cutoff:#skip really small peaks
                             continue
                         n_reads_in_peak = sum(cts[subpeak_start:(subpeak_stop + 1)])
                         
@@ -827,8 +964,8 @@ def peaks_from_info(wiggle, pos_counts, lengths, loc, gene_length,
                         peak_dict['clusters'][bedline]['Nreads'] = n_reads_in_peak
                         peak_dict['clusters'][bedline]['size'] = peak_length
                         peakn += 1
-        except NameError as error:
-            print >> sys.stderr, error
+        except NameError as best_error:
+            print >> sys.stderr, best_error
             print >> sys.stderr, "spline fitting failed for %s" % (loc)
             raise
             

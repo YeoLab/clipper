@@ -11,6 +11,7 @@ import gzip
 import math
 import multiprocessing 
 import clipper
+from clipper import data_dir
 from clipper.src.call_peak import call_peaks, poissonP
 
 import logging
@@ -146,7 +147,8 @@ def build_lengths(length_file):
         
     except TypeError:
         raise ValueError("file %s not found" % length_file)
-    
+    except ValueError:
+        raise ValueError("file not formatted correctly, expects two columns gene<tab>length")
     return gene_lengths
 
 

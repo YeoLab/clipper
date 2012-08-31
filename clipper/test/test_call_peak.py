@@ -142,8 +142,8 @@ class Test(unittest.TestCase):
         self.assertAlmostEqual(expected.get_residual(), result.get_residual()) 
         
         #tests error mode
-        assert None == find_univariate_spline(None, None, None, None)
-    
+        self.assertRaises(TypeError, find_univariate_spline, None, None, None, None)
+  
     def test_find_spline_residuals(self):
         
         """
@@ -165,7 +165,7 @@ class Test(unittest.TestCase):
         self.assertAlmostEqual(residual, sqrt(expected.get_residual()))
         
         #tests error mode
-        assert Inf == find_spline_residuals(None, None, None, None)
+        self.assertRaises(TypeError, find_spline_residuals, None, None, None, None)
         
         
 
@@ -237,7 +237,7 @@ class Test(unittest.TestCase):
         
         """    
     
-        tests generating start and stops function, this is kind of a badly written function,
+        tests generating start and stops function,
         need better tests and edge cases 
         
         """
@@ -246,96 +246,213 @@ class Test(unittest.TestCase):
         
         #Test general flow
         values = array([1,2,3,4,5,5,5,3,2,1])
-        starts_and_stops, starts, stops = get_start_stop_pairs_above_threshold(3, values)
-        assert_array_equal(starts_and_stops, [(2,7)])
+        starts_and_stops, starts, stops = get_regions_above_threshold(3, values)
+        assert_array_equal(starts_and_stops, [(2,8)])
         assert_array_equal(starts, [2])
-        assert_array_equal(stops, [7])
+        assert_array_equal(stops, [8])
         
         #Test starting above threshold
         values = array([4,4,5,5,5,3,2,1])
-        starts_and_stops, starts, stops = get_start_stop_pairs_above_threshold(3, values)
-        assert_array_equal(starts_and_stops, [(0,5)])
+        starts_and_stops, starts, stops = get_regions_above_threshold(3, values)
+        assert_array_equal(starts_and_stops, [(0,6)])
         assert_array_equal(starts, [0])
-        assert_array_equal(stops, [5])
+        assert_array_equal(stops, [6])
 
         #Test ending above threshold
         values = array([1,2,3,4,5,5,5,5,5,5])
-        starts_and_stops, starts, stops = get_start_stop_pairs_above_threshold(3, values)
-        assert_array_equal(starts_and_stops, [(2,9)])
+        starts_and_stops, starts, stops = get_regions_above_threshold(3, values)
+        assert_array_equal(starts_and_stops, [(2,10)])
         assert_array_equal(starts, [2])
-        assert_array_equal(stops, [9])
+        assert_array_equal(stops, [10])
         
         #Test local minima 
         values = array([1,2,3,4,5,5,4,5,5,3])
-        starts_and_stops, starts, stops = get_start_stop_pairs_above_threshold(3, values)
-        assert_array_equal(starts_and_stops, [(2,6), (6,9)])
+        starts_and_stops, starts, stops = get_regions_above_threshold(3, values)
+        assert_array_equal(starts_and_stops, [(2,6), (6,10)])
         assert_array_equal(starts, [2, 6])
-        assert_array_equal(stops, [6,9])
+        assert_array_equal(stops, [6,10])
         
         #Test Two peaks
         values = array([1,2,3,4,5,5,2,5,5,3])
-        starts_and_stops, starts, stops = get_start_stop_pairs_above_threshold(3, values)
-        assert_array_equal(starts_and_stops, [(2,5), (7,9)])
+        starts_and_stops, starts, stops = get_regions_above_threshold(3, values)
+        assert_array_equal(starts_and_stops, [(2,6), (7,10)])
         assert_array_equal(starts, [2,7])
-        assert_array_equal(stops, [5,9])
+        assert_array_equal(stops, [6,10])
         
         values = array([1,2,3,4,5,5,2,2,5,4,4,3])
-        starts_and_stops, starts, stops = get_start_stop_pairs_above_threshold(3, values)
-        assert_array_equal(starts_and_stops, [(2,5), (8,11)])
+        starts_and_stops, starts, stops = get_regions_above_threshold(3, values)
+        assert_array_equal(starts_and_stops, [(2,6), (8,12)])
         assert_array_equal(starts, [2,8])
-        assert_array_equal(stops, [5,11])
+        assert_array_equal(stops, [6,12])
         
         #test two peaks starting above 
         values = array([5,5,5,5,5,5,2,2,5,4,4,3])
-        starts_and_stops, starts, stops = get_start_stop_pairs_above_threshold(3, values)
-        assert_array_equal(starts_and_stops, [(0,5), (8,11)])
+        starts_and_stops, starts, stops = get_regions_above_threshold(3, values)
+        assert_array_equal(starts_and_stops, [(0,6), (8,12)])
         assert_array_equal(starts, [0,8])
-        assert_array_equal(stops, [5,11])
+        assert_array_equal(stops, [6,12])
         
         #test two peaks ending above
         values = array([1,2,3,4,5,5,2,2,5,4,4,4])
-        starts_and_stops, starts, stops = get_start_stop_pairs_above_threshold(3, values)
-        assert_array_equal(starts_and_stops, [(2,5), (8,11)])
+        starts_and_stops, starts, stops = get_regions_above_threshold(3, values)
+        assert_array_equal(starts_and_stops, [(2,6), (8,12)])
         assert_array_equal(starts, [2,8])
-        assert_array_equal(stops, [5,11])
+        assert_array_equal(stops, [6,12])
         
         #test two peaks with one local minima
         values = array([5,5,5,4,5,5,2,2,5,4,4,3])
-        starts_and_stops, starts, stops = get_start_stop_pairs_above_threshold(3, values)
-        assert_array_equal(starts_and_stops, [(0,3), (3,5), (8,11)])
+        starts_and_stops, starts, stops = get_regions_above_threshold(3, values)
+        assert_array_equal(starts_and_stops, [(0,3), (3,6), (8,12)])
         assert_array_equal(starts, [0, 3, 8])
-        assert_array_equal(stops, [3, 5,11])
+        assert_array_equal(stops, [3, 6,12])
         
         #test two peaks with two local minima
         values = array([1,2,3,4,5,5,2,2,5,4,5,5])
-        starts_and_stops, starts, stops = get_start_stop_pairs_above_threshold(3, values)
-        assert_array_equal(starts_and_stops, [(2,5), (8,9), (9, 11)])
+        starts_and_stops, starts, stops = get_regions_above_threshold(3, values)
+        assert_array_equal(starts_and_stops, [(2,6), (8,9), (9, 12)])
         assert_array_equal(starts, [2,8,9])
-        assert_array_equal(stops, [5,9,11])
+        assert_array_equal(stops, [6,9,12])
         
         #more complicated version
         values = array([3,2,1,2,3,4,3,2,1,2,3,4,5,4,3,2,3,4,5,3,2,0,3])
         threshold = 2
-        starts_and_stops, starts, stops = get_start_stop_pairs_above_threshold(threshold, values)
-        assert_array_equal(starts_and_stops, [(0,1), (3,7), (9, 15), (15,20)])
-        assert_array_equal(starts, [0, 3, 9, 15])
-        assert_array_equal(stops, [1, 7, 15, 20])
+        starts_and_stops, starts, stops = get_regions_above_threshold(threshold, values)
+        
+        #Not sure if I want to have the last value be a possible peak, 
+        #I guess filtering happens later so it doesn't matter
+        assert_array_equal(starts_and_stops, [(0,2), (3,8), (9, 15), (15,21), (22, 23)])
+        assert_array_equal(starts, [0, 3, 9, 15, 22])
+        assert_array_equal(stops, [2, 8, 15, 21, 23])
         
         #more complicated version
-        values = array([3,2,1,2,3,4,3,2,1,2,3,4,5,4,3,2,3,4,5,3,2,0,2, 3])
+        values = array([3,2,1,2,3,4,3,2,1,2,3,4,5,4,3,2,3,4,5,3,2,0,2,3])
         threshold = 2
-        starts_and_stops, starts, stops = get_start_stop_pairs_above_threshold(threshold, values)
-        assert_array_equal(starts_and_stops, [(0,1), (3,7), (9, 15), (15,20), (22, 23)])
-        assert_array_equal(starts, [0, 3, 9, 15, 22])
-        assert_array_equal(stops, [1, 7, 15, 20, 23])
+        starts_and_stops, starts, stops = get_regions_above_threshold(threshold, values)
+        assert_array_equal(starts_and_stops, [(0,2), (3,8), (9, 15), (15,21), (22, 24)])
+
         
-                #more complicated version
+        #more complicated version
         values = array([0,0,0, 3, 0, 0 ,0])
         threshold = 2
-        starts_and_stops, starts, stops = get_start_stop_pairs_above_threshold(threshold, values)
-        assert_array_equal(starts_and_stops, [])
-        assert_array_equal(starts, [])
-        assert_array_equal(stops, [])
+        starts_and_stops, starts, stops = get_regions_above_threshold(threshold, values)
+        assert_array_equal(starts_and_stops, [(3,4)])
+
+        
+        #Local minima that has a range
+        values = array([10,10,10,10,10,9,9,9,9,9,9,9,9,10,10,10,10,10,10,10])
+        threshold = 2
+        starts_and_stops, starts, stops = get_regions_above_threshold(threshold, values)
+        assert_array_equal(starts_and_stops, [(0,8), (8,20)])
+
+        
+        #failing on real data
+        values = array([   6.00000000e+00,   6.00000000e+00,   6.00000000e+00,   6.00000000e+00,
+                           6.00000000e+00,   6.00000000e+00,   8.00000000e+00,   8.00000000e+00,
+                           8.00000000e+00,   1.50000000e+01,   1.50000000e+01,   3.30000000e+01,
+                           3.30000000e+01,   3.30000000e+01,   3.30000000e+01,   3.30000000e+01,
+                           3.70000000e+01,   3.70000000e+01,   3.70000000e+01,   3.70000000e+01,
+                           3.70000000e+01,   3.70000000e+01,   3.70000000e+01,   3.70000000e+01,
+                           3.70000000e+01,   3.70000000e+01,   3.70000000e+01,   3.70000000e+01,
+                           3.70000000e+01,   3.70000000e+01,   4.20000000e+01,   4.20000000e+01,
+                           4.20000000e+01,   3.60000000e+01,   3.60000000e+01,   3.60000000e+01,
+                           3.60000000e+01,   3.60000000e+01,   3.60000000e+01,   3.40000000e+01,
+                           4.60000000e+01,   5.40000000e+01,   5.00000000e+01,   5.00000000e+01,
+                           3.20000000e+01,   3.20000000e+01,   3.20000000e+01,   3.20000000e+01,
+                           3.20000000e+01,   2.80000000e+01,   2.80000000e+01,   2.80000000e+01,
+                           2.80000000e+01,   2.80000000e+01,   4.50000000e+01,   4.50000000e+01,
+                           5.70000000e+01,   8.00000000e+01,   8.00000000e+01,   1.79000000e+02,])
+        
+        starts_and_stops, starts, stops = get_regions_above_threshold(32, values)
+        
+        assert_array_equal(starts_and_stops, [(11, 39), (39, 49), (54, 60)])
+
+    
+    def test_find_local_minima(self):
+        
+        """
+        
+        tests find local minima range function
+        
+        """
+        
+        #inital tests used in base version of find starts and stops
+        
+        #Test local minima 
+        values = array([1,2,3,4,5,5,4,5,5,3])
+        result = find_local_minima(values)
+        true = array([False,False,False,False,False,False,True,False,False,False])
+        assert_array_equal(true, result)
+        
+        #test two peaks with one local minima
+        values = array([5,5,5,4,5,5,2,2,5,4,4,3])
+        result = find_local_minima(values)
+        true = array([False,False,False,True,False,False,True,False,False,False, False, False])
+        assert_array_equal(true, result)
+
+        
+        #test two peaks with two local minima
+        values = array([1,2,3,4,5,5,2,2,5,4,5,5])
+        result = find_local_minima(values)
+        true = array([False,False,False,False,False,False,True, False, False,True, False, False])
+        assert_array_equal(true, result)
+        
+        #Test long array
+        values = array([10,10,9,9,9,9,9,9,9,9,10,10])
+        result = find_local_minima(values)
+        true = array([False,False,False,False,False,True,False, False, False,False, False, False])
+        assert_array_equal(true, result)
+        
+        #more failing stuff
+        values = array([32,  32,  32,  28,  28,  28,  28,  28,  45,  45,  57,  80,  80])
+        result = find_local_minima(values)
+        true = array([False,False,False,False,False,True,False, False, False,False, False, False, False])
+        assert_array_equal(true, result)
+        
+    def test_find_local_maxima(self):
+        
+        """
+        
+        Tests find local maxima function
+        
+        Need to think of better tests for this, but I'm lazy right now...
+        
+        """
+        
+        #Test local minima 
+        values = array([1,2,3,4,5,5,4,5,5,3])
+        result = find_local_maxima(values)
+        true = array([False,False,False,False,True,False,False,True,False,False])
+        assert_array_equal(true, result)
+        
+        #test two peaks with one local minima
+        values = array([5,5,5,4,5,5,2,2,5,4,4,3])
+        result = find_local_maxima(values)
+        true = array([False,True,False,False,True,False, False ,False,True, False, False, False])
+        assert_array_equal(true, result)
+
+        #test two peaks with two local minima
+        values = array([1,2,3,4,5,5,2,2,5,4,5,5])
+        result = find_local_maxima(values)
+        true = array([False,False,False,False,True,False,False, False, True, False, True, False])
+        assert_array_equal(true, result)
+        
+        #Test long array
+        values = array([10,10,9,9,9,9,9,9,9,9,10,10])
+        result = find_local_maxima(values)
+        true = array([True,False,False,False,False,False,False, False, False,False, True, False])
+        assert_array_equal(true, result)
+        
+        #test something that is breaking in reality 
+        values = array([ 32,  84,  85,  85,])
+        result = find_local_maxima(values)
+        true = array([False, False, True, False])
+        assert_array_equal(true, result)
+        
+        #more failing stuff
+        values = array([32,  32,  32,  28,  28,  28,  28,  28,  45,  45,  57,  80,  80])
+        result = find_local_maxima(values)
+        true = array([False,True,False,False,False,False,False, False, False, False, False, True, False])
+        assert_array_equal(true, result)
         
 
     def test_get_start_stop_pairs_above_threshold_regression(self):
@@ -360,7 +477,7 @@ class Test(unittest.TestCase):
 
         spline = find_univariate_spline(cutoff, xvals, data, degree, weights)
         
-        starts_and_stops, starts, stops = get_start_stop_pairs_above_threshold(threshold, spline(xvals))
+        starts_and_stops, starts, stops = get_regions_above_threshold(threshold, spline(xvals))
         
         
 if __name__ == "__main__":
