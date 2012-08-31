@@ -8,3 +8,4 @@ clipper -b /nas3/lovci/projects/FOX2/FOX2_mouse_brain/CLIP/analysis_gsnap/FOX2Br
 clipper -b /nas3/lovci/projects/IMP2/CLIP/analysis_gsnap/IMP2_Hues6_4A_2010.tq3.norep_gsnaphg19.srt.bam -s hg19 -o IMP2_test
 
 
+

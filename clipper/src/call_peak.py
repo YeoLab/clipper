@@ -710,7 +710,7 @@ def peaks_from_info(wiggle, pos_counts, lengths, loc, gene_length,
             except Exception as best_error:
                 print >>sys.stderr,  "%s failed spline fitting at section %s (major crash)" % (loc, sect)
                 print >> sys.stderr, best_error
-                raise
+                continue
 
 
        
