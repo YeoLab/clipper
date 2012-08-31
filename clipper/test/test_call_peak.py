@@ -365,6 +365,8 @@ class Test(unittest.TestCase):
         starts_and_stops, starts, stops = get_regions_above_threshold(32, values)
         
         assert_array_equal(starts_and_stops, [(11, 39), (39, 49), (54, 60)])
+        
+        #more real tests
 
     
     def test_find_local_minima(self):
@@ -454,7 +456,13 @@ class Test(unittest.TestCase):
         true = array([False,True,False,False,False,False,False, False, False, False, False, True, False])
         assert_array_equal(true, result)
         
-
+    def test_get_maxima_real(self):
+        #more real tests
+        values = array([ 201,  201,  201,  201,  201,  201,  201,  201,  201,  201,  201,  201,
+          201,  201,  201,  201,  205,  196,   82,   -1])
+        result = find_local_maxima(values)
+        true = array([False,False,False,False,False,False,False, False, False, False, False, False, False, False, False, False, True, False, False, False])
+        assert_array_equal(true, result)
     def test_get_start_stop_pairs_above_threshold_regression(self):
         
         """

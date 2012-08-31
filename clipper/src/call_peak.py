@@ -10,7 +10,7 @@ import pysam
 from clipper.src.peaks import readsToWiggle_pysam, shuffle, find_sections
 from scipy import optimize
 import matplotlib.pyplot as plt 
-from numpy import diff, sign, append, array, arange, r_
+from numpy import diff, sign, append, array, arange, r_, empty
 from math import sqrt
 from scipy import interpolate
 from matplotlib.path import Path
@@ -489,19 +489,23 @@ def find_local_maxima(arr):
     #walks through array, finding local maxima ranges
     
     #hacky way to initalize a new array to all false
-    maxima = (arr == -1)
+    maxima = empty(len(arr), dtype='bool')
+    maxima.fill(False)
+    
     max_range_start = 0
     increasing = True
     for i in range(len(arr[:-1])):
         
         #update location of maxima start until 
         if arr[i] < arr[i + 1]:
+            print "print increasing set at ", i, arr[i], arr[i + 1]
             max_range_start = i + 1
             increasing = True
         
         if (arr[i] > arr[i+1]) and increasing is True:
             increasing = False
             #gets the local maxima midpoint
+            print "setting true"
             maxima[(max_range_start + i) / 2] = True
     
     #catches last case
@@ -749,16 +753,19 @@ def peaks_from_info(wiggle, pos_counts, lengths, loc, gene_length,
                 peaks = [x + p_start for x in xvals[find_local_maxima(spline_values[p_start:(p_stop + 1)])]]
                 #map(lambda x: x + p_start, 
                 #            xvals[diff(sign(diff(spline(xvals[p_start:(p_stop + 1)])))) < 0])
-                #print "spline ", spline(xvals)
-                #print "threshold: %s" % (threshold)
-                #print "full spline ", spline_values
-                #print "peaks", peaks
-                #print p_start, p_stop
-                #print starts_and_stops
-                #print "spline values", spline_values[p_start:(p_stop + 1)]  
-                #print "peaks at in section", xvals[find_local_maxima(spline_values[p_start:(p_stop + 1)])]
-                assert len(peaks) in (0,1) #there should be one or zero peaks in every section
                 
+                if not len(peaks) in (0,1):
+                    print gene_name
+                    print "spline ", spline(xvals)
+                    print "threshold: %s" % (threshold)
+                    print "full spline ", spline_values
+                    print "peaks", peaks
+                    print p_start, p_stop
+                    print starts_and_stops
+                    print "spline values", spline_values[p_start:(p_stop + 1)]  
+                    print "peaks at in section", xvals[find_local_maxima(spline_values[p_start:(p_stop + 1)])]
+                    assert len(peaks) in (0,1) #there should be one or zero peaks in every section
+                    
                 #handles logic if there are multiple peaks between 
                 #start and stop
                 if len(peaks) <= 0:
