@@ -13,7 +13,7 @@ import multiprocessing
 import clipper
 from clipper import data_dir
 from clipper.src.call_peak import call_peaks, poissonP
-
+import objgraph
 import logging
 #logging.basicConfig(level=logging.INFO)
 logging.disable(logging.INFO)
@@ -317,16 +317,21 @@ def main(options):
         length_list  = length_list[:maxgenes]
     
     transcriptome_size = sum(length_list)
-    
     #do the parralization
     tasks =  [(gene, length, None, bamfile, margin, options.FDR_alpha, 
                options.threshold, minreads, poisson_cutoff, 
                options.plotit, 10, 1000, options.SloP, False)
               for gene, length in zip(running_list, length_list)]
-    jobs = []
-    for job in tasks:
-        jobs.append(func_star(job))
-    #jobs = pool.map(func_star, tasks, chunksize=len(tasks) // int(options.np))
+    #jobs = []
+    #for job in tasks:
+        
+        #func_star(job)
+        #growth = objgraph.show_growth(limit=10)
+        #if growth is not None:
+        #    print job
+        #    print objgraph.show_growth(limit=10)
+        #jobs.append(func_star(job))
+    jobs = pool.map(func_star, tasks, chunksize=len(tasks) // int(options.np))
     #jobs = [job_server.submit(call_peaks,
     #                          args=(gene, length, None, bamfile, margin, options.FDR_alpha, options.threshold,
     #                           minreads, poisson_cutoff, options.plotit, 10, 1000, options.SloP, False,),

@@ -201,7 +201,7 @@ def find_univariate_spline(spline_range, spline_data, ydata, k, weight=None):
         return(spline)
     
     except Exception as error: #This error shouldn't happen anymore
-        print spline_data, ydata, spline_range, k, weight
+        print spline_range, spline_data, ydata, k, weight
         verboseprint("failed to build spline", error)
         raise
         #return None
@@ -300,10 +300,9 @@ def call_peaks(loc, gene_length, bam_fileobj=None, bam_file=None,
 
     calls peaks for an individual gene 
     
-    loc - string of all gene locations
+    loc - string of all gene location
     gene_length - effective length of gene
     takes bam file or bam file object.  Serial uses object parallel uses location (name)
-    trim collapses redundant reads (same start and stop position) --might not belong here
     margin - space between sections for calling new peaks
     fdr_alpha - false discovery rate, p-value bonferoni correct from peaks script (called in setup)
     user_threshold - user defined FDR thershold (probably should be factored into fdr_alpha
@@ -321,7 +320,6 @@ def call_peaks(loc, gene_length, bam_fileobj=None, bam_file=None,
     #setup
     chrom, gene_name, tx_start, tx_end, signstrand = loc
 
-    
     #logic reading bam files
     if bam_file is None and bam_fileobj is None:
         #using a file opbject is faster for serial processing 
@@ -338,10 +336,12 @@ def call_peaks(loc, gene_length, bam_fileobj=None, bam_file=None,
 
     #need to document reads to wiggle
     wiggle, jxns, pos_counts, lengths, allreads = readsToWiggle_pysam(subset_reads, tx_start, tx_end, signstrand, "center", False)
+    #wiggle, pos_counts, lengths = readsToWiggle_pysam(subset_reads, tx_start, tx_end, signstrand, "center", False)
+    #bam_fileobj.close()
+    
     result = peaks_from_info(list(wiggle), pos_counts, lengths, loc, gene_length, margin, fdr_alpha, user_threshold, minreads, poisson_cutoff, plotit, w_cutoff, windowsize, SloP, correct_p)
 
     return result
-
 
 def get_regions_above_threshold(threshold, values):
     
@@ -498,14 +498,13 @@ def find_local_maxima(arr):
         
         #update location of maxima start until 
         if arr[i] < arr[i + 1]:
-            print "print increasing set at ", i, arr[i], arr[i + 1]
+
             max_range_start = i + 1
             increasing = True
         
         if (arr[i] > arr[i+1]) and increasing is True:
             increasing = False
             #gets the local maxima midpoint
-            print "setting true"
             maxima[(max_range_start + i) / 2] = True
     
     #catches last case
@@ -527,9 +526,26 @@ def peaks_from_info(wiggle, pos_counts, lengths, loc, gene_length,
     pos_counts - one point per read instead of coverage of entire read
     lengths - lengths aligned portions of reads 
     rest are the same fix later
-    
-    """
 
+
+    calls peaks for an individual gene 
+    
+
+    gene_length - effective length of gene
+    margin - space between sections for calling new peaks
+    fdr_alpha - false discovery rate, p-value bonferoni correct from peaks script (called in setup)
+    user_threshold - user defined FDR thershold (probably should be factored into fdr_alpha
+    minreads - min reads in section to try and call peaks
+    poisson_cutoff - p-value for signifance cut off for number of reads in peak that gets called - might want to use ashifted distribution
+    plotit - makes figures 
+    
+    w_cutoff - width cutoff, peaks narrower than this are discarted 
+    windowssize - for super local calculation distance left and right to look 
+    SloP - super local p-value instead of gene-wide p-value
+    correct_p - boolean bonferoni correction of p-values from poisson
+        
+    """
+    
     peak_dict = {}
     
     #these are what is built in this dict, complicated enough that it might 
@@ -558,8 +574,8 @@ def peaks_from_info(wiggle, pos_counts, lengths, loc, gene_length,
         gene_threshold = user_threshold
     
     if gene_threshold == "best_error":
-        verboseprint("""I had a hard time with this one: %s.  
-                        I think I'll use a threshold of 50""" % (loc))
+        #verboseprint("""I had a hard time with this one: %s.  
+        #                I think I'll use a threshold of 50""" % (loc))
         
         threshold = 50
         
@@ -570,8 +586,8 @@ def peaks_from_info(wiggle, pos_counts, lengths, loc, gene_length,
     peak_dict['loc'] = loc
     peakn = 1
  
-    verboseprint("Testing %s" % (loc))
-    verboseprint("Gene threshold is: %d" % (gene_threshold))
+    #verboseprintprint("Testing %s" % (loc))
+    #verboseprint("Gene threshold is: %d" % (gene_threshold))
     
     #print wiggle
     #print margin
@@ -595,13 +611,14 @@ def peaks_from_info(wiggle, pos_counts, lengths, loc, gene_length,
         
         #makes sure there are enough reads
         if Nreads < minreads:
-            verboseprint("""%d is not enough reads, skipping section: 
-                            %s""" % (Nreads, sect))
+            #verboseprint("""%d is not enough reads, skipping section: 
+            #                %s""" % (Nreads, sect))
             continue
         
         else:
-            verboseprint("""Analyzing section %s with %d reads"""
-                          % (sect, Nreads))
+            pass
+            #verboseprint("""Analyzing section %s with %d reads"""
+            #              % (sect, Nreads))
         
             
         #sets super-local if requested, might be able to factor this
@@ -611,7 +628,7 @@ def peaks_from_info(wiggle, pos_counts, lengths, loc, gene_length,
                                                 sect_length, 
                                                 alpha=fdr_alpha)
                 
-                verboseprint("Using super-local threshold %d" % (threshold))
+               #verboseprint("Using super-local threshold %d" % (threshold))
                 
             else:
                 threshold = gene_threshold
@@ -624,7 +641,7 @@ def peaks_from_info(wiggle, pos_counts, lengths, loc, gene_length,
 
         #if wiggle track never excides threshold
         if max(data) < threshold:
-            verboseprint("data does not excede threshold, stopping")
+            #verboseprint("data does not excede threshold, stopping")
             continue
         
         #fitting splines logic, black magic 
@@ -664,9 +681,9 @@ def peaks_from_info(wiggle, pos_counts, lengths, loc, gene_length,
                     best_estimate = i
 
          
-            verboseprint("""I'm using (region length) * %d as the 
-                            initial estimate for the smoothing 
-                            parameter""" % (best_estimate))          
+            #verboseprint("""I'm using (region length) * %d as the 
+            #                initial estimate for the smoothing 
+            #                parameter""" % (best_estimate))          
                         
             try:
                 #fine optimization of smooting paramater
@@ -683,6 +700,7 @@ def peaks_from_info(wiggle, pos_counts, lengths, loc, gene_length,
                     if tries == 3: 
                         break
                     
+                    
                     spline = optimize.minimize(find_spline_residuals, 
                                                best_smoothing_value, 
                                                args=(xvals, 
@@ -690,11 +708,11 @@ def peaks_from_info(wiggle, pos_counts, lengths, loc, gene_length,
                                                      degree, 
                                                      weights),
                                                options={'disp' : False,
-                                                        #'maxiter' : 1000,
+                                                        'maxiter' : 10,
                                                         }, 
                                                #method="Powell", # old method
-                                               #method="L-BFGS-B", #abnormal termination sometimes
-                                               method="COBYLA",
+                                               method="L-BFGS-B", #abnormal termination sometimes
+                                               #method="COBYLA",
                                                bounds=((.1,None),),
                                                )
                     
@@ -704,21 +722,22 @@ def peaks_from_info(wiggle, pos_counts, lengths, loc, gene_length,
                     #is set
                     if spline.success:
                         cutoff = spline.x
-                        print "cutoff is %s" % (cutoff)
+                        #print "cutoff is %s" % (cutoff)
                     else:
-                        print "%s failed spline building at section %s" % (loc, sect)
-                        print spline.message
+                        #print "%s failed spline building at section %s" % (loc, sect)
+                        #print spline.message
                         pass
                     
                     best_smoothing_value += sect_length
             except Exception as best_error:
+                print "best smoothing value is:", best_smoothing_value
                 print >>sys.stderr,  "%s failed spline fitting at section %s (major crash)" % (loc, sect)
                 print >> sys.stderr, best_error
                 continue
 
 
        
-            verboseprint ("optimized smoothing parameter")
+            #verboseprint ("optimized smoothing parameter")
             #if we are going to save and output as a pickle fi is %s" %(str(cutoff))
             #final fit spline
 
@@ -755,15 +774,15 @@ def peaks_from_info(wiggle, pos_counts, lengths, loc, gene_length,
                 #            xvals[diff(sign(diff(spline(xvals[p_start:(p_stop + 1)])))) < 0])
                 
                 if not len(peaks) in (0,1):
-                    print gene_name
-                    print "spline ", spline(xvals)
-                    print "threshold: %s" % (threshold)
-                    print "full spline ", spline_values
-                    print "peaks", peaks
-                    print p_start, p_stop
-                    print starts_and_stops
-                    print "spline values", spline_values[p_start:(p_stop + 1)]  
-                    print "peaks at in section", xvals[find_local_maxima(spline_values[p_start:(p_stop + 1)])]
+                    #print gene_name
+                    #print "spline ", spline(xvals)
+                    #print "threshold: %s" % (threshold)
+                    #print "full spline ", spline_values
+                    #print "peaks", peaks
+                    #print p_start, p_stop
+                    #print starts_and_stops
+                    #print "spline values", spline_values[p_start:(p_stop + 1)]  
+                    #print "peaks at in section", xvals[find_local_maxima(spline_values[p_start:(p_stop + 1)])]
                     assert len(peaks) in (0,1) #there should be one or zero peaks in every section
                     
                 #handles logic if there are multiple peaks between 
@@ -871,6 +890,7 @@ def peaks_from_info(wiggle, pos_counts, lengths, loc, gene_length,
                         pass
                                         
                     #defines the bedline of a peak for returning
+                    #TODO This should be abstracted out for now... seperate model from view
                     bedline = "%s\t%d\t%d\t%s\t%s\t%s\t%d\t%d" % (chrom, g_start, g_stop, peak_name, slop_pois_p, signstrand, thick_start, thick_stop)
 
                     #metadata for the specific bedline
@@ -925,7 +945,7 @@ def peaks_from_info(wiggle, pos_counts, lengths, loc, gene_length,
                         
                         if thick_stop > g_stop:
                             thick_stop = g_stop                        
-                        peak_name = gene_name + "_" + str(peakn) + "_" + str(int(n_reads_in_peak))
+                        peak_name = "%s_%s_%s" % (gene_name, peakn, int(n_reads_in_peak))
                         
                         #distance from gene start
                         if peak - tx_start - windowsize < 0: 
@@ -963,7 +983,15 @@ def peaks_from_info(wiggle, pos_counts, lengths, loc, gene_length,
                             pass
                         
                         #output results again
-                        bedline = """%s\t%d\t%d\t%s\t%s\t%s\t%d\t%d""" % (chrom, g_start, g_stop, peak_name,   slop_pois_p, signstrand, thick_start, thick_stop)
+                        bedline = "%s\t%d\t%d\t%s\t%s\t%s\t%d\t%d" % (chrom, 
+                                                                      g_start, 
+                                                                      g_stop, 
+                                                                      peak_name, 
+                                                                      slop_pois_p, 
+                                                                      signstrand, 
+                                                                      thick_start, 
+                                                                      thick_stop
+                                                                      )
                                                                                       
                         peak_dict['clusters'][bedline] = {}                        
                         peak_dict['clusters'][bedline]['SloP'] = slop_pois_p

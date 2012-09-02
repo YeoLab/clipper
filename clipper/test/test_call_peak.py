@@ -9,7 +9,8 @@ from clipper.src.peaks import *
 from numpy import *
 from numpy.testing import *
 from scipy import interpolate
-
+import os
+import clipper
             
 class Test(unittest.TestCase):
 
@@ -463,6 +464,7 @@ class Test(unittest.TestCase):
         result = find_local_maxima(values)
         true = array([False,False,False,False,False,False,False, False, False, False, False, False, False, False, False, False, True, False, False, False])
         assert_array_equal(true, result)
+        
     def test_get_start_stop_pairs_above_threshold_regression(self):
         
         """
@@ -486,7 +488,27 @@ class Test(unittest.TestCase):
         spline = find_univariate_spline(cutoff, xvals, data, degree, weights)
         
         starts_and_stops, starts, stops = get_regions_above_threshold(threshold, spline(xvals))
+    
+    def test_peaks_from_info(self):
+        """
         
+        Tests peak_from_info function, really badly, I'm basically making this so I can
+        see if there is a memory leak
+        
+        """
+        reads = pysam.Samfile(os.path.join(clipper.test_dir(), "allup_test.bam")) 
+        reads = reads.fetch(region="chr15:91536649-91537641")
+        loc = ['chr15', 'bar', 91536649, 91537641, "+"]
+        #wiggle, jxns, pos_counts, lengths, allreads = readsToWiggle_pysam(reads, 91537632, 91537675, '-', 'center', False)
+        #result = peaks_from_info(wiggle, pos_counts,lengths,loc, 992, 25,.05, None, 3, .05, False, 10, 1000, False, .05)
+        #print result
+
+    def test_call_peaks(self):
+        pass
+        #reads = pysam.Samfile(os.path.join(clipper.test_dir(), "allup_test.bam")) 
+        #reads = reads.fetch(region="chr15:91536649-91537641")
+        #loc = ['chr15', 'bar', 91536649, 91537641, "+"]
+        #result = peaks_from_info(wiggle, pos_counts,lengths,loc, 992, 25,.05, None, 3, .05, False, 10, 1000, False, .05)
         
 if __name__ == "__main__":
     #import sys;sys.argv = ['', 'Test.testName']
