@@ -327,27 +327,28 @@ extern "C" PyObject *peaks_readsToWiggle_pysam(PyObject *self, PyObject *args) {
 
   jxns = PyDict_New();
   allreads = PySet_New(NULL);
-
+  
   while (item = PyIter_Next(iterator)) {
-
+    
     //skips reads on the wrong strand
     PyObject *is_reverse = PyObject_GetAttrString(item, "is_reverse");
-    Py_INCREF(is_reverse); 
+    //Py_INCREF(is_reverse); 
     
     if (is_reverse == Py_True && !strcmp(keepstrand, "+")) {
       continue;
+      Py_DECREF(item);
     } else if(is_reverse == Py_False && !strcmp(keepstrand, "-")) {
       continue;
+      Py_DECREF(item);
     }
-    Py_DECREF(is_reverse);
     
     //sets read stard and stop location 
     PyObject *aligned_positions = PyObject_GetAttrString(item, "positions");
-    Py_INCREF(aligned_positions);
+    
     int positions_size = PyList_Size(aligned_positions);
+    
 
-
-      //long read_start = PyLong_AsLong(Pyread_statrtPyList_GetItem(aligned_positions, 0)); //possible bug here
+    //long read_start = PyLong_AsLong(Pyread_statrtPyList_GetItem(aligned_positions, 0)); //possible bug here
     PyObject *Pyread_start = PyList_GetItem(aligned_positions, 0);
     PyObject *Pyread_stop = PyList_GetItem(aligned_positions, positions_size - 1);
 
@@ -356,9 +357,12 @@ extern "C" PyObject *peaks_readsToWiggle_pysam(PyObject *self, PyObject *args) {
 
     //skip if the read aligns past before the tx_start or after the tx_end
     if (read_start < tx_start || read_stop > tx_end) {
+      Py_DECREF(aligned_positions);
+      Py_DECREF(item);
       continue;
     }
-
+    
+  
     //doing the hacky version of getting the read size, just getting all the aligned locations
     lengths.push_back(positions_size);
     
@@ -378,28 +382,32 @@ extern "C" PyObject *peaks_readsToWiggle_pysam(PyObject *self, PyObject *args) {
 	pos_counts[read_start - tx_start]++;
       } 
     } else {
+      Py_DECREF(item);
+      Py_DECREF(iterator);
       return NULL;
     }
 
     //generate wiggle track from files
 
-
-    PyObject *read_loc = PyTuple_New(2);
-    PyTuple_SetItem(read_loc, 0, Pyread_start);
-    PyTuple_SetItem(read_loc, 1, Pyread_stop);
-    PySet_Add(allreads, read_loc);
+    
+    //PyObject *read_loc = PyTuple_New(2);
+    //PyTuple_SetItem(read_loc, 0, PyInt_FromLong(read_start));
+    //PyTuple_SetItem(read_loc, 1, PyInt_FromLong(read_stop));
+    //PySet_Add(allreads, read_loc);
 
     for(int i = 0; i < positions_size; i++) {
       //cur == pos == genome position (coordinate)
       PyObject *cur  = PyList_GetItem(aligned_positions, i);
-      Py_INCREF(cur);
+      //Py_INCREF(cur);
       if (cur == NULL) {
+	Py_DECREF(item);
+	Py_DECREF(iterator);
 	return NULL;
       }
+      
       long pos = PyLong_AsLong(cur);
-
+      /*
       if (i+1 < positions_size){
-
 	PyObject *nextcur  = PyList_GetItem(aligned_positions, (i+1));
 	long nextpos = PyLong_AsLong(nextcur);
 	if (nextpos > (pos +1)){
@@ -407,11 +415,11 @@ extern "C" PyObject *peaks_readsToWiggle_pysam(PyObject *self, PyObject *args) {
 	  // the next position is > than this position + 1. this is a junction
 	  
 	  PyObject *jxn = PyTuple_New(2);
-	  PyTuple_SetItem(jxn, 0, cur);
-	  PyTuple_SetItem(jxn, 1, nextcur);
-
+	  PyTuple_SetItem(jxn, 0, PyInt_FromLong(pos));
+	  PyTuple_SetItem(jxn, 1, PyInt_FromLong(nextpos));
+	  
 	  if (PyDict_Contains(jxns, jxn)){
-
+	    
 	    PyObject *jxnCount = PyDict_GetItem(jxns,jxn);
 	    long incremented = PyInt_AsLong(jxnCount);
 	    incremented++;
@@ -420,10 +428,10 @@ extern "C" PyObject *peaks_readsToWiggle_pysam(PyObject *self, PyObject *args) {
 	  } else{
 	    PyDict_SetItem(jxns, jxn, PyInt_FromLong(1));
 	  }
-	}
+	}	
       }
-
-      Py_DECREF(cur);
+      */
+      //Py_DECREF(cur);
       int wig_index = pos-tx_start;
       if (makeFractional) {
 	wiggle[wig_index] += 1.0 / positions_size;
@@ -431,20 +439,16 @@ extern "C" PyObject *peaks_readsToWiggle_pysam(PyObject *self, PyObject *args) {
 	wiggle[wig_index]++;
       }
     }
-    //item == read
+    
     
 
     Py_DECREF(aligned_positions);
     Py_DECREF(item);
-    
-
-
-
-
 
   }
   Py_DECREF(iterator); // iteration has ended, garbage collet it
   
+  //return reads;
   //all 3 items have been generated, convert them into PyLists and return them as a tuple 
   
   //convert lengths to pylist
@@ -480,7 +484,9 @@ extern "C" PyObject *peaks_readsToWiggle_pysam(PyObject *self, PyObject *args) {
 
   
   return return_tuple;
+ 
 }
+  
 static PyMethodDef peaks_methods[] = {
     {"shuffle",             peaks_shuffle,      METH_VARARGS,
      "Return the meaning of everything."},
