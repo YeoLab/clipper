@@ -904,6 +904,7 @@ def peaks_from_info(wiggle, pos_counts, lengths, loc, gene_length,
                     peakn += 1
                     
                 #there are more than one peaks in this window
+                #NO LONGER NESSESSARY SHOULD REMOVE
                 else:  
                     #this handles peaks within peaks logic
                     

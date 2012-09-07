@@ -330,19 +330,19 @@ def main(options):
         #    print job
         #    print objgraph.show_growth(limit=10)
         #jobs.append(func_star(job))
-    jobs = pool.map(func_star, tasks, chunksize=len(tasks) // int(options.np))
-    #jobs = [job_server.submit(call_peaks,
-    #                          args=(gene, length, None, bamfile, margin, options.FDR_alpha, options.threshold,
-    #                           minreads, poisson_cutoff, options.plotit, 10, 1000, options.SloP, False,),
-    #                          depfuncs=(peaks_from_info, get_FDR_cutoff_mean,
-    #                                      verboseprint),
-    #                          modules=("pysam", "os", "sys", "scipy", "math", "time",
-    #                           "random", 'clipper'),) for gene, length in combined_list]
+    
+    #sets chunk size to be a fair bit smaller, than total input, but not
+    #to small
+    chunk_size = len(tasks) // int(options.np) * 10
+    if chunk_size < 1:
+        chunk_size = 1
+        
+    jobs = pool.map(func_star, tasks, chunksize=chunk_size)
 
     for job in jobs:
         results.append(job)   
     verboseprint("finished with calling peaks")
-
+    
     #if we are going to save and output as a pickle file we should 
     #output as a pickle file we should factor instead create a method 
     #or object to handle all file output
