@@ -226,7 +226,7 @@ class test_peakfinder(unittest.TestCase):
         #Checks error mode
         self.assertRaises(ValueError, build_lengths, None)
         
-        self.assertRaises(ValueError, build_lengths, "foo")
+        self.assertRaises(ValueError, build_lengths, clipper.test_file("foo"))
         
         #checks working mode
         lengths = build_lengths(
