@@ -13,7 +13,6 @@ import multiprocessing
 import clipper
 from clipper import data_dir
 from clipper.src.call_peak import call_peaks, poissonP
-import objgraph
 import logging
 #logging.basicConfig(level=logging.INFO)
 logging.disable(logging.INFO)
