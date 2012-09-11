@@ -10,6 +10,7 @@ import random
 from subprocess import Popen, call, PIPE
 import pylab
 
+#TODO remove
 host = Popen(["hostname"], stdout=PIPE).communicate()[0].strip()
 if "optiputer" in host or "compute" in host:
     basedir = "/nas/nas0"
@@ -21,12 +22,15 @@ print "basedir: %s" %(basedir)
 import subprocess
 from bx.bbi.bigwig_file import BigWigFile
 import pysam
+
+#TODO remove
 try:
     pybedtools.set_tempdir(basedir + "/scratch/lovci/pybedtools_tmp")
 except:
     pybedtools.set_tempdir(basedir + "/lovci/projects/tmp/python_tmp")
 
 def CLIP_QC_figure(reads_in_clusters, reads_out_clusters, cluster_lengths, reads_per_cluster, premRNA, mRNA, exondist, introndist, genomic_locs, clusters_locs, genomic_types, clusters_types, zscores, homer_location, kmer_box_params, phastcons_values):
+    #TODO comment and figure out what this is doing
     import matplotlib as mpl
     import pylab
     from pylab import cm
@@ -210,38 +214,54 @@ def CLIP_QC_figure(reads_in_clusters, reads_out_clusters, cluster_lengths, reads
     return fig
 
 def intersection(A, B=None):
-#    tmp = outfile+ ".tmp"
-#    of = open(outfile, 'w')
-#    ot = open(tmp, 'w')
+    
+    """
+    
+    A with b and returns everything in a but not b and everything in a but... ???
+    
+    """
+    
     less = A.subtract(B, s=True) #without regions that overlap
     more = A.subtract(less, s=True) #only regions that overlap
     return less, more
 
 
 def adjust_offsets(tool, offsets=None):
+    
+    """
+    
+    Input:
+    tool - a bed tool object
+    offset - int, how much to adjust offset by
+    Adjusts the offsets for each transcript in a bedtool
+    
+    """
     if offsets == None:
         raise Exception, "no offsets"
     l = list()
     for x in tool:
+        #TODO need to refactor to avoid this try junk
+        #TODO don't change bedtool, use its map function instead
         try:
-            chr, start, stop, name, score, strand, tstart, tstop = x.__str__().strip().split("\t")
+            chr, start, stop, name, score, strand, transcript_start, transcript_stop = str(x).strip().split("\t")
         except:
-            chr, start, stop, name, score, strand = x.__str__().strip().split("\t")
-            tstart=0
-            tstop=0
-        start, stop, tstart, tstop = map(int, (start, stop, tstart, tstop))
+            chr, start, stop, name, score, strand = str(x).strip().split("\t")
+            transcript_start=0
+            transcript_stop=0
+            
+        start, stop, transcript_start, transcript_stop = map(int, (start, stop, transcript_start, transcript_stop))
         if ";" in name and name not in offsets:
             o = name.split(";")
             offset = offsets[o[0]]
         else:
             offset = offsets[name]
         if strand== "+":
-            tstart = start + offset
-            tstop = tstart + 4
+            transcript_start = start + offset
+            transcript_stop = transcript_start + 4
         else:
-            tstop = stop - offset
-            tstart = tstop -4
-        l.append("\t".join(map(str, (chr, start, stop, name, score, strand, tstart, tstop))))
+            transcript_stop = stop - offset
+            transcript_start = transcript_stop -4
+        l.append("\t".join(map(str, (chr, start, stop, name, score, strand, transcript_start, transcript_stop))))
     t = pybedtools.BedTool("\n".join(l), from_string=True)
     return t
 
@@ -249,6 +269,7 @@ def adjust_offsets(tool, offsets=None):
 
 
 def build_AS_STRUCTURE_dict(species):
+    #TODO replace with clipper AS structure dict method
     if species == "hg19":
         chrs = map(str,range(1,23)) #1-22
         chrs.append("X")
@@ -310,6 +331,16 @@ def build_AS_STRUCTURE_dict(species):
     return info, Gtypes
 
 def assign_to_regions(tool, species="hg19", nrand = 3, getseq=False):
+    """
+    
+    Assigns each cluster to a specific region
+    
+    tool - a bed tool (each line represnting a cluster)
+    species - the species to assign to
+    nrand - int number of times to shuffle for null hypothesis
+    getseq - boolean gets the full sequence to store
+    
+    """
     speciesFA = ""
     if species =="hg19" or species == "mm9" or species =="hg18":
         speciesFA = basedir + "/yeolab/Genome/ucsc/" +species + "/chromosomes/all.fa"
@@ -379,6 +410,8 @@ def assign_to_regions(tool, species="hg19", nrand = 3, getseq=False):
                 pass
         ofdic = get_offsets_bed12(only_overlapping)
         bed_dict[region]['rand'] = {}
+        
+        #TODO refactor to different function
         for i in range(nrand):
             try:
                 ri = bed_dict[region]['real'].shuffle(genome=species, incl=all_regionfiles[j]).sort()
@@ -414,6 +447,12 @@ def assign_to_regions(tool, species="hg19", nrand = 3, getseq=False):
     return bed_dict, sizes, Gsizes
 
 def build_assigned_from_existing(assigned_dir, clusters, regions, nrand):
+    
+    """
+    
+    Not sure what this does...
+    
+    """
     CLUS_regions = {}
     for region in regions:
         CLUS_regions[region]={}
@@ -434,77 +473,20 @@ def build_assigned_from_existing(assigned_dir, clusters, regions, nrand):
     except:
         Gsizes=[1,1,1,1,1]
 
-
-    
     return CLUS_regions, sizes, Gsizes
 
-def readsToWiggle_pysam(reads, tx_start, tx_end, strand=None, trim=False, usePos='center'):
-    wiggle = zeros((tx_end - tx_start + 1), dtype='f') #total read overlapping each position
-    pos_counts = zeros((tx_end - tx_start + 1), dtype='f') #each read only gives one point, use usePos to determine whether the point comes from the start, center, or end
-    jxns = {}
-    seen = {}
-    lengths = list()
-    for read in reads:
-        #check strand, skip reads on the opposite strand
-        if read.is_reverse is True and strand is "+":
-            continue
-        elif read.is_reverse is False and strand is "-":
-            continue
-
-
-        aligned_positions = read.positions
-        if aligned_positions[0] < tx_start or aligned_positions[-1] > tx_end:
-            continue # skip reads that fall outside the gene bounds
-        lengths.append(read.qlen)
-        readpos = str(aligned_positions[0]) +"|" + str(aligned_positions[-1])
-        if trim is True and readpos in seen:
-            continue
-        try:
-            if usePos == "center":
-                center = (int(aligned_positions[-1]+aligned_positions[0])/2)-tx_start
-                pos_counts[center] += 1
-            elif usePos == "start":
-                if strand == "+":
-                    pos_counts[(aligned_positions[0]-tx_start)]+=1
-                else:
-                    pos_counts[(aligned_positions[-1]-tx_start)]+=1
-            elif usePos == "end":
-                if strand == "+":
-                    pos_counts[(aligned_positions[-1]-tx_start)]+=1
-                else:
-                    pos_counts[(aligned_positions[0]-tx_start)]+=1
-            else:
-                raise NameError('PositionType')
-        except NameError:
-            print "Invalid value for usePos, choose \"center\", \"start\", or \"end\""
-
-        seen[readpos]=1
-        for i,pos in enumerate(aligned_positions):
-            if pos < tx_start or pos > tx_end:
-                continue
-            wig_index = pos-tx_start
-            #wiggle[wig_index] += 1./read.qlen
-            wiggle[wig_index] += 1.
-            try:
-                #if there is a junction coming up                
-                if aligned_positions[i+1] > pos + 1: 
-                    leftss = pos+1
-                    rightss= aligned_positions[i+1]+1
-                    if leftss > tx_start and leftss < tx_end and rightss > tx_start and rightss < tx_end:                      
-                        jxn = ":".join(map(str, [leftss, rightss]))
-                        try:
-                            jxns[jxn] += 1 
-                        except:
-                            jxns[jxn] = 1
-            except:
-                pass
-    return wiggle, jxns, pos_counts, lengths
-
-
-
-
 def eliminate_invalid_bed12(x):
-    chr, start, stop, name, score, strand, tstart, tstop = x.__str__().split("\t")
+    
+    """
+    
+    Removes clusters that start in invalid locations for bed12 formatted files
+    
+    x - bedline
+    
+    returns either true or false if its a valid line or not
+    
+    """
+    chr, start, stop, name, score, strand, tstart, tstop = str(x).split("\t")
     start, stop, tstart, tstop = map(int, (start, stop, tstart, tstop))
     if start < tstart and stop > tstop:
         return True
@@ -512,6 +494,17 @@ def eliminate_invalid_bed12(x):
         return False
 
 def get_offsets_bed12(tool):
+    
+    """
+    
+    gets offsets for each location in a bed12 file
+    
+    tool - bedtool
+    
+    returns offset for each location
+    
+    """
+    
     of = {}
     for line in tool:
         chr, start, stop, name, score, strand, tstart, tstop = line.__str__().split("\t")
@@ -524,6 +517,14 @@ def get_offsets_bed12(tool):
     return of
 
 def get_offsets(clusters, motif, slop=500):
+    
+    """
+    
+    Gets offsets for each cluster
+    
+    returns distance from clusters to nearest motif 
+    
+    """
     ov = clusters.window(motif, w=slop, sm=True)
     distances = list()
     for line in ov:
@@ -538,7 +539,12 @@ def get_offsets(clusters, motif, slop=500):
     return distances
     
 def plot_motif_dist(assigned_clusters, motifFILE, figure, nrand=3, color = "red", label=None, species="mm9", slopsize=0, scale='linear'):
-
+    
+    """
+    
+    Plotting function, don't want touch this with a 10 footpole, can be refactored easily
+    
+    """
     motifBed = pybedtools.BedTool(motifFILE)
     if label is None:
         label=motifFILE
@@ -670,6 +676,12 @@ def plot_motif_dist(assigned_clusters, motifFILE, figure, nrand=3, color = "red"
 
 
 def RNA_position(bedline, GI):
+    
+    """
+    
+    Does something...
+    
+    """
     mRNA_pos = 0
     pre_pos = 0
     exon_frac = None
@@ -741,9 +753,24 @@ def RNA_position(bedline, GI):
 
 
 def run_kmerdiff(clustersFA, backgroundFA, k=6, outfile=None):
+    
+    """
+    
+    Runs kmerdiff
+    
+    clustersFA - clusters in fasta format
+    background - background locations
+    k - size of kmer
+    outfile - output
+    
+    returns sorted output
+    
+    """
+    
     if outfile is None:
         outfile = clustersFA + ".k" + str(k) + ".kmerdiff"
     print "Running Kmer analysis"
+    #TODO make more general 
     subprocess.call(["perl", (basedir + "/yeolab/Software/generalscripts/kmerdiff.pl"), "-file1", clustersFA, "-file2", backgroundFA, "-k", str(k), "-o", outfile])
     srtout = outfile + ".sort"
     srt = open(srtout, 'w')
@@ -755,6 +782,14 @@ def run_kmerdiff(clustersFA, backgroundFA, k=6, outfile=None):
     
 
 def run_homer(foreground, background, k = list([5,6,7,8,9]), outloc = os.getcwd()):
+    
+    """
+    
+    runs homer with standard args
+    
+    output location is saved
+    
+    """
     #findMotifs.pl clusters.fa fasta outloc -nofacts p 4 -rna -S 10 -len 5,6,7,8,9 -noconvert -nogo -fasta background.fa
     ks = ",".join(map(str, k))
     print "starting Homer"
@@ -764,6 +799,14 @@ def run_homer(foreground, background, k = list([5,6,7,8,9]), outloc = os.getcwd(
 
 
 def write_seqs(outfile, bedtool_list):
+    
+    """
+    
+    outputs bedtools file to another file 
+    
+    """
+    
+    #TODO refactor to just the bedtools save function
     f = open(outfile, "w")
     for bedtool in bedtool_list:
         f.write(open(bedtool.seqfn).read())
@@ -774,9 +817,12 @@ def write_seqs(outfile, bedtool_list):
 def motif_boxplots(kmerloc, filename, klengths, highlight_motifs, subplot=None):
 
     """
+    
     Make bake boxplots of motif z-scores. you must get kmer z-scores first with run_kmerdiff.  up to 11 motifs can be highlighted
     pass a pylab subplot instance to the kwarg \"subplot\" to attach this to a figure, otherwise it will make its own figure
+    
     """
+    
     colorcycle = ["red", "orange", "green", "blue", "purple", "brown", "black", "pink", "gray", "cyan", "magenta"]
     regions = ["all", "exon", "UTR3", "UTR5", "proxintron", "distintron"]
     formal_labels = ["All Regions", "Exon", "3'UTR", "5'UTR", "Proximal Intron", "Distal Intron"]    
@@ -842,6 +888,12 @@ def bedlengths(tool):
 
 
 def chop(chr, start,end, wsize=5):
+    
+    """
+    
+    writes some sort of phastcons thing..., not quite sure
+    
+    """
     file = open("phastcons.txt", 'w')
     i = start
     while i < end:
@@ -856,8 +908,11 @@ def chop(chr, start,end, wsize=5):
 
 
 def get_phastcons(bedtool, species=None, index=None):
+    
     """
+    
     Get phastcons scores for intervals in a bed tool
+    
     """
     if species is None and index is None:
         print "Error, must select species or index"
@@ -879,8 +934,6 @@ def get_phastcons(bedtool, species=None, index=None):
         else:
             mean_phastcons=0
         data = mean_phastcons
-
-
     except:
         for i, bedline in enumerate(bedtool):
             data = np.ndarray(len(bedtool))        
@@ -891,6 +944,7 @@ def get_phastcons(bedtool, species=None, index=None):
             else:
                 mean_phastcons=0
             data[i] = mean_phastcons
+            
     return data
 
 
@@ -898,16 +952,8 @@ def get_phastcons(bedtool, species=None, index=None):
 
 def main(options):
     
-
-
-    
-    #
     from subprocess import Popen, PIPE
     host = Popen(["hostname"], stdout=PIPE).communicate()[0].strip()
-    #print host
-    #print mpl.get_backend()
-
-    #print mpl.get_backend()
     
     clusters = options.clusters
     species = options.species
@@ -1173,20 +1219,26 @@ if __name__== "__main__":
     parser = OptionParser()
     
     parser.add_option("--clusters", dest="clusters", help="BED file of clusters", metavar="BED")
-    parser.add_option("--reAssign", dest="assign", action="store_true", default=False, help="re-assign clusters, if not set it will re-use existing assigned clusters") ##to-do. this should be auto-set if the creation date of "clusters" is after creation date fo assigned files
-    parser.add_option("--rePhast", dest="rePhast", action="store_true", default=False, help="re-calculate conservation, must have been done before") ##to-do. this should be auto-set if the creation date of "clusters" is after creation date fo assigned files
-    parser.add_option("--old_motifs", dest="reMotif", action="store_false", default=True, help="use old motif files")
-    parser.add_option("--species", dest="species", help = "genome version")
-    parser.add_option("--motif", dest="motif", action="append", help="Files of motif locations", default=None)
-    parser.add_option("--homer", dest="homer", action="store_true", default=False)
-    parser.add_option("--conservation", dest="cons", action="store_true")
-    parser.add_option("--structure", dest="structure", action="store_true")
-    parser.add_option("--nrand", dest="nrand", default=3, type="int")
-    parser.add_option("--k", dest="k", action="append", default=[6])
-    parser.add_option("--outdir", dest="outdir", default=os.getcwd(), help="directory for output, default:cwd")
     parser.add_option("--bam", dest="bam")
+    parser.add_option("--species", dest="species", help = "genome version")
+    ##to-do. this should be auto-set if the creation date of "clusters" is after creation date fo assigned files
+    parser.add_option("--reAssign", dest="assign", action="store_true", default=False, help="re-assign clusters, if not set it will re-use existing assigned clusters") 
+    ##to-do. this should be auto-set if the creation date of "clusters" is after creation date fo assigned files
+    parser.add_option("--rePhast", dest="rePhast", action="store_true", default=False, help="re-calculate conservation, must have been done before") 
+    #parser.add_option("--old_motifs", dest="reMotif", action="store_false", default=True, help="use old motif files")
+    parser.add_option("--motif", dest="motif", action="append", help="Files of motif locations", default=None)
+    parser.add_option("--homer", dest="homer", action="store_true", help="What does this do?", default=False)
+    parser.add_option("--conservation", dest="cons", help="what does this do?", action="store_true")
+    parser.add_option("--structure", dest="structure", help="what does this do?", action="store_true")
+    parser.add_option("--nrand", dest="nrand", default=3, help="selects number of times to randomly sample genome", type="int")
+    parser.add_option("--k", dest="k", action="append", help="what does this do?", default=[6])
+    parser.add_option("--outdir", "-o", dest="outdir", default=os.getcwd(), help="directory for output, default:cwd")
+
     
     (options, args) = parser.parse_args()
-
+    
+    #error checking
+    if options.clusters is None or options.bam is None or options.species is None:
+        
     main(options)
 

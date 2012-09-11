@@ -23,7 +23,6 @@ def data_file(fn):
         raise ValueError("%s does not exist")
     return fn
 
-
 def test_file(fn):
     fn = os.path.join(test_dir(), fn)
     

@@ -586,11 +586,6 @@ def peaks_from_info(wiggle, pos_counts, lengths, loc, gene_length,
     peak_dict['loc'] = loc
     peakn = 1
  
-    #verboseprintprint("Testing %s" % (loc))
-    #verboseprint("Gene threshold is: %d" % (gene_threshold))
-    
-    #print wiggle
-    #print margin
     sections = find_sections(wiggle, margin)
     if plotit is True:      
         plot_sections(wiggle, sections, gene_threshold)
@@ -678,12 +673,7 @@ def peaks_from_info(wiggle, pos_counts, lengths, loc, gene_length,
                                                   weights)
                 if cur_error < best_error:
                     best_smoothing_value = cur_smoothing_value
-                    best_estimate = i
-
-         
-            #verboseprint("""I'm using (region length) * %d as the 
-            #                initial estimate for the smoothing 
-            #                parameter""" % (best_estimate))          
+                    best_estimate = i       
                         
             try:
                 #fine optimization of smooting paramater
@@ -774,15 +764,6 @@ def peaks_from_info(wiggle, pos_counts, lengths, loc, gene_length,
                 #            xvals[diff(sign(diff(spline(xvals[p_start:(p_stop + 1)])))) < 0])
                 
                 if not len(peaks) in (0,1):
-                    #print gene_name
-                    #print "spline ", spline(xvals)
-                    #print "threshold: %s" % (threshold)
-                    #print "full spline ", spline_values
-                    #print "peaks", peaks
-                    #print p_start, p_stop
-                    #print starts_and_stops
-                    #print "spline values", spline_values[p_start:(p_stop + 1)]  
-                    #print "peaks at in section", xvals[find_local_maxima(spline_values[p_start:(p_stop + 1)])]
                     assert len(peaks) in (0,1) #there should be one or zero peaks in every section
                     
                 #handles logic if there are multiple peaks between 
