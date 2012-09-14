@@ -27,7 +27,7 @@ def verboseprint(*args):
     # Print each argument separately so caller doesn't need to
     # stuff everything to be printed into a single string
     for arg in args:
-        print arg,
+        print >> sys.stderr, arg,
     print
             
 def get_FDR_cutoff_mode(readlengths, 
@@ -201,7 +201,7 @@ def find_univariate_spline(spline_range, spline_data, ydata, k, weight=None):
         return(spline)
     
     except Exception as error: #This error shouldn't happen anymore
-        print spline_range, spline_data, ydata, k, weight
+        print >> sys.stderr, spline_range, spline_data, ydata, k, weight
         verboseprint("failed to build spline", error)
         raise
         #return None
@@ -720,8 +720,8 @@ def peaks_from_info(wiggle, pos_counts, lengths, loc, gene_length,
                     
                     best_smoothing_value += sect_length
             except Exception as best_error:
-                print "best smoothing value is:", best_smoothing_value
-                print >>sys.stderr,  "%s failed spline fitting at section %s (major crash)" % (loc, sect)
+                print >> sys.stderr, "best smoothing value is:", best_smoothing_value
+                print >> sys.stderr,  "%s failed spline fitting at section %s (major crash)" % (loc, sect)
                 print >> sys.stderr, best_error
                 continue
 

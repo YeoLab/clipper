@@ -31,7 +31,7 @@ def verboseprint(*args):
     # Print each argument separately so caller doesn't need to
     # stuff everything to be printed into a single string
     for arg in args:
-        print arg,
+        print >> sys.stderr, arg,
     print
 
 
@@ -321,23 +321,18 @@ def main(options):
                options.threshold, minreads, poisson_cutoff, 
                options.plotit, 10, 1000, options.SloP, False)
               for gene, length in zip(running_list, length_list)]
-    #jobs = []
-    #for job in tasks:
-        
-        #func_star(job)
-        #growth = objgraph.show_growth(limit=10)
-        #if growth is not None:
-        #    print job
-        #    print objgraph.show_growth(limit=10)
-        #jobs.append(func_star(job))
-    
-    #sets chunk size to be a fair bit smaller, than total input, but not
-    #to small
-    chunk_size = len(tasks) // int(options.np) * 10
-    if chunk_size < 1:
-        chunk_size = 1
-        
-    jobs = pool.map(func_star, tasks, chunksize=chunk_size)
+    if options.debug:
+        jobs = []
+        for job in tasks:
+            jobs.append(func_star(job))
+    else:
+        #sets chunk size to be a fair bit smaller, than total input, but not
+        #to small
+        chunk_size = len(tasks) // int(options.np) * 10
+        if chunk_size < 1:
+            chunk_size = 1
+            
+        jobs = pool.map(func_star, tasks, chunksize=chunk_size)
 
     for job in jobs:
         results.append(job)   
@@ -376,12 +371,12 @@ def main(options):
                                            transcriptome_size, 
                                            gener['clusters'][cluster]['size'])
                 if math.isnan(transcriptome_p):
-                    print """Transcriptome P is NaN, transcriptome_reads = %d, 
+                    verboseprint("""Transcriptome P is NaN, transcriptome_reads = %d, 
                              cluster reads = %d, transcriptome_size = %d, 
                              cluster_size = %d""" % (transcriptome_reads, 
                                                      gener['clusters'][cluster]['Nreads'], 
                                                      transcriptome_size, 
-                                                     gener['clusters'][cluster]['size'])
+                                                     gener['clusters'][cluster]['size']))
             
                     continue
                 
@@ -415,12 +410,11 @@ def main(options):
                 print >> sys.stderr, "parsing failed"
                 raise error
         
-    #again redundant code 
-    outbed = options.outfile + ".BED"
+
+    outbed = options.outfile
     color = options.color
     pybedtools.BedTool("\n".join(allpeaks), from_string=True).sort(stream=True).saveas(outbed, trackline="track name=\"%s\" visibility=2 colorByStrand=\"%s %s\"" % (outbed, color, color))
     print "wrote peaks to %s" % (options.outfile)
-    "\n".join(allpeaks)
     return 1
  
 
@@ -462,6 +456,8 @@ def call_main():
     parser.add_option("--plot", "-p", dest="plotit", action="store_true", help="make figures of the fits", default=False)
     parser.add_option("--verbose", "-q", dest="verbose", action="store_true", help="suppress notifications")
     parser.add_option("--save-pickle", dest="save_pickle", default=False, action="store_true", help="Save a pickle file containing the analysis")
+    parser.add_option("--debug", dest="debug", default=False, action="store_true", help="disables multipcoressing in order to get proper error tracebacks")
+
     (options, args) = parser.parse_args()
     
     

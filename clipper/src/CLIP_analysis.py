@@ -9,19 +9,22 @@ import pickle
 import random
 from subprocess import Popen, call, PIPE
 import pylab
-
-#TODO remove
-host = Popen(["hostname"], stdout=PIPE).communicate()[0].strip()
-if "optiputer" in host or "compute" in host:
-    basedir = "/nas/nas0"
-elif "tcc" in host or "triton" in host:
-    basedir = "/projects"    
-print "basedir: %s" %(basedir)
-
-
+from pylab import cm
+import matplotlib.gridspec as gridspec
+import matplotlib.image as mpimg
 import subprocess
 from bx.bbi.bigwig_file import BigWigFile
 import pysam
+
+#TODO remove
+#host = Popen(["hostname"], stdout=PIPE).communicate()[0].strip()
+#if "optiputer" in host or "compute" in host:
+#    basedir = "/nas/nas0"
+#elif "tcc" in host or "triton" in host:
+#    basedir = "/projects"    
+#print "basedir: %s" %(basedir)
+
+
 
 #TODO remove
 try:
@@ -29,15 +32,35 @@ try:
 except:
     pybedtools.set_tempdir(basedir + "/lovci/projects/tmp/python_tmp")
 
-def CLIP_QC_figure(reads_in_clusters, reads_out_clusters, cluster_lengths, reads_per_cluster, premRNA, mRNA, exondist, introndist, genomic_locs, clusters_locs, genomic_types, clusters_types, zscores, homer_location, kmer_box_params, phastcons_values):
-    #TODO comment and figure out what this is doing
-    import matplotlib as mpl
-    import pylab
-    from pylab import cm
-    import matplotlib.gridspec as gridspec
-    import matplotlib.image as mpimg
-    import numpy as np
-    import random
+def CLIP_QC_figure(reads_in_clusters, reads_out_clusters, cluster_lengths, 
+                   reads_per_cluster, premRNA, mRNA, exondist, introndist, 
+                   genomic_locs, clusters_locs, genomic_types, clusters_types,
+                   zscores, homer_location, kmer_box_params, phastcons_values):
+    
+    """
+    
+    Main Visualization logic
+    
+    Input --
+    reads_in_clusters -- int, number of reads in a cluster
+    reads_out_clusters -- int, number of reads outside of clusters
+    cluster_lengths -- list of ints, length of each cluster
+    reads_per_cluster -- list of ints, number of reads inside each cluster
+    premRNA -- unknown looks like a list of something
+    mRNA -- unknown looks like a list of ints for something used for mRNA and pre-mRNA dirstibutions...
+    exondist -- distance from exon?
+    introndist -- distance from intron?
+    genomic_locs -- ?? int 
+    clusters_locs -- ?? int
+    genomic_types -- 
+    clusters_types --
+    zscores -- list of zcores for each peak
+    homer_location -- location of homer results file
+    kmer_box_params -- ??
+    phastcons_values -- ??
+    
+    """
+    
     mpl.rcParams['interactive']=False
 
     fig = pylab.figure(figsize=(20,20), facecolor='white')
@@ -165,9 +188,9 @@ def CLIP_QC_figure(reads_in_clusters, reads_out_clusters, cluster_lengths, reads
     ax_pie_clusters.pie(clusters_locs, colors=colors, labels=labels)
 
     ind = np.arange(5)
-    clusters_types = 100*np.array(clusters_types, dtype="float")/np.sum(clusters_types)
-    genomic_types = 100*np.array(genomic_types, dtype="float")/np.sum(genomic_types)
-    difference = clusters_types-genomic_types
+    clusters_types = 100 * np.array(clusters_types, dtype="float") / np.sum(clusters_types)
+    genomic_types = 100 * np.array(genomic_types, dtype="float") / np.sum(genomic_types)
+    difference = clusters_types - genomic_types
     #width=0.35
     #bar1=ax_bar_exontypes.bar(ind, clusters_types, color='r', width=width)
     #bar2=ax_bar_exontypes.bar(ind+width, genomic_types, color='y', width=width)
@@ -236,6 +259,7 @@ def adjust_offsets(tool, offsets=None):
     Adjusts the offsets for each transcript in a bedtool
     
     """
+    
     if offsets == None:
         raise Exception, "no offsets"
     l = list()
@@ -269,7 +293,10 @@ def adjust_offsets(tool, offsets=None):
 
 
 def build_AS_STRUCTURE_dict(species):
-    #TODO replace with clipper AS structure dict method
+    
+    #TODO make more geneticreplace with clipper AS structure dict method
+    
+    #these have to go
     if species == "hg19":
         chrs = map(str,range(1,23)) #1-22
         chrs.append("X")
@@ -282,7 +309,9 @@ def build_AS_STRUCTURE_dict(species):
     info = dict()
     Gtypes = dict()
     for chr in chrs:
-        ASfile = basedir+ "/yeolab/Genome/ensembl/AS_STRUCTURE/" + species + "data4/" + species + ".tx." + chr + ".AS.STRUCTURE"
+        
+        #this has to be removed
+        ASfile = basedir + "/yeolab/Genome/ensembl/AS_STRUCTURE/" + species + "data4/" + species + ".tx." + chr + ".AS.STRUCTURE"
         f = open(ASfile, "r")
         for line in f.readlines():
             if not line.startswith(">"):
@@ -331,16 +360,19 @@ def build_AS_STRUCTURE_dict(species):
     return info, Gtypes
 
 def assign_to_regions(tool, species="hg19", nrand = 3, getseq=False):
+    
     """
     
     Assigns each cluster to a specific region
     
     tool - a bed tool (each line represnting a cluster)
     species - the species to assign to
-    nrand - int number of times to shuffle for null hypothesis
+    nrand - int number offsets times to shuffle for null hypothesis
     getseq - boolean gets the full sequence to store
     
     """
+    
+    #Creates bedtools for all regomics regions offsets interest
     speciesFA = ""
     if species =="hg19" or species == "mm9" or species =="hg18":
         speciesFA = basedir + "/yeolab/Genome/ucsc/" +species + "/chromosomes/all.fa"
@@ -367,26 +399,29 @@ def assign_to_regions(tool, species="hg19", nrand = 3, getseq=False):
     all_regionfiles = ([exonFile, UTR3File, UTR5File, proxintronFile, distintronFile])
     bed_dict = {}
     last = 0
-    of = get_offsets_bed12(tool)
+    offsets = get_offsets_bed12(tool)
     tool =  tool.merge(s=True, nms=True, scores="max")
-    tool = adjust_offsets(tool, of)
+    tool = adjust_offsets(tool, offsets)
     Gsizes = [G_exon_size, G_UTR3_size, G_UTR5_size, G_proxintron_size, G_distintron_size]
     sizes = [0, 0, 0, 0, 0]
 
-    print "There are a total of %d clusters I'll examine" %(tool.__len__())
+    print "There are a total offsets %d clusters I'll examine" %(len(tool))
 
     for j, region in enumerate(all_regions):
         try:
-            no_overlapping, only_overlapping =intersection(tool, B = all_bedtracks[j])  #portions of the regions that overlap with a genic region
-        except:
+            #portions offsets the regions that overlap with a genic region
+            no_overlapping, only_overlapping = intersection(tool, B = all_bedtracks[j])  
+        except Exception as e:
+            print e
+            "prnt intersection failed"
             continue
         only_overlapping = pybedtools.BedTool(str(only_overlapping.filter(eliminate_invalid_bed12)), from_string=True)
         no_overlapping = pybedtools.BedTool(str(no_overlapping.filter(eliminate_invalid_bed12)), from_string=True)
-        noCT = no_overlapping.__len__()
-        onlyCT = only_overlapping.__len__()
+        noCT = len(no_overlapping)
+        onlyCT = len(only_overlapping)
         last += onlyCT
         both = last + noCT
-        print "For region: %s I found %d that overlap and %d that don't, making a total of %d" %(region, onlyCT, noCT, both)
+        print "For region: %s I found %d that overlap and %d that don't, making a total offsets %d" %(region, onlyCT, noCT, both)
         bed_dict[region]= {}
         bed_dict[region]['real'] = None
         try:
@@ -428,12 +463,7 @@ def assign_to_regions(tool, species="hg19", nrand = 3, getseq=False):
                 bed_dict['all']['rand'][i] = bed_dict[region]['rand'][i]
 
         tool = no_overlapping
-    #colors = ["#E52C27", "#C3996B", "#3C54A4", "#48843D", "#852882"] #red, tan, blue, green, purple
-    #labels = ["Exon", "3'UTR", "5'UTR", "Proximal Intron", "Distal Intron"]
-    #pie_data = piefig.add_subplot(121, aspect=1, title="Clusters' Coverage")
-    #pie_genomic = piefig.add_subplot(122, aspect=1, title="Genomic Coverage")
-    #pie_data.pie(sizes, colors=colors, labels=labels)
-    #pie_genomic.pie(Gsizes, colors=colors, labels=labels)
+
     print "After assigning, I\'m left with %d un-categorized regions" %(tool.__len__())
     try:
         bed_dict['uncatagorized'] = tool.sort()
@@ -453,6 +483,7 @@ def build_assigned_from_existing(assigned_dir, clusters, regions, nrand):
     Not sure what this does...
     
     """
+    
     CLUS_regions = {}
     for region in regions:
         CLUS_regions[region]={}
@@ -542,9 +573,10 @@ def plot_motif_dist(assigned_clusters, motifFILE, figure, nrand=3, color = "red"
     
     """
     
-    Plotting function, don't want touch this with a 10 footpole, can be refactored easily
+    Plotting function, don't want touch this with a 10 foot pole, can be refactored easily
     
     """
+    
     motifBed = pybedtools.BedTool(motifFILE)
     if label is None:
         label=motifFILE
@@ -879,7 +911,15 @@ def motif_boxplots(kmerloc, filename, klengths, highlight_motifs, subplot=None):
         pylab.show()    
 
     return ak, all_kmers
+
 def bedlengths(tool):
+    
+    """
+    
+    returns lengths of all lines in a bedtool
+    
+    """
+    
     x = list()
     for line in tool:
         x.append(line.length)
@@ -894,6 +934,7 @@ def chop(chr, start,end, wsize=5):
     writes some sort of phastcons thing..., not quite sure
     
     """
+    
     file = open("phastcons.txt", 'w')
     i = start
     while i < end:
@@ -914,6 +955,7 @@ def get_phastcons(bedtool, species=None, index=None):
     Get phastcons scores for intervals in a bed tool
     
     """
+    
     if species is None and index is None:
         print "Error, must select species or index"
     if species is not None and index is None:
@@ -948,12 +990,39 @@ def get_phastcons(bedtool, species=None, index=None):
     return data
 
 
+def fa_file(filename, region = None, fd=fastadir, type= "real"):
+    """
+    
+    Checks if a fasta file exists returns the file attaced to a region
+    or something 
+    
+    """
+    if not os.path.exists(fd):
+        raise Exception
+    if region is not None:
+        x =filename+"."+  region+ "."+ type+ ".fa"
+        return os.path.join(fd, x)
+    else:
+        x = filename+ "."+ type + ".fa"
+        return os.path.join(fd, x)
 
-
+def make_dir(dir_name):
+    
+    """ makes a dir, dir_name if it doesn't exist otherwise does nothing """
+    
+    if not os.path.exists(dir_name):
+        os.mkdir(dir_name)
+            
 def main(options):
     
-    from subprocess import Popen, PIPE
-    host = Popen(["hostname"], stdout=PIPE).communicate()[0].strip()
+    """
+    
+    Runs all analysies 
+    
+    """
+    
+    #from subprocess import Popen, PIPE
+    #host = Popen(["hostname"], stdout=PIPE).communicate()[0].strip()
     
     clusters = options.clusters
     species = options.species
@@ -963,9 +1032,7 @@ def main(options):
     options.k= map(int, options.k)
     outdir = options.outdir
 
-    def make_dir(dir_name):
-        if not os.path.exists(dir_name):
-            os.mkdir(dir_name)
+
 
     make_dir(outdir)        
 
@@ -985,24 +1052,14 @@ def main(options):
 
     all_regions = (["all", "exon", "UTR3", "UTR5", "proxintron", "distintron"])    
 
-
-    def fa_file(filename, region = None, fd=fastadir, type= "real"):
-        if not os.path.exists(fd):
-            raise Exception
-        if region is not None:
-            x =filename+"."+  region+ "."+ type+ ".fa"
-            return os.path.join(fd, x)
-        else:
-            x = filename+ "."+ type + ".fa"
-            return os.path.join(fd, x)
-
+    #Not quite sure whats going on here, but its one logical block
     if options.assign is False:
         try:
             CLUS_regions, sizes, Gsizes = build_assigned_from_existing(assigned_dir, clusters, all_regions, options.nrand)
             print "I used a pre-assigned set of BED files... score!"
         except:
             print "I had problems retreiving region-assigned BED files from %s, i'll rebuild" %(assigned_dir)
-            options.assign=True
+            options.assign = True
             
     if options.assign is True:
         print "Assigning Clusters to Genic Regions"
@@ -1047,6 +1104,9 @@ def main(options):
                 continue            
                                    
     print "Counting reads in clusters...",
+    
+    #gets reads in clusters (figure 1)
+    #gets reads per cluster (figure 2)
     reads_in_clusters = 0
     reads_per_cluster = list()
     for cluster in CLUS_regions['all']['real']:
@@ -1062,7 +1122,9 @@ def main(options):
             reads_per_cluster.append(int(reads))
         reads_in_clusters += int(reads)
     print "done"
-    #bamfile = pysam.Samfile(options.bam, 'rb')
+    
+    #need to get rid of this pickleing busniess, its a waste of space and doesn't work with other methods
+    #gets total number of reads (figure 1)
     print "Getting total number of reads...",
     total_reads = 0;
     try:
@@ -1082,13 +1144,20 @@ def main(options):
         
     print "done, there were %d" %(total_reads)
     print "Gathering bed lengths...",
+    
+    #one stat is just generated here
+    #generates cluster lengths (figure 3)
     cluster_lengths = bedlengths(CLUS_regions['all']['real'])
     print "done"
-##     
+    
+    ##This should be abstracted to some sort of list or something...
+    #figures 5 and 6, builds pre-mrna, mrna exon and intron distributions 
     mRNA_positions = list()
     premRNA_positions = list()
     intron_positions = list()
     exon_positions = list()
+    
+    #also builds figure 10 (exon distances)
     GENES, Gtypes = build_AS_STRUCTURE_dict(species)
     types = {}
     for type in ["CE:", "SE:", "MXE:", "A5E:", "A3E:"]:
@@ -1113,7 +1182,9 @@ def main(options):
     except:
         print "there were errors, skipping"
     print "done"
-                                     
+    
+    #what is Gtype?
+    #generates figure 10 (exon distances)
     type_count = [types["CE:"], types["SE:"], types["MXE:"], types["A5E:"], types["A3E:"]]
     Gtype_count = [Gtypes["CE:"], Gtypes["SE:"], Gtypes["MXE:"], Gtypes["A5E:"], Gtypes["A3E:"]]    
 
@@ -1139,12 +1210,13 @@ def main(options):
     kmer_box_params = [kmerout, clusters, options.k, motifs]
 
     ###conservation --should use multiprocessing to speed this part up!
+    #start of conservation logic, very slow...
     phast_values = list()
     if options.rePhast is False:
         try:
             phast_values = pickle.load(open(os.path.join(misc_dir, "%s.phast.pickle" %(clusters))))
         except:
-            options.rePhast =True
+            options.rePhast = True
 
 
     if options.rePhast is True:
@@ -1192,7 +1264,7 @@ def main(options):
     outFig = os.path.join(outdir, fn)
     QCfig.savefig(outFig)
                     
-###
+    ### does something with motifs doesn't appear to work right now
     motifs = list(options.motif)
     motifBASE  = basedir + "/lovci/projects/ucscBED"
     if motifs is not None:
@@ -1203,8 +1275,7 @@ def main(options):
             mfgz = "motif_" + motif + ".BED.gz"
             print os.path.join(motifBASE,species,mf)
             motifFILE = None
-#            import code
-#            code.interact(local=locals())
+
             if os.path.exists(os.path.join(motifBASE,species, mf)):
                 motifFILE = os.path.join(motifBASE,species, mf)
             elif os.path.exists(os.path.join(motifBASE,species, mfgz)):
@@ -1233,12 +1304,15 @@ if __name__== "__main__":
     parser.add_option("--nrand", dest="nrand", default=3, help="selects number of times to randomly sample genome", type="int")
     parser.add_option("--k", dest="k", action="append", help="what does this do?", default=[6])
     parser.add_option("--outdir", "-o", dest="outdir", default=os.getcwd(), help="directory for output, default:cwd")
-
+    parser.add_option("--run_phast", dest="run_phast", action="store_true", help="what does this do?", default=False)
+   
     
     (options, args) = parser.parse_args()
     
     #error checking
     if options.clusters is None or options.bam is None or options.species is None:
+        parser.print_help()
+        exit()
         
     main(options)
 
