@@ -1,5 +1,3 @@
-
-mpl.use('Agg')    
 import pybedtools
 import numpy as np
 from optparse import OptionParser
@@ -8,13 +6,11 @@ import sys
 import pickle
 import random
 from subprocess import Popen, call, PIPE
-
-import matplotlib.gridspec as gridspec
-import matplotlib.image as mpimg
 import subprocess
 from bx.bbi.bigwig_file import BigWigFile
 import pysam
-
+import CLIP_Analysis_Display
+import pylab
 
 def intersection(A, B=None):
     
@@ -365,37 +361,7 @@ def get_offsets_bed12(tool):
         of[name] = offset
     return of
 
-def get_motif_distance(clusters, motif, slop=500):
-    
-    """
-    
-    Compares two bed files and computes distance from center of first (indicated by bed12)
-    to center of second (by bed12)
-    
 
-    Gets offsets for each cluster
-
-    Input:
-      
-    clusters - bedtool (bed12)
-    motif - bedtool (bed12)
-    
-    returns distance from clusters to nearest motif 
-    
-    """
-    
-    ov = clusters.window(motif, w=slop, sm=True)
-    distances = list()
-    for line in ov:
-        positions=str(line).split("\t")
-        cluster_center = int(positions[7])-int(positions[6])/2
-        motif_center = int(positions[15]) - int(positions[14])/2
-        distance = motif_center - cluster_center
-        if positions[5] == "-":
-            distance = distance * -1
-        distances.append(distance)
-    del ov
-    return distances
     
 def RNA_position(bedline, GI):
     
@@ -943,13 +909,13 @@ def main(options):
     #save results 
     pickout = open(os.path.join(outdir, "misc", "%s.qcfig_params.pickle" %(clusters)), 'w')
     pickle.dump(QCfig_params, file = pickout)
-    QCfig = CLIP_QC_figure(*QCfig_params)
+    QCfig = CLIP_Analysis_Display.CLIP_QC_figure(*QCfig_params)
     fn = clusters + ".QCfig.pdf"
     outFig = os.path.join(outdir, fn)
     
     #TODO Fix output of file (Don't know why its crashing right now
-    QCfig = pylab.figure(facecolor='white')
-    QCfig.savefig("foo.pdf")
+    print >> sys.stderr, outFig
+    QCfig.savefig(outFig)
                     
     ### does something with motifs doesn't appear to work right now
     

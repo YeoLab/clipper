@@ -49,14 +49,15 @@ class Test(unittest.TestCase):
         
         """ runs entire program on small test dataset """
         
-        args = ["--clusters", pkg_resources.resource_filename(__name__, "../test/clipper_results_chr2.BED"),
+        args = ["--clusters", pkg_resources.resource_filename(__name__, "../test/fox_2_test.BED"),
                 "-s", "mm9",
-                "--bam", pkg_resources.resource_filename(__name__, "../test/allup_test.bam"),
+                "--bam", pkg_resources.resource_filename(__name__, "../test/FOX2Brain.all.bam"),
                 "--AS_Structure", "/home/gabrielp/bioinformatics/Yeo_Lab/clip_analysis_metadata/mm9data4",
                 '--genome_location', '/home/gabrielp/bioinformatics/Yeo_Lab/clip_analysis_metadata/mm9/mm9.fa', 
                 "--regions_location", '/home/gabrielp/bioinformatics/Yeo_Lab/clip_analysis_metadata/regions',
                 '--phastcons_location', '/home/gabrielp/bioinformatics/Yeo_Lab/clip_analysis_metadata/phastcons/mm9_phastcons.bw',
                 '--motif', 'AAAAAA',
+                '--nrand', '1',
                 ]    
         (options, args) = self.parser.parse_args(args)
         CLIP_analysis.main(options)
