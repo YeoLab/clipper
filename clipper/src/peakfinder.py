@@ -358,7 +358,6 @@ def main(options):
     print """Transcriptome size is %d, transcriptome 
              reads are %d""" % (transcriptome_size, transcriptome_reads)
     
-    #is this a missed indent?
     for gener in results:
         if gener['clusters'] is None:
             print >> sys.stderr, gener, "no clusters"

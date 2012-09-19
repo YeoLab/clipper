@@ -1,4 +1,4 @@
-import matplotlib as mpl
+
 mpl.use('Agg')    
 import pybedtools
 import numpy as np
@@ -8,233 +8,13 @@ import sys
 import pickle
 import random
 from subprocess import Popen, call, PIPE
-import pylab
-from pylab import cm
+
 import matplotlib.gridspec as gridspec
 import matplotlib.image as mpimg
 import subprocess
 from bx.bbi.bigwig_file import BigWigFile
 import pysam
 
-#TODO remove
-#host = Popen(["hostname"], stdout=PIPE).communicate()[0].strip()
-#if "optiputer" in host or "compute" in host:
-#    basedir = "/nas/nas0"
-#elif "tcc" in host or "triton" in host:
-#    basedir = "/projects"    
-#print "basedir: %s" %(basedir)
-
-
-
-#TODO remove
-try:
-    pybedtools.set_tempdir(basedir + "/scratch/lovci/pybedtools_tmp")
-except:
-    pybedtools.set_tempdir(basedir + "/lovci/projects/tmp/python_tmp")
-
-def CLIP_QC_figure(reads_in_clusters, reads_out_clusters, cluster_lengths, 
-                   reads_per_cluster, premRNA, mRNA, exondist, introndist, 
-                   genomic_locs, clusters_locs, genomic_types, clusters_types,
-                   zscores, homer_location, kmer_box_params, phastcons_values):
-    
-    """
-    
-    Main Visualization logic
-    
-    Input --
-    reads_in_clusters -- int, number of reads in a cluster
-    reads_out_clusters -- int, number of reads outside of clusters
-    cluster_lengths -- list of ints, length of each cluster
-    reads_per_cluster -- list of ints, number of reads inside each cluster
-    premRNA -- unknown looks like a list of something
-    mRNA -- unknown looks like a list of ints for something used for mRNA and pre-mRNA dirstibutions...
-    exondist -- distance from exon?
-    introndist -- distance from intron?
-    genomic_locs -- ?? int 
-    clusters_locs -- ?? int
-    genomic_types -- 
-    clusters_types --
-    zscores -- list of zcores for each peak
-    homer_location -- location of homer results file
-    kmer_box_params -- ??
-    phastcons_values -- ??
-    
-    """
-    
-    mpl.rcParams['interactive']=False
-
-    fig = pylab.figure(figsize=(20,20), facecolor='white')
-    gs1 = gridspec.GridSpec(6,4)
-    ax_pie_inout = pylab.subplot(gs1[0, 0], title = "Reads in Clusters", aspect=1)
-    ax_pie_inout.pie([reads_in_clusters, reads_out_clusters], labels=["In Clusters", "Outside of\nClusters"])
-    gs_nreads_lengths_cons = gridspec.GridSpecFromSubplotSpec(1,7,subplot_spec=gs1[0,1:4])
-    #ax_nreads = pylab.subplot(gs1[0, 1:3], title="Reads per Cluster")
-    ax_nreads = pylab.subplot(gs_nreads_lengths_cons[0:3], title="Reads per Cluster")
-    ax_nreads.hist(reads_per_cluster, bins=50, facecolor='#C8D2B0',log=True, range=(10, np.max(reads_per_cluster)))
-    ax_nreads.set_xscale('log')
-#    ax_nreads.set_yscale('log')        
-    ax_nreads.set_xlabel("log10(N reads)")
-    ax_nreads.set_ylabel("Frequency")
-    #ax_lengths = pylab.subplot(gs1[0, 3], title="Cluster Lengths")
-    ax_lengths = pylab.subplot(gs_nreads_lengths_cons[3], title="Cluster Lengths")
-    ax_lengths.set_yscale('log')
-    ax_lengths.boxplot(random.sample(cluster_lengths, 2000), vert=1)
-    #ax_lengths.set_ylabel("log10(length)")
-    ax_lengths.set_xticklabels([])
-    formal_labels = ["All", "Exon", "3'UTR", "5'UTR", "Proximal\nIntron", "Distal\nIntron"]
-    positions=list()
-    width=.1
-    for i in range(6):
-        positions.append(i-.1)
-        positions.append(i)
-    ax_cons = pylab.subplot(gs_nreads_lengths_cons[4:7], title="PhastCons Values")
-    bp = ax_cons.boxplot(phastcons_values, positions=positions, widths=width, sym='k.')
-    boxes = bp['boxes']
-
-    for realbox in boxes[::2]:
-        realbox.set_color('blue')
-
-    for randbox in boxes[1::2]:
-        randbox.set_color('red')
-
-    outliers = bp['fliers']
-    for i in outliers:
-        i.set_markersize(3.)
-
-    medians = bp['medians']
-    for line in medians[::2]:
-        line.set_color('blue')
-    for line in medians[1::2]:
-        line.set_color('red')        
-    ax_cons.hold(True)
-    start, stop = ax_cons.get_xlim()
-    ticks = np.linspace(start, stop, 7)
-    starts= ticks[:-1]
-    stops = ticks[1:]
-    reals = phastcons_values[::2]
-    rands = phastcons_values[1::2]
-
-    bins=20
-    for n in range(6):
-        ax_cons.hold(True)        
-        heights1, edges1 = np.histogram(reals[n], normed=True, bins=bins)
-        heights2, edges2 = np.histogram(rands[n], normed=True, bins=bins)
-        CDF1=np.cumsum(heights1)/np.sum(heights1)
-        CDF1 = np.insert(CDF1, 0, 0)
-        CDF2=np.cumsum(heights2)/np.sum(heights2)
-        CDF2 = np.insert(CDF2, 0, 0)        
-        #xvals = np.linspace(starts[n], stops[n], (bins+1))
-        yvals = np.linspace(0,1, (bins+1))
-        
-        if n ==0:
-            label1 = "real"
-            label2 = "random"
-        else:
-            label1 = "_nolegend_"
-            label2 = "_nolegend_"            
-        ax_cons.plot( starts[n]+CDF1, yvals, 'blue', label=label1)
-        ax_cons.plot( starts[n]+CDF2, yvals,  'red', label=label2)
-    for x in starts[1:]:
-        ax_cons.axvline(x, color='k', lw=2)
-    
-
-    
-    ax_cons.set_xticks([0,1,2,3,4,5])
-    ax_cons.set_xticklabels(formal_labels)
-    ax_cons.set_ylabel("PhastCons Score")
-
-    gs_line2 = gridspec.GridSpecFromSubplotSpec(1,6, subplot_spec=gs1[1,:])
-    #ax_genedist = pylab.subplot(gs1[1, 0:2], title="mRNA and preMRNA Distribution")
-    ax_genedist = pylab.subplot(gs_line2[0:2], title="mRNA and pre-mRNA Distribution")
-    ax_genedist.set_xlabel("Fraction of region")
-    ax_genedist.set_ylabel("Frequency")
-    prehist = ax_genedist.hist(premRNA, range=(0,1.0), histtype="step", color="red", label="pre-mRNA", bins=100, normed=True)
-    ax_genedist.hold(True)
-
-    mhist = ax_genedist.hist(mRNA, range=(0,1.0), histtype="step", color="blue", label="mRNA", bins=100, normed=True)
-    ax_genedist.legend(frameon=False, loc=2, markerscale=0.2, )
-
-    #ax_exondist = pylab.subplot(gs1[1, 2:4], title="Distribution across exons")
-    ax_exondist = pylab.subplot(gs_line2[2:4], title="Distribution Across Exons and Introns")
-    ax_exondist.hist(exondist, range=(0,1.0), histtype="step", color="blue", label="Intron", bins=100, normed=True)
-    ax_exondist.set_xlabel("Fraction of region")
-    ax_exondist.set_ylabel("Exon Location Frequency", color='blue')
-    #ax_introndist = pylab.subplot(gs1[2, 2:4], title="Distribution across introns")
-    #ax_introndist.set_xlabel("Fractionof region")    
-
-    ax_introndist = ax_exondist.twinx()
-    ax_introndist.hist(introndist, range=(0,1.0), histtype="step", color="red", label="Intron", bins=100, normed=True)
-
-    ax_introndist.set_ylabel("Intron Location Frequency", color='red')
-    for tick in ax_introndist.get_yticklabels():
-        tick.set_color('red')
-    for tick in ax_exondist.get_yticklabels():
-        tick.set_color('blue')
-        
-        #ax_introndist.set_xticklabels([])
-    pylab.tight_layout()
-
-    colors = ["#E52C27", "#C3996B", "#3C54A4", "#48843D", "#852882"] #red, tan, blue, green, purple
-    labels = ["Exon", "3'UTR", "5'UTR", "Proximal\nIntron", "Distal\nIntron"]
-    gs_pie_nearestType = gridspec.GridSpecFromSubplotSpec(1,3, subplot_spec=gs1[2,0:2])
-    ax_pie_genomic = pylab.subplot(gs_pie_nearestType[0], title="Genomic Content", aspect=1)
-    ax_pie_clusters = pylab.subplot(gs_pie_nearestType[1], title="Clusters' Content", aspect=1)
-    ax_bar_exontypes = pylab.subplot(gs_pie_nearestType[2], title="Nearest Exon Types")    
-
-        #ax_pie_clusters = pylab.subplot(gs1[2, 1], title="Clusters' Content", aspect=1)
-        #ax_pie_genomic = pylab.subplot(gs_pies[2, 0], title="Genomic Content", aspect=1)
-        #ax_bar_exontypes = pylab.subplot(gs1[3,0], title="Nearest Exon Types")        
-    ax_pie_genomic.pie(genomic_locs, colors=colors, labels=labels)
-    ax_pie_clusters.pie(clusters_locs, colors=colors, labels=labels)
-
-    ind = np.arange(5)
-    clusters_types = 100 * np.array(clusters_types, dtype="float") / np.sum(clusters_types)
-    genomic_types = 100 * np.array(genomic_types, dtype="float") / np.sum(genomic_types)
-    difference = clusters_types - genomic_types
-    #width=0.35
-    #bar1=ax_bar_exontypes.bar(ind, clusters_types, color='r', width=width)
-    #bar2=ax_bar_exontypes.bar(ind+width, genomic_types, color='y', width=width)
-    ind = ind-.5
-    bar2=ax_bar_exontypes.bar(ind, difference, color='y')
-    xlabels = ["", "CE", "SE", "MXE", "A5E", "A3E"]
-    ax_bar_exontypes.set_xticklabels(xlabels)
-    ax_bar_exontypes.set_ylabel('% Difference (clusters-genomic)')
-    ax_bar_exontypes.set_xlabel('Exon Type')
-    ax_bar_exontypes.axhline(y=0, ls="-",color='k')
-    #ax_bar_exontypes.legend( (bar1[0], bar2[0]), ('Clusters', 'Genome'), frameon=False)
-    #ax_pie_exontypes_expected = pylab.subplot(gs1[3,0], title="Genome's Exon Types", aspect=1)
-    #ax_pie_exontypes_expected.pie(genomic_types, labels=["CE", "SE", "MXE", "A5E", "A3E"], colors=["darkred", "navy", "purple", "green", "orange"])
-    #ax_pie_exontypes = pylab.subplot(gs1[3,1], title="Nearest Exon Type", aspect=1)
-    #ax_pie_exontypes.pie(clusters_types, labels=["CE", "SE", "MXE", "A5E", "A3E"], colors=["darkred", "navy", "purple", "green", "orange"])
-    ax_hist_zscores = pylab.subplot(gs1[2,2:4], title="Motif Z-scores")
-    motif_boxplots(*kmer_box_params, subplot=ax_hist_zscores) # * expands the list into individual args
-
-    #ax_hist_zscores.hist(zscores, bins=100, fc=None)
-    #ax_hist_zscores.set_ylabel("Frequency")
-    #ax_hist_zscores.set_xlabel("Z-score")
-    pylab.tight_layout()
-    gs2 = gridspec.GridSpecFromSubplotSpec(1,6, subplot_spec=gs1[4:6,:], hspace=0, wspace=0)
-    all_regions = (["all", "exon", "UTR3", "UTR5", "proxintron", "distintron"])
-    for i, region in enumerate(all_regions):
-        gs_homer_motifs = gridspec.GridSpecFromSubplotSpec(8,1, subplot_spec=(gs2[i]))
-        for j, space in enumerate(gs_homer_motifs):
-            try:
-                motifname = "motif" + str(j+1) + ".logo.png"
-                formal_labels = ["All", "Exon", "3'UTR", "5'UTR", "Proximal Intron", "Distal Intron"]
-                motifFILE = os.path.join(homer_location, region, "homerResults", motifname)
-                if os.path.exists(motifFILE):
-                    motif = mpimg.imread(motifFILE)
-                    if j == 0:
-                        title = formal_labels[i]
-                        ax = pylab.subplot(space, frameon=False, xticks=[], yticks=[], title=title)                        
-                    else:
-                        ax = pylab.subplot(space, frameon=False, xticks=[], yticks=[]) #no title
-                    ax.imshow(motif)
-                else:
-                    print "no motif %s" %(motifFILE)
-            except:
-                pass
-    return fig
 
 def intersection(A, B=None):
     
@@ -253,10 +33,16 @@ def adjust_offsets(tool, offsets=None):
     
     """
     
+    For finding motiff position relative to center of peaks
+    Handles merging overlapping peaks, merge > bed12 -> bed6
+    picks first offset from merged peak and assigns that to 
+    new peaks
+    
     Input:
-    tool - a bed tool object
-    offset - int, how much to adjust offset by
+    tool - a bed tool (bed12) object
+    offset - dict of key:peak, value:int 
     Adjusts the offsets for each transcript in a bedtool
+    
     
     """
     
@@ -267,36 +53,53 @@ def adjust_offsets(tool, offsets=None):
         #TODO need to refactor to avoid this try junk
         #TODO don't change bedtool, use its map function instead
         try:
-            chr, start, stop, name, score, strand, transcript_start, transcript_stop = str(x).strip().split("\t")
+            chr, start, stop, name, score, strand, thick_start, thick_stop = str(x).strip().split("\t")
         except:
             chr, start, stop, name, score, strand = str(x).strip().split("\t")
-            transcript_start=0
-            transcript_stop=0
+            thick_start=0
+            thick_stop=0
             
-        start, stop, transcript_start, transcript_stop = map(int, (start, stop, transcript_start, transcript_stop))
+        start, stop, thick_start, thick_stop = map(int, (start, stop, thick_start, thick_stop))
+        
+        #the ; represents two merged locations 
         if ";" in name and name not in offsets:
             o = name.split(";")
             offset = offsets[o[0]]
         else:
             offset = offsets[name]
+        
         if strand== "+":
-            transcript_start = start + offset
-            transcript_stop = transcript_start + 4
+            thick_start = start + offset
+            thick_stop = thick_start + 4
         else:
-            transcript_stop = stop - offset
-            transcript_start = transcript_stop -4
-        l.append("\t".join(map(str, (chr, start, stop, name, score, strand, transcript_start, transcript_stop))))
+            thick_stop = stop - offset
+            thick_start = thick_stop -4
+        l.append("\t".join(map(str, (chr, start, stop, name, score, strand, thick_start, thick_stop))))
+    
     t = pybedtools.BedTool("\n".join(l), from_string=True)
+    
     return t
 
 
 
 
-def build_AS_STRUCTURE_dict(species):
+def build_AS_STRUCTURE_dict(species, dir):
     
     #TODO make more geneticreplace with clipper AS structure dict method
-    
+    #totally revamp convert to gtf files
     #these have to go
+    """
+    
+    Important return values:
+    
+    PArses out all important AS structure - see constructed dict in function
+    for information on what is needed...
+    
+    GTypes - number of each exon type (used for getting background number
+    of each type of exon) (can also probably be removed)
+    
+    """
+    
     if species == "hg19":
         chrs = map(str,range(1,23)) #1-22
         chrs.append("X")
@@ -309,9 +112,9 @@ def build_AS_STRUCTURE_dict(species):
     info = dict()
     Gtypes = dict()
     for chr in chrs:
+
+        ASfile = os.path.join(dir, species + ".tx." + chr + ".AS.STRUCTURE")
         
-        #this has to be removed
-        ASfile = basedir + "/yeolab/Genome/ensembl/AS_STRUCTURE/" + species + "data4/" + species + ".tx." + chr + ".AS.STRUCTURE"
         f = open(ASfile, "r")
         for line in f.readlines():
             if not line.startswith(">"):
@@ -359,44 +162,45 @@ def build_AS_STRUCTURE_dict(species):
             info[gene]['tx_stop'] = tx_stop
     return info, Gtypes
 
-def assign_to_regions(tool, species="hg19", nrand = 3, getseq=False):
+def assign_to_regions(tool, speciesFA, regions_dir, species="hg19", nrand = 3, getseq=False):
     
     """
     
-    Assigns each cluster to a specific region
+    Assigns each cluster to a genic region
     
     tool - a bed tool (each line represnting a cluster)
     species - the species to assign to
     nrand - int number offsets times to shuffle for null hypothesis
     getseq - boolean gets the full sequence to store
     
-    """
+    shuffling for background, should still be factored out
     
-    #Creates bedtools for all regomics regions offsets interest
-    speciesFA = ""
-    if species =="hg19" or species == "mm9" or species =="hg18":
-        speciesFA = basedir + "/yeolab/Genome/ucsc/" +species + "/chromosomes/all.fa"
-    else:
-        raise Exception, "Unknown species"
-    root = basedir + "/lovci/projects/ucscBED/" + species
-    UTR3File=os.path.join(root, "UTR3_"+species+"_frea_sorted.withscore")
+    """
+      
+    UTR3File = os.path.join(regions_dir, "UTR3_" + species + "_frea_sorted.withscore")
     UTR3 = pybedtools.BedTool(UTR3File)
     G_UTR3_size = UTR3.total_coverage()
-    UTR5File = os.path.join(root,"UTR5_"+species+"_frea_sorted.withscore")
+    
+    UTR5File = os.path.join(regions_dir, "UTR5_" + species + "_frea_sorted.withscore")
     UTR5 = pybedtools.BedTool(UTR5File)
     G_UTR5_size = UTR5.total_coverage()
-    exonFile=os.path.join(root,"exon_"+species+"_frea_sorted.withscore")
+    
+    exonFile = os.path.join(regions_dir, "exon_" + species + "_frea_sorted.withscore")
     exon = pybedtools.BedTool(exonFile)
     G_exon_size = exon.total_coverage()    
-    proxintronFile= os.path.join(root,"proxintron500_"+species+"_frea_sorted.withscore")
+    
+    proxintronFile = os.path.join(regions_dir, "proxintron500_" + species + "_frea_sorted.withscore")
     proxintron = pybedtools.BedTool(proxintronFile)
     G_proxintron_size = proxintron.total_coverage()        
-    distintronFile = os.path.join(root,"distintron500_"+species+"_frea_sorted.withscore")
+    
+    distintronFile = os.path.join(regions_dir, "distintron500_" + species + "_frea_sorted.withscore")
     distintron = pybedtools.BedTool(distintronFile)
     G_distintron_size = distintron.total_coverage()    
+    
     all_regions = (["exon", "UTR3", "UTR5", "proxintron", "distintron"])
     all_bedtracks = ([exon, UTR3, UTR5, proxintron, distintron])
     all_regionfiles = ([exonFile, UTR3File, UTR5File, proxintronFile, distintronFile])
+    
     bed_dict = {}
     last = 0
     offsets = get_offsets_bed12(tool)
@@ -449,14 +253,21 @@ def assign_to_regions(tool, species="hg19", nrand = 3, getseq=False):
         #TODO refactor to different function
         for i in range(nrand):
             try:
-                ri = bed_dict[region]['real'].shuffle(genome=species, incl=all_regionfiles[j]).sort()
+                #for each region shuffles all peaks in that region around the region 
+                #then pulls out sequences if requested 
+                
+                random_intervals = bed_dict[region]['real'].shuffle(genome=species, incl=all_regionfiles[j]).sort()
             except:
                 continue
-            ri = adjust_offsets(ri, ofdic)
+            
+            #shuffling doesn't change offsets so we adjust bed 11 and 12 lines here to correct 
+            random_intervals = adjust_offsets(random_intervals, ofdic)
             if getseq is True:
-                ri.sequence(fi=speciesFA, s=True)
+                pass
+                #print speciesFA
+                #random_intervals.sequence(fi=speciesFA, s=True)
                 
-            bed_dict[region]['rand'][i] = ri
+            bed_dict[region]['rand'][i] = random_intervals
             try:
                 bed_dict['all']['rand'][i] = pybedtools.BedTool(str(bed_dict['all']['rand'][i]) + str(bed_dict[region]['rand'][i]), from_string=True)
             except:
@@ -464,7 +275,7 @@ def assign_to_regions(tool, species="hg19", nrand = 3, getseq=False):
 
         tool = no_overlapping
 
-    print "After assigning, I\'m left with %d un-categorized regions" %(tool.__len__())
+    print "After assigning, I\'m left with %d un-categorized regions" %(len(tool))
     try:
         bed_dict['uncatagorized'] = tool.sort()
     except:
@@ -480,7 +291,13 @@ def build_assigned_from_existing(assigned_dir, clusters, regions, nrand):
     
     """
     
-    Not sure what this does...
+    Loads results produced from above analysis from saved file - can either be switched to
+    piclking or removed 
+    
+    assigned_dir - location of files
+    clusters - name of experiment
+    regions - list of genic regions 
+    nrand - number of shuffled datsets to look for
     
     """
     
@@ -517,6 +334,7 @@ def eliminate_invalid_bed12(x):
     returns either true or false if its a valid line or not
     
     """
+    
     chr, start, stop, name, score, strand, tstart, tstop = str(x).split("\t")
     start, stop, tstart, tstop = map(int, (start, stop, tstart, tstop))
     if start < tstart and stop > tstop:
@@ -538,28 +356,38 @@ def get_offsets_bed12(tool):
     
     of = {}
     for line in tool:
-        chr, start, stop, name, score, strand, tstart, tstop = line.__str__().split("\t")
+        chr, start, stop, name, score, strand, tstart, tstop = str(line).split("\t")
         start, stop, tstart, tstop = map(int, (start, stop, tstart, tstop))
         if strand == "+":
             offset = tstart -start 
         else:
             offset = stop - tstop
-        of[name]=offset
+        of[name] = offset
     return of
 
-def get_offsets(clusters, motif, slop=500):
+def get_motif_distance(clusters, motif, slop=500):
     
     """
     
+    Compares two bed files and computes distance from center of first (indicated by bed12)
+    to center of second (by bed12)
+    
+
     Gets offsets for each cluster
+
+    Input:
+      
+    clusters - bedtool (bed12)
+    motif - bedtool (bed12)
     
     returns distance from clusters to nearest motif 
     
     """
+    
     ov = clusters.window(motif, w=slop, sm=True)
     distances = list()
     for line in ov:
-        positions=line.__str__().split("\t")
+        positions=str(line).split("\t")
         cluster_center = int(positions[7])-int(positions[6])/2
         motif_center = int(positions[15]) - int(positions[14])/2
         distance = motif_center - cluster_center
@@ -569,151 +397,18 @@ def get_offsets(clusters, motif, slop=500):
     del ov
     return distances
     
-def plot_motif_dist(assigned_clusters, motifFILE, figure, nrand=3, color = "red", label=None, species="mm9", slopsize=0, scale='linear'):
-    
-    """
-    
-    Plotting function, don't want touch this with a 10 foot pole, can be refactored easily
-    
-    """
-    
-    motifBed = pybedtools.BedTool(motifFILE)
-    if label is None:
-        label=motifFILE
-    UTR5dist = get_offsets(assigned_clusters['UTR5']['real'], motifBed, slop=slopsize)
-    rand_5UTR = list()
-
-    for i in range(nrand):
-        rand_5UTR.extend(get_offsets(assigned_clusters['UTR5']['rand'][i], motifBed, slop=slopsize))
-
-    UTR5size = assigned_clusters['UTR5']['real'].total_coverage()
-    UTR5_rand_size = UTR5size*nrand
-    print "UTR5 done"
-    UTR3dist = get_offsets(assigned_clusters['UTR3']['real'], motifBed, slop=slopsize)
-    rand_3UTR = list()
-    for i in range(nrand):
-        rand_3UTR.extend(get_offsets(assigned_clusters['UTR3']['rand'][i], motifBed, slop=slopsize))
-
-    UTR3size = assigned_clusters['UTR3']['real'].total_coverage()
-    UTR3_rand_size = UTR3size*nrand            
-    print "UTR3 done"
-    exondist = get_offsets(assigned_clusters['exon']['real'], motifBed, slop=slopsize)
-    rand_exon = list()
-    for i in range(nrand):
-        rand_exon.extend(get_offsets(assigned_clusters['exon']['rand'][i], motifBed, slop=slopsize))
-
-    exonsize = assigned_clusters['exon']['real'].total_coverage()
-    exon_rand_size = exonsize*nrand            
-    print "exon done"
-
-    distintrondist = get_offsets(assigned_clusters['distintron']['real'], motifBed, slop=slopsize)
-    rand_distintron = list()
-    for i in range(nrand):
-        rand_distintron.extend(get_offsets(assigned_clusters['distintron']['rand'][i], motifBed, slop=slopsize))
-
-    distintronsize = assigned_clusters['distintron']['real'].total_coverage()
-    distintron_rand_size = distintronsize*nrand                        
-    print "distintron done"
-    
-    proxintrondist = get_offsets(assigned_clusters['proxintron']['real'], motifBed, slop=slopsize)
-    rand_proxintron = list()
-    for i in range(nrand):
-        rand_proxintron.extend(get_offsets(assigned_clusters['proxintron']['rand'][i], motifBed, slop=slopsize))
-
-    proxintronsize = assigned_clusters['proxintron']['real'].total_coverage()
-    proxintron_rand_size = proxintronsize*nrand
-
-    print "proxintron done"
-
-    allsize = UTR5size + UTR3size + exonsize + proxintronsize + distintronsize
-    all_rand_size = allsize*nrand
-
-    all = list()
-    all.extend(UTR5dist)
-    all.extend(UTR3dist)
-    all.extend(exondist)
-    all.extend(proxintrondist)
-    all.extend(distintrondist)                    
-
-    all_rand = list()
-    all_rand.extend(rand_5UTR)
-    all_rand.extend(rand_3UTR)
-    all_rand.extend(rand_exon)
-    all_rand.extend(rand_distintron)
-    all_rand.extend(rand_proxintron)    
-
-    ax_all = figure.add_subplot(321, title="All Clusters")
-    ax_all.set_yscale(scale)
-    ax_UTR5 = figure.add_subplot(322, title="5'UTR")
-    ax_UTR5.set_yscale(scale)
-    ax_exon = figure.add_subplot(323, title="Exon")
-    ax_exon.set_yscale(scale)
-    ax_UTR3 = figure.add_subplot(324, title="3'UTR")
-    ax_UTR3.set_yscale(scale)
-    ax_proxintron = figure.add_subplot(325, title="Proximal Intron")
-    ax_proxintron.set_yscale(scale)
-    ax_distintron = figure.add_subplot(326, title="Distal Intron")
-    ax_distintron.set_yscale(scale)
-
-    all_hist, all_edges = np.histogram(all, bins=50, range=(-150, 150))
-    all_hist = all_hist/(allsize/1000.)        
-    all_rand_hist, all_edges_rand = np.histogram(all_rand, bins=50, range=(-150, 150))
-    all_rand_hist = all_rand_hist/(all_rand_size/1000.)
-
-    ax_all.plot(all_edges[:-1], all_hist, c=color, linestyle='solid', label=label)
-    ax_all.plot(all_edges_rand[:-1], all_rand_hist, linestyle='dashed', c=color, label="_nolegend_")
-
-    UTR5_hist, UTR5_edges = np.histogram(UTR5dist, bins=50, range=(-150, 150))
-    UTR5_hist = UTR5_hist/(UTR5size/1000.)        
-    UTR5_rand_hist, UTR5_edges_rand = np.histogram(rand_5UTR, bins=50, range=(-150, 150))
-    UTR5_rand_hist = UTR5_rand_hist/(UTR5_rand_size/1000.)       
-    ax_UTR5.plot(UTR5_edges[:-1], UTR5_hist, linestyle='solid', c=color, label="_nolegend_")
-    ax_UTR5.hold(True)
-    ax_UTR5.plot(UTR5_edges_rand[:-1], UTR5_rand_hist, linestyle='dashed', c=color, label="_nolegend_")
-
-    UTR3_hist, UTR3_edges = np.histogram(UTR3dist, bins=50, range=(-150, 150))
-    UTR3_hist = UTR3_hist/(UTR3size/1000.)        
-    UTR3_rand_hist, UTR3_edges_rand = np.histogram(rand_3UTR, bins=50, range=(-150, 150))
-    UTR3_rand_hist = UTR3_rand_hist/(UTR3_rand_size/1000.)       
-    ax_UTR3.plot(UTR3_edges[:-1], UTR3_hist, linestyle='solid', c=color, label="_nolegend_")
-    ax_UTR3.hold(True)
-    ax_UTR3.plot(UTR3_edges_rand[:-1], UTR3_rand_hist, linestyle='dashed', c=color, label="_nolegend_")    
-
-    exon_hist, exon_edges = np.histogram(exondist, bins=50, range=(-150, 150))
-    exon_hist = exon_hist/(exonsize/1000.)        
-    exon_rand_hist, exon_edges_rand = np.histogram(rand_exon, bins=50, range=(-150, 150))
-    exon_rand_hist = exon_rand_hist/(exon_rand_size/1000.)       
-    ax_exon.plot(exon_edges[:-1], exon_hist, linestyle='solid', c=color, label="_nolegend_")
-    ax_exon.hold(True)
-    ax_exon.plot(exon_edges_rand[:-1], exon_rand_hist, linestyle='dashed', c=color, label="_nolegend_")
-
-    distintron_hist, distintron_edges = np.histogram(distintrondist, bins=50, range=(-150, 150))
-    distintron_hist = distintron_hist/(distintronsize/1000.)        
-    distintron_rand_hist, distintron_edges_rand = np.histogram(rand_distintron, bins=50, range=(-150, 150))
-    distintron_rand_hist = distintron_rand_hist/(distintron_rand_size/1000.)       
-    ax_distintron.plot(distintron_edges[:-1], distintron_hist, linestyle='solid', c=color, label="_nolegend_")
-    ax_distintron.hold(True)
-    ax_distintron.plot(distintron_edges_rand[:-1], distintron_rand_hist, linestyle='dashed', c=color, label="_nolegend_")
-
-    proxintron_hist, proxintron_edges = np.histogram(proxintrondist, bins=50, range=(-150, 150))
-    proxintron_hist = proxintron_hist/(proxintronsize/1000.)        
-    proxintron_rand_hist, proxintron_edges_rand = np.histogram(rand_proxintron, bins=50, range=(-150, 150))
-    proxintron_rand_hist = proxintron_rand_hist/(proxintron_rand_size/1000.)       
-    ax_proxintron.plot(proxintron_edges[:-1], proxintron_hist, linestyle='solid', c=color, label="_nolegend_")
-    ax_proxintron.hold(True)
-    ax_proxintron.plot(proxintron_edges_rand[:-1], proxintron_rand_hist, linestyle='dashed', c=color, label="_nolegend_")
-
-    return
-
-
-
 def RNA_position(bedline, GI):
     
     """
     
-    Does something...
+    makes mrna and pre-mrna position figure 
+    bedline - single bedline
+    GI - from build AS structure dict 
+    
+    Might be able to use my ribo-seq stuff for genic -> transcriptomic location conversion
     
     """
+    
     mRNA_pos = 0
     pre_pos = 0
     exon_frac = None
@@ -725,6 +420,8 @@ def RNA_position(bedline, GI):
     try:
         gene, n, reads = name.split("_")
     except:
+        
+        #takes first gene if there are multiple overlapping 
         gene, n, reads = name.split(";")[0].split("_")
 
     for exN in range(GI[gene]['numEx']):
@@ -789,6 +486,7 @@ def run_kmerdiff(clustersFA, backgroundFA, k=6, outfile=None):
     """
     
     Runs kmerdiff
+    kmerdiff -computes zscores for each k-mer (consier re-writing in python / biopython)
     
     clustersFA - clusters in fasta format
     background - background locations
@@ -803,11 +501,11 @@ def run_kmerdiff(clustersFA, backgroundFA, k=6, outfile=None):
         outfile = clustersFA + ".k" + str(k) + ".kmerdiff"
     print "Running Kmer analysis"
     #TODO make more general 
-    subprocess.call(["perl", (basedir + "/yeolab/Software/generalscripts/kmerdiff.pl"), "-file1", clustersFA, "-file2", backgroundFA, "-k", str(k), "-o", outfile])
+    subprocess.call(["perl", (data_file + "/yeolab/Software/generalscripts/kmerdiff.pl"), "-file1", clustersFA, "-file2", backgroundFA, "-k", str(k), "-o", outfile])
     srtout = outfile + ".sort"
     srt = open(srtout, 'w')
     print "Sorting Results..."
-    subprocess.call(["perl", (basedir + "/yeolab/Software/generalscripts/sortkmerdiff.pl"), outfile], stdout=srt)
+    subprocess.call(["perl", (data_file + "/yeolab/Software/generalscripts/sortkmerdiff.pl"), outfile], stdout=srt)
     print "Kmer analysis done, output here: %s" %(srtout)
     srt.close()
     return srtout
@@ -820,6 +518,8 @@ def run_homer(foreground, background, k = list([5,6,7,8,9]), outloc = os.getcwd(
     runs homer with standard args
     
     output location is saved
+    
+    --make optional make work off locations and not fasta files 
     
     """
     #findMotifs.pl clusters.fa fasta outloc -nofacts p 4 -rna -S 10 -len 5,6,7,8,9 -noconvert -nogo -fasta background.fa
@@ -845,73 +545,6 @@ def write_seqs(outfile, bedtool_list):
     f.close()
     return
 
-
-def motif_boxplots(kmerloc, filename, klengths, highlight_motifs, subplot=None):
-
-    """
-    
-    Make bake boxplots of motif z-scores. you must get kmer z-scores first with run_kmerdiff.  up to 11 motifs can be highlighted
-    pass a pylab subplot instance to the kwarg \"subplot\" to attach this to a figure, otherwise it will make its own figure
-    
-    """
-    
-    colorcycle = ["red", "orange", "green", "blue", "purple", "brown", "black", "pink", "gray", "cyan", "magenta"]
-    regions = ["all", "exon", "UTR3", "UTR5", "proxintron", "distintron"]
-    formal_labels = ["All Regions", "Exon", "3'UTR", "5'UTR", "Proximal Intron", "Distal Intron"]    
-    kmers = {}
-    all_kmers = set()
-    for region in regions:
-        kmers[region] = {}
-        for k in klengths:
-            f = open(os.path.join(kmerloc, "%s.k%s.%s.kmerdiff.sort" %(filename, str(k), region)))  
-            for line in f:
-                kmer, val = line.strip().split("\t")
-                kmer, val = map(str.strip, [kmer, val])
-                all_kmers.add(kmer)
-                kmers[region][kmer] = float(val)
-
-    for i, m in enumerate(highlight_motifs):
-        highlight_motifs[i] = m.lower().replace("u", "t")#hash the motifs, convert to DNA letters
-    ak = np.ndarray(shape=(len(all_kmers), len(regions)))
-    all_kmers = list(all_kmers)
-
-    for i, kmer in enumerate(all_kmers):
-        for j, region in enumerate(regions):            
-            ak[i,j] = kmers[region][kmer]
-    
-    showme=False
-    if subplot is None: #
-        showme=True
-        x = pylab.figure()
-        subplot = x.add_subplot(111)
-
-    subplot.boxplot(ak, vert=False, notch=1, sym='k.',  whis=2)
-    subplot.set_yticklabels(formal_labels)
-    for i, motif in enumerate(highlight_motifs):
-        indices= list()
-        for ind, k in enumerate(all_kmers):
-            if motif in k:
-                indices.append(ind)
-        y = map(lambda x: x+1, range(len(regions)))
-        for m, ind in enumerate(indices):
-            if m ==0:
-                label=motif
-            else:
-                label=None
-            subplot.plot(ak[ind,:], y, 'o', color=colorcycle[i], label=label, markersize=10)
-    subplot.set_xscale('symlog', linthreshx=10)
-    subplot.axvline(x=-4)
-    subplot.axvline(x=4)
-    
-
-    subplot.legend(frameon=False,loc=0, numpoints=1)
-    
-    subplot.set_xlabel("Z-score")
-    if showme is True:
-        pylab.show()    
-
-    return ak, all_kmers
-
 def bedlengths(tool):
     
     """
@@ -933,6 +566,8 @@ def chop(chr, start,end, wsize=5):
     
     writes some sort of phastcons thing..., not quite sure
     
+    For circos plotting, not used add back if we want more output later, ignore for now
+    
     """
     
     file = open("phastcons.txt", 'w')
@@ -944,11 +579,7 @@ def chop(chr, start,end, wsize=5):
         i += wsize
     file.close()
  
-
-
-
-
-def get_phastcons(bedtool, species=None, index=None):
+def get_phastcons(bedtool, phastcons_location, species=None, index=None, ):
     
     """
     
@@ -958,15 +589,14 @@ def get_phastcons(bedtool, species=None, index=None):
     
     if species is None and index is None:
         print "Error, must select species or index"
-    if species is not None and index is None:
-        if species == "mm9":
-            index= basedir + "/yeolab/Conservation/phastCons/mm9_30way/placental/mm9_phastcons.bw"
-        elif species == "hg19":
-            index = basedir + "/yeolab/Conservation/phastCons/hg19_46way/placentalMammals/reformat/hg19_phastcons.bw"
-    f = open(index, 'r')
+    
+    f = open(phastcons_location, 'r')
     bw = BigWigFile(file=f)
 
     try:
+        
+        #if its a line
+        #for each line fetch bigwig values 
         type(bedtool)
         v = bedtool.chrom #is a single interval
         vals = bw.get(bedtool.chrom, bedtool.start, bedtool.stop)
@@ -977,6 +607,8 @@ def get_phastcons(bedtool, species=None, index=None):
             mean_phastcons=0
         data = mean_phastcons
     except:
+        
+        #if bedtool
         for i, bedline in enumerate(bedtool):
             data = np.ndarray(len(bedtool))        
             vals = bw.get(bedline.chrom, bedline.start, bedline.stop)
@@ -987,18 +619,24 @@ def get_phastcons(bedtool, species=None, index=None):
                 mean_phastcons=0
             data[i] = mean_phastcons
             
+    #returns mean phastcons score for each line 
+    #returns inconistant data types, need to convert so it just returns an array 
     return data
 
 
-def fa_file(filename, region = None, fd=fastadir, type= "real"):
+def fa_file(filename, region = None, fd=None, type= "real"):
+    
     """
     
+    Way of organizing fasta file names  
     Checks if a fasta file exists returns the file attaced to a region
     or something 
     
     """
+    
     if not os.path.exists(fd):
         raise Exception
+    
     if region is not None:
         x =filename+"."+  region+ "."+ type+ ".fa"
         return os.path.join(fd, x)
@@ -1019,21 +657,24 @@ def main(options):
     
     Runs all analysies 
     
+    one thing to do is make graphs fail gracefully 
+    
     """
     
     #from subprocess import Popen, PIPE
     #host = Popen(["hostname"], stdout=PIPE).communicate()[0].strip()
     
+    #gets clusters in a bed tools + names species 
     clusters = options.clusters
     species = options.species
-    CLUSTERS = pybedtools.BedTool(clusters)
+    clusters_bed = pybedtools.BedTool(clusters)
 
+    #makes output file names 
     clusters = str.replace(clusters, ".BED", "")
-    options.k= map(int, options.k)
+    options.k = map(int, options.k)
     outdir = options.outdir
-
-
-
+    
+    #sets up output dirs
     make_dir(outdir)        
 
     assigned_dir = os.path.join(outdir, "assigned")
@@ -1053,63 +694,70 @@ def main(options):
     all_regions = (["all", "exon", "UTR3", "UTR5", "proxintron", "distintron"])    
 
     #Not quite sure whats going on here, but its one logical block
+    #either reassigns clusters to genic regions or reads from already
+    #made assigned lists
+
     if options.assign is False:
         try:
-            CLUS_regions, sizes, Gsizes = build_assigned_from_existing(assigned_dir, clusters, all_regions, options.nrand)
+            cluster_regions, sizes, Gsizes = build_assigned_from_existing(assigned_dir, clusters, all_regions, options.nrand)
             print "I used a pre-assigned set of BED files... score!"
         except:
-            print "I had problems retreiving region-assigned BED files from %s, i'll rebuild" %(assigned_dir)
+            print "I had problems retreiving region-assigned BED files from %s, i'll rebuild" % (assigned_dir)
             options.assign = True
             
     if options.assign is True:
         print "Assigning Clusters to Genic Regions"
-        CLUS_regions, sizes, Gsizes = assign_to_regions(CLUSTERS, species=species, getseq=True, nrand=options.nrand)
+        cluster_regions, sizes, Gsizes = assign_to_regions(clusters_bed,options.genome_location, options.regions_location, species=species, getseq=True, nrand=options.nrand)
         print "Done Assigning"
-
+        
         print "Saving BED and Fasta Files...",
 
+        #outputs little files (maybe move inside of assign to regions)
         sizes_out = open(os.path.join(assigned_dir, "%s.sizes.pickle" %(clusters)), 'w')
         pickle.dump(sizes, file=sizes_out)
         sizes_out.close()    
         Gsizes_out = open(os.path.join(assigned_dir, "Gsizes.pickle"), 'w')
         pickle.dump(Gsizes, file=Gsizes_out)
         Gsizes_out.close()
-
+        
+        #this is where all saving happens for assign to regions
         for region in all_regions:
             of = clusters + "." + region+ ".real.BED"
             try:
-                CLUS_regions[region]['real'].saveas(os.path.join(assigned_dir, of))
+                cluster_regions[region]['real'].saveas(os.path.join(assigned_dir, of))
             except:
                 continue
             for n in range(options.nrand):
                 of = clusters + "." + region+ ".rand." + str(n) + ".BED"
                 try:
-                    CLUS_regions[region]['rand'][n].saveas(os.path.join(assigned_dir, of))
+                    cluster_regions[region]['rand'][n].saveas(os.path.join(assigned_dir, of))
                 except:
                     continue
                 
         print "done"
 
+        #creates pretty file names for all regions
         for region in all_regions:
             try:
-                real_fa = fa_file(clusters, region=region, type="real")
-                rand_fa = fa_file(clusters, region=region, type="random")
-                CLUS_regions[region]['real'].save_seqs(real_fa)
+                real_fa = fa_file(clusters, region=region, fd = fastadir, type="real")
+                rand_fa = fa_file(clusters, region=region, fd = fastadir, type="random")
+                cluster_regions[region]['real'].save_seqs(real_fa)
 
                 l = list()#list of randoms
-                for n in CLUS_regions[region]['rand'].keys():
-                    l.append(CLUS_regions[region]['rand'][n])
+                for n in cluster_regions[region]['rand'].keys():
+                    l.append(cluster_regions[region]['rand'][n])
                 write_seqs(rand_fa, l)        
             except:
                 continue            
                                    
     print "Counting reads in clusters...",
     
+    #generates data for figure 1 and 2
     #gets reads in clusters (figure 1)
     #gets reads per cluster (figure 2)
     reads_in_clusters = 0
     reads_per_cluster = list()
-    for cluster in CLUS_regions['all']['real']:
+    for cluster in cluster_regions['all']['real']:
         chr, start, stop, name, score, strand, tstart, tstop = str(cluster).strip().split("\t")
         try:
             gene, n, reads = name.split("_")
@@ -1125,6 +773,8 @@ def main(options):
     
     #need to get rid of this pickleing busniess, its a waste of space and doesn't work with other methods
     #gets total number of reads (figure 1)
+    #gets total number of reads from clipper analysis (Need to make clipper automatically output
+    #pickle file
     print "Getting total number of reads...",
     total_reads = 0;
     try:
@@ -1136,7 +786,8 @@ def main(options):
         print "Found %s" %(pickle_file)
         for gene in pf:
             total_reads += gene['nreads']
-            
+    
+    #if clipper didn't output gets it from flagstat
     except:
         print "Couldn't find a pickled file, resorting to flagstat for total reads. (this includes intergenic reads)"
         flagstats = pysam.flagstat(options.bam)
@@ -1147,7 +798,7 @@ def main(options):
     
     #one stat is just generated here
     #generates cluster lengths (figure 3)
-    cluster_lengths = bedlengths(CLUS_regions['all']['real'])
+    cluster_lengths = bedlengths(cluster_regions['all']['real'])
     print "done"
     
     ##This should be abstracted to some sort of list or something...
@@ -1158,13 +809,17 @@ def main(options):
     exon_positions = list()
     
     #also builds figure 10 (exon distances)
-    GENES, Gtypes = build_AS_STRUCTURE_dict(species)
+    GENES, Gtypes = build_AS_STRUCTURE_dict(species, options.as_structure)
     types = {}
     for type in ["CE:", "SE:", "MXE:", "A5E:", "A3E:"]:
         types[type]=0
     print "locating clusters within genes",
+    
+    
     try:
-        for line in (CLUS_regions['all']['real']):
+        #counts nearest exon to peak and gets RNA 
+        #gets rna positon for every line as well
+        for line in (cluster_regions['all']['real']):
             mRNA_frac, premRNA_frac, exon_frac, intron_frac, nearest_type = RNA_position(line, GENES)
             if mRNA_frac is not None:
                 mRNA_positions.append(mRNA_frac)
@@ -1183,18 +838,22 @@ def main(options):
         print "there were errors, skipping"
     print "done"
     
-    #what is Gtype?
+    #gtypes is total genomic content 
+    #types is what clusters are
     #generates figure 10 (exon distances)
     type_count = [types["CE:"], types["SE:"], types["MXE:"], types["A5E:"], types["A3E:"]]
     Gtype_count = [Gtypes["CE:"], Gtypes["SE:"], Gtypes["MXE:"], Gtypes["A5E:"], Gtypes["A3E:"]]    
 
     ### write fasta files and run homer and/or kmer analysis if at least one analysis is requested
+    #runs kmer and homer analysis 
     if options.reMotif is True:
        
         for region in all_regions:
             try:
-                real_fa = fa_file(clusters, region=region, type="real")
-                rand_fa = fa_file(clusters, region=region, type="random")
+                
+                #reads nicely named files 
+                real_fa = fa_file(clusters, region=region, fd =  fastadir, type="real")
+                rand_fa = fa_file(clusters, region=region, fd =  fastadir, type="random")
                 if options.k is not None:
                     if options.homer is True:
                         region_homer_out = os.path.join(homerout, region)
@@ -1205,69 +864,100 @@ def main(options):
                         kmer_sorted_output = run_kmerdiff(real_fa, rand_fa, outfile=kmerfile, k=k)
             except:
                 continue
-
+            
+    #all the different motifs that the user specifices 
     motifs = list(options.motif)
     kmer_box_params = [kmerout, clusters, options.k, motifs]
 
     ###conservation --should use multiprocessing to speed this part up!
     #start of conservation logic, very slow...
     phast_values = list()
+    
+    #loads phastcons values of generates them again
     if options.rePhast is False:
         try:
             phast_values = pickle.load(open(os.path.join(misc_dir, "%s.phast.pickle" %(clusters))))
         except:
             options.rePhast = True
 
-
+    #generates again
     if options.rePhast is True:
         print "Fetching Phastcons Scores...",
-        for region in all_regions[1:]:#skip "all" combine them later
+        
+        #phastcons values for all regions except "all"
+        for region in all_regions[1:]: #skip "all" combine them later
             print ("%s..." %(region)),
             try:
                 samplesize=1000
-                if len(CLUS_regions[region]['real']) > samplesize:
-                    R1 = CLUS_regions[region]['real']                
-                    # R1 = random.sample(CLUS_regions[region]['real'], samplesize)
+                
+                #because it takes so long to fetch only select 1000 of them, not actually
+                #implemented
+                if len(cluster_regions[region]['real']) > samplesize:
+                    R1 = cluster_regions[region]['real']                
+                    # R1 = random.sample(cluster_regions[region]['real'], samplesize)
                 else:
-                    R1 = CLUS_regions[region]['real']
+                    R1 = cluster_regions[region]['real']
 
-                #realPhast = get_phastcons(CLUS_regions[region]['real'], species=options.species)
+                #realPhast = get_phastcons(cluster_regions[region]['real'], species=options.species)
                 print "getting real...",
-                realPhast = get_phastcons(R1, species=options.species)
-                randPhast=list()
+                
+                #gets phastcons values real regions 
+                realPhast = get_phastcons(R1, options.phastcons_location, species=options.species)
+                randPhast = list()
+                
+                #logic for random stuff (could be precomputed)
                 for i in range(options.nrand):
-                    if len(CLUS_regions[region]['rand'][i]) > samplesize:
-                        R2 = CLUS_regions[region]['rand'][i]                    
-                        #R2 = random.sample(CLUS_regions[region]['rand'][i], samplesize)
+                    if len(cluster_regions[region]['rand'][i]) > samplesize:
+                        R2 = cluster_regions[region]['rand'][i]                    
+                        #R2 = random.sample(cluster_regions[region]['rand'][i], samplesize)
                     else:
-                        R2 = CLUS_regions[region]['rand'][i]
+                        R2 = cluster_regions[region]['rand'][i]
                     print ("getting rand %d" %(i)),
-                    randPhast.extend(get_phastcons(R2, species=options.species).tolist())
+                    randPhast.extend(get_phastcons(R2, options.phastcons_location, species=options.species).tolist())
+                
+                #list of lists for real and random for every genic region
                 phast_values.append(realPhast)
                 phast_values.append(randPhast)
+            
             except:
                 continue
+            
+        #hacky selection of real values from phast_values
         all_real = np.concatenate(phast_values[::2])
+        
+        #hacky selection of random values from phast_values
         all_rand = np.concatenate(phast_values[1::2])
+        
+        #adds back in all and rand to phast_values list
         phast_values.insert(0,all_rand)
         phast_values.insert(0,all_real)
         pickout = open(os.path.join(misc_dir, "%s.phast.pickle" %(clusters)), 'w')
         pickle.dump(phast_values, file = pickout)
+    
+    
     Zscores = None  #old. remove
-
+    
+    #build qc figure
     QCfig_params = [reads_in_clusters, (total_reads - reads_in_clusters), cluster_lengths, reads_per_cluster, premRNA_positions, mRNA_positions, exon_positions, intron_positions, Gsizes, sizes, Gtype_count, type_count, Zscores, homerout, kmer_box_params, phast_values]
 
+    #save results 
     pickout = open(os.path.join(outdir, "misc", "%s.qcfig_params.pickle" %(clusters)), 'w')
     pickle.dump(QCfig_params, file = pickout)
     QCfig = CLIP_QC_figure(*QCfig_params)
     fn = clusters + ".QCfig.pdf"
     outFig = os.path.join(outdir, fn)
-    QCfig.savefig(outFig)
+    
+    #TODO Fix output of file (Don't know why its crashing right now
+    QCfig = pylab.figure(facecolor='white')
+    QCfig.savefig("foo.pdf")
                     
     ### does something with motifs doesn't appear to work right now
+    
+    #reads in existing precompiled motif file
     motifs = list(options.motif)
-    motifBASE  = basedir + "/lovci/projects/ucscBED"
-    if motifs is not None:
+    
+    if motifs is not None and False: #TODO hack to get stuff compiling fix soon
+        motifBASE  = options.motif_location
         fig = pylab.figure(figsize=(8.5, 11))
         colors = ["red", "orange", "green", "blue", "purple", "brown", "black", "pink", "gray", "cyan", "magenta"]
         for i, motif in enumerate(motifs):
@@ -1283,30 +973,39 @@ def main(options):
             else:
                 print "MOTIF BED FILE for motif: %s is not available, please build it" %(mf)
                 continue
-            plot_motif_dist(CLUS_regions, motifFILE, fig, color = colors[i], species=species, slopsize=200)
+            
+            #plots motif distance from the precompiled file to the clusters 
+            plot_motif_dist(cluster_regions, motifFILE, fig, color = colors[i], species=species, slopsize=200)
         pylab.savefig(clusters + ".motif_distribution.pdf")
-
+        
+        #fin
 if __name__== "__main__":
     parser = OptionParser()
     
     parser.add_option("--clusters", dest="clusters", help="BED file of clusters", metavar="BED")
     parser.add_option("--bam", dest="bam")
-    parser.add_option("--species", dest="species", help = "genome version")
+    parser.add_option("--species", "-s", dest="species", help = "genome version")
     ##to-do. this should be auto-set if the creation date of "clusters" is after creation date fo assigned files
     parser.add_option("--reAssign", dest="assign", action="store_true", default=False, help="re-assign clusters, if not set it will re-use existing assigned clusters") 
     ##to-do. this should be auto-set if the creation date of "clusters" is after creation date fo assigned files
     parser.add_option("--rePhast", dest="rePhast", action="store_true", default=False, help="re-calculate conservation, must have been done before") 
-    #parser.add_option("--old_motifs", dest="reMotif", action="store_false", default=True, help="use old motif files")
+    parser.add_option("--old_motifs", dest="reMotif", action="store_false", default=True, help="use old motif files")
     parser.add_option("--motif", dest="motif", action="append", help="Files of motif locations", default=None)
-    parser.add_option("--homer", dest="homer", action="store_true", help="What does this do?", default=False)
-    parser.add_option("--conservation", dest="cons", help="what does this do?", action="store_true")
-    parser.add_option("--structure", dest="structure", help="what does this do?", action="store_true")
+    parser.add_option("--homer", dest="homer", action="store_true", help="Runs homer", default=False)
+    parser.add_option("--k", dest="k", action="append", help="k-mer and homer motif ananlysis", default=[6])
+    parser.add_option("--conservation", dest="cons", help="Runs conservation (might not do anything)", action="store_true")
+    parser.add_option("--structure", dest="structure", help="also doesn't do anything gets structure maps", action="store_true")
     parser.add_option("--nrand", dest="nrand", default=3, help="selects number of times to randomly sample genome", type="int")
-    parser.add_option("--k", dest="k", action="append", help="what does this do?", default=[6])
     parser.add_option("--outdir", "-o", dest="outdir", default=os.getcwd(), help="directory for output, default:cwd")
-    parser.add_option("--run_phast", dest="run_phast", action="store_true", help="what does this do?", default=False)
+    parser.add_option("--run_phast", dest="run_phast", action="store_true", help="re-runs phastcons (not be implemented)", default=False)
+    ##Below here are critical files that always need to be referenced
+    parser.add_option("--AS_Structure", dest="as_structure",  help="Location of AS_Structure directory (chromosme files should be inside)", default=None)
+    parser.add_option("--genome_location", dest="genome_location", help="location of all.fa file for genome of interest", default=None)
+    parser.add_option("--homer_path", dest="homer_path", action="append", help="path to homer, if not in default path", default=None)
+    parser.add_option("--phastcons_location", dest="phastcons_location",  help="location of phastcons file", default=None)
+    parser.add_option("--regions_location", dest="regions_location",  help="directory of genomic regions for a species", default=None)
+    parser.add_option("--motif_directory", dest="motif_dir",  help="directory of pre-computed motifs for analysis", default=None)
    
-    
     (options, args) = parser.parse_args()
     
     #error checking

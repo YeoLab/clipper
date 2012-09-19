@@ -6,6 +6,8 @@ Created on Sep 10, 2012
 import unittest
 import CLIP_analysis 
 from optparse import OptionParser, SUPPRESS_HELP 
+import os
+import pkg_resources       
 
 class Test(unittest.TestCase):
     
@@ -23,7 +25,7 @@ class Test(unittest.TestCase):
         self.parser.add_option("--reAssign", dest="assign", action="store_true", default=False, help="re-assign clusters, if not set it will re-use existing assigned clusters") 
         ##to-do. this should be auto-set if the creation date of "clusters" is after creation date fo assigned files
         self.parser.add_option("--rePhast", dest="rePhast", action="store_true", default=False, help="re-calculate conservation, must have been done before") 
-        #parser.add_option("--old_motifs", dest="reMotif", action="store_false", default=True, help="use old motif files")
+        self.parser.add_option("--old_motifs", dest="reMotif", action="store_false", default=True, help="use old motif files")
         self.parser.add_option("--motif", dest="motif", action="append", help="Files of motif locations", default=None)
         self.parser.add_option("--homer", dest="homer", action="store_true", help="What does this do?", default=False)
         self.parser.add_option("--conservation", dest="cons", help="what does this do?", action="store_true")
@@ -32,7 +34,14 @@ class Test(unittest.TestCase):
         self.parser.add_option("--k", dest="k", action="append", help="what does this do?", default=[6])
         self.parser.add_option("--outdir", "-o", dest="outdir", default=os.getcwd(), help="directory for output, default:cwd")
         self.parser.add_option("--run_phast", dest="run_phast", action="store_true", help="what does this do?", default=False)
-
+        self.parser.add_option("--AS_Structure", dest="as_structure", help="Location of AS_Structure directory (chromosme files should be inside)", default=None)
+        self.parser.add_option("--genome_location", dest="genome_location", help="location of all.fa file for genome of interest", default=None)
+        self.parser.add_option("--homer_path", dest="homer_path", help="path to homer, if not in default path", default=None)
+        self.parser.add_option("--phastcons_location", dest="phastcons_location", help="location of phastcons file", default=None)
+        self.parser.add_option("--regions_location", dest="regions_location" , help="directory of genomic regions for a species", default=None)
+        self.parser.add_option("--motif_location", dest="motif_location", help="directory of pre-computed motifs for analysis", default=None)
+       
+     
     def testName(self):
         pass
 
@@ -40,12 +49,17 @@ class Test(unittest.TestCase):
         
         """ runs entire program on small test dataset """
         
-        args = ["--clusters", pkg_resources.resource_filename(__name__, "../test/clipper_results.BED"),
-                "-s", "hg19",
-                "--bam", pkg_resources.resource_filename(__name__, "../test/IMP2_Hues6_4A_2010.tq3.norep_gsnaphg19.srt.bam"),
+        args = ["--clusters", pkg_resources.resource_filename(__name__, "../test/clipper_results_chr2.BED"),
+                "-s", "mm9",
+                "--bam", pkg_resources.resource_filename(__name__, "../test/allup_test.bam"),
+                "--AS_Structure", "/home/gabrielp/bioinformatics/Yeo_Lab/clip_analysis_metadata/mm9data4",
+                '--genome_location', '/home/gabrielp/bioinformatics/Yeo_Lab/clip_analysis_metadata/mm9/mm9.fa', 
+                "--regions_location", '/home/gabrielp/bioinformatics/Yeo_Lab/clip_analysis_metadata/regions',
+                '--phastcons_location', '/home/gabrielp/bioinformatics/Yeo_Lab/clip_analysis_metadata/phastcons/mm9_phastcons.bw',
+                '--motif', 'AAAAAA',
                 ]    
         (options, args) = self.parser.parse_args(args)
-        main(options)
+        CLIP_analysis.main(options)
     
    
     def test_CLIP_figure(self):

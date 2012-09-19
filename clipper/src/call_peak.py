@@ -771,7 +771,8 @@ def peaks_from_info(wiggle, pos_counts, lengths, loc, gene_length,
                 if len(peaks) <= 0:
                     continue
                 if len(peaks) is 1:
-                    
+                    #TODO All this formatting logic doesn't belong here 
+                    #should be simplifed
                     #gets reads in peak
                     n_reads_in_peak = sum(cts[p_start:(p_stop + 1)])
                     #verboseprint(""""Peak %d (%d - %d) has %d 
