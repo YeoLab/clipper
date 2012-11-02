@@ -695,6 +695,7 @@ def motif_boxplots(kmerloc, filename, klengths, highlight_motifs, subplot=None):
 def get_motif_distance(clusters, motif, slop=500):
     
     """
+    
     TODO: This shouldn't be in the visualization side of things, need to factor out
     
     Compares two bed files and computes distance from center of first (indicated by bed12)

@@ -11,6 +11,7 @@ from bx.bbi.bigwig_file import BigWigFile
 import pysam
 import CLIP_Analysis_Display
 import pylab
+from kmerdiff import kmerdiff
 
 def intersection(A, B=None):
     
@@ -88,7 +89,7 @@ def build_AS_STRUCTURE_dict(species, dir):
     
     Important return values:
     
-    PArses out all important AS structure - see constructed dict in function
+    Parses out all important AS structure - see constructed dict in function
     for information on what is needed...
     
     GTypes - number of each exon type (used for getting background number
@@ -811,25 +812,26 @@ def main(options):
     Gtype_count = [Gtypes["CE:"], Gtypes["SE:"], Gtypes["MXE:"], Gtypes["A5E:"], Gtypes["A3E:"]]    
 
     ### write fasta files and run homer and/or kmer analysis if at least one analysis is requested
-    #runs kmer and homer analysis 
+    #runs kmer and homer analysis
+    
+    kmer_results = {} 
     if options.reMotif is True:
-       
         for region in all_regions:
-            try:
-                
-                #reads nicely named files 
-                real_fa = fa_file(clusters, region=region, fd =  fastadir, type="real")
-                rand_fa = fa_file(clusters, region=region, fd =  fastadir, type="random")
-                if options.k is not None:
-                    if options.homer is True:
-                        region_homer_out = os.path.join(homerout, region)
-                        run_homer(real_fa, rand_fa, options.k,  outloc=region_homer_out)
-                    for k in options.k:                    
-                        kmerfile = clusters + ".k" + str(k) + "." + region + ".kmerdiff"
-                        kmerfile = os.path.join(kmerout, kmerfile)
-                        kmer_sorted_output = run_kmerdiff(real_fa, rand_fa, outfile=kmerfile, k=k)
-            except:
-                continue
+
+            #reads nicely named files 
+            real_fa = fa_file(clusters, region=region, fd =  fastadir, type="real")
+            rand_fa = fa_file(clusters, region=region, fd =  fastadir, type="random")
+            if options.k is not None:
+                if options.homer is True:
+                    region_homer_out = os.path.join(homerout, region)
+                    run_homer(real_fa, rand_fa, options.k,  outloc=region_homer_out)
+                for k in options.k:
+                    kmer_results[k] = {}
+                    kmer_results[k][region] = kmerdiff(real_fa, rand_fa, k)
+                    kmerfile = clusters + ".k" + str(k) + "." + region + ".kmerdiff"
+                    kmerfile = os.path.join(kmerout, kmerfile)
+                    kmer_sorted_output = run_kmerdiff(real_fa, rand_fa, outfile=kmerfile, k=k)
+
             
     #all the different motifs that the user specifices 
     motifs = list(options.motif)

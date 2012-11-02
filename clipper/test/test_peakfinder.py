@@ -40,7 +40,9 @@ class test_peakfinder(unittest.TestCase):
         self.parser.add_option("--poisson-cutoff", dest="poisson_cutoff", type="float", help="p-value cutoff for poisson test, Default:%default", default=0.05, metavar="P")
         self.parser.add_option("--FDR", dest="FDR_alpha", type="float", default=0.05, help="FDR cutoff for significant height estimation, default=%default")
         self.parser.add_option("--threshold", dest="threshold", type="int", default=None, help="Skip FDR calculation and set a threshold yourself")
-    
+        
+        self.parser.add_option("--global-cutoff", dest="global_cutoff", action="store_false", help="apply global transcriptome level cutoff to CLIP-seq peaks, Default:%default", default=True, metavar="P")
+
         self.parser.add_option("--serial", dest="serial", action="store_true", help="run genes in sequence (not parallel)")
         self.parser.add_option("--maxgenes", dest="maxgenes", default=None, help="stop computation after this many genes, for testing", metavar="NGENES")
         self.parser.add_option("--job_name", dest="job_name", default="FAP", help="name for submitted job. Not used with --serial.  default:%default", metavar="NAME")
@@ -319,7 +321,93 @@ class test_peakfinder(unittest.TestCase):
         build_transcript_data(None, clipper.data_file("test.AS.STRUCTURE_genes.BED.gz"), clipper.data_file("test.AS.STRUCTURE_mRNA.lengths"), None, False)
         build_transcript_data(None, clipper.data_file("test.AS.STRUCTURE_genes.BED.gz"), None, clipper.data_file("test.AS.STRUCTURE_mRNA.lengths"), True)
     
-    
+    def test_transcriptome_filter(self):
+        """
+        
+        Tests transcriptome filter
+        not great tests, but good enough to make sure we don't have regressions
+        
+        """
+        cluster = {'Nreads' : 5, "size" : 10}
+        transcriptome_size = 1000
+        transcriptome_reads = 10000
+        poisson_cutoff = .05
+        
+        result = transcriptome_filter(poisson_cutoff, transcriptome_size, transcriptome_reads, cluster)
+        
+        self.assertFalse(result) 
+        
+        cluster = {'Nreads' : 10000, "size" : 100}
+        transcriptome_size = 1000
+        transcriptome_reads = 10000
+        poisson_cutoff = .05
+        
+        result = transcriptome_filter(poisson_cutoff, transcriptome_size, transcriptome_reads, cluster)
+        self.assertTrue(result)
+        
+        cluster = {'Nreads' : 0, "size" : 0}
+        transcriptome_size = 0
+        transcriptome_reads = 10000
+        poisson_cutoff = .05
+        
+        result = transcriptome_filter(poisson_cutoff, transcriptome_size, transcriptome_reads, cluster)
+        self.assertFalse(result)
+        
+    def test_filter_results(self):
+        
+        """
+        
+        tests filter results
+        
+        good for regression tests, need to do better verification...
+        
+        """
+        results = [{'loc': ['chr15', 'ENSG00000198901', 91509274, 91537804, '-'], 
+          'Nclusters': 24, 
+          'nreads': 2086, 
+          'threshold': 32, 
+          'clusters': {'chr15\t1\t10\tENSG1\t3.44651351902e-09\t-\t50\t60': {'GeneP': .04, 'Nreads': 52, 'SloP': .04, 'size': 32}, 
+                       'chr15\t200\t300\tENSG2\t0.0\t-\t140\t160': {'GeneP': .06, 'Nreads': 239, 'SloP': .06, 'size': 45}}}]
+        
+
+        transcriptome_size = 10000
+        transcriptome_reads = 100000
+        
+        result = filter_results(results, .07, transcriptome_size, transcriptome_reads, False)
+        self.assertSetEqual(set(['chr15\t1\t10\tENSG1\t0.04\t-\t50\t60', 'chr15\t200\t300\tENSG2\t0.06\t-\t140\t160']), result)
+        #assert False
+        
+        result = filter_results(results, .05, transcriptome_size, transcriptome_reads, False)
+        self.assertSetEqual(set(['chr15\t1\t10\tENSG1\t0.04\t-\t50\t60']), result)
+
+        result = filter_results(results, .07, transcriptome_size, transcriptome_reads, True)
+        self.assertSetEqual(set([]), result)
+
+    def test_count_transcriptome_reads(self):
+        """
+        
+        Tests count_transcriptome_reads
+        
+        """
+        
+        results = [
+          {'loc': ['chr15', 'ENSG00000198901', 91509274, 91537804, '-'], 
+          'Nclusters': 24, 
+          'nreads': 200, 
+          'threshold': 32, 
+          'clusters': {'chr15\t1\t10\tENSG1\t3.44651351902e-09\t-\t50\t60': {'GeneP': 3.4465135190231422e-09, 'Nreads': 100, 'SloP': 3.4465135190231422e-09, 'size': 32}, 
+                       'chr15\t200\t300\tENSG2\t0.0\t-\t140\t160': {'GeneP': 0.0, 'Nreads': 100, 'SloP': 0.0, 'size': 45}}}, 
+          {'loc': ['chr15', 'ENSG00000198901', 91509274, 91537804, '-'], 
+          'Nclusters': 24, 
+          'nreads': 200, 
+          'threshold': 32, 
+          'clusters': {'chr15\t1\t10\tENSG1\t3.44651351902e-09\t-\t50\t60': {'GeneP': 3.4465135190231422e-09, 'Nreads': 100, 'SloP': 3.4465135190231422e-09, 'size': 32}, 
+                       'chr15\t200\t300\tENSG2\t0.0\t-\t140\t160': {'GeneP': 0.0, 'Nreads': 100, 'SloP': 0.0, 'size': 45}}},  
+                   ]
+        result = count_transcriptome_reads(results)
+        
+        self.assertEqual(400, result)
+        
     def test_main(self):
         
         """
