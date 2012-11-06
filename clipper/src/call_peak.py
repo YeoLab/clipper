@@ -619,9 +619,10 @@ def peaks_from_info(wiggle, pos_counts, lengths, loc, gene_length,
         #sets super-local if requested, might be able to factor this
         if user_threshold is None:
             if SloP is True:
-                threshold = get_FDR_cutoff_mean(sect_read_lengths, 
+                #use the minimum FDR cutoff between superlocal and gene-wide calculations
+                threshold = min(gene_theshold, get_FDR_cutoff_mean(sect_read_lengths, 
                                                 sect_length, 
-                                                alpha=fdr_alpha)
+                                                alpha=fdr_alpha))
                 
                #verboseprint("Using super-local threshold %d" % (threshold))
                 
