@@ -71,13 +71,13 @@ class test_peakfinder(unittest.TestCase):
                   "-g", "ENSG00000198901", 
                   "--serial", 
                   "--job_name=peak_test",
-                   "--outfile=" + os.getcwd() + "/peak_results",
+                   "--outfile=" + os.getcwd() + "/peak_results.bed",
                    "-q"
                 ]    
         (options, args) = self.parser.parse_args(args)
         main(options)
         print os.getcwd()
-        tested = open(os.getcwd() + "/peak_results.BED")
+        tested = open(os.getcwd() + "/peak_results.bed")
         correct = open(pkg_resources.resource_filename(__name__, "../test/peak_results_no_overlap.BED"))
         
         #problem with tracks being different
@@ -90,7 +90,7 @@ class test_peakfinder(unittest.TestCase):
             self.assertEqual(test, correct)
         
         #cleanup
-        #os.remove(pkg_resources.resource_filename(__name__, "../src/peak_results.BED"))
+        os.remove(os.getcwd() + "/peak_results.bed")
  
     def test_check_overlaps(self):
         
@@ -105,22 +105,22 @@ class test_peakfinder(unittest.TestCase):
                   "-g", "ENSG00000198901", 
                   "--serial", 
                   "--job_name=peak_test",
-                   "--outfile=" + os.getcwd() + "/peak_results",
+                   "--outfile=" + os.getcwd() + "/peak_results.bed",
                    "-q"
                 ]    
         (options, args) = self.parser.parse_args(args)
         main(options)
         
         #tests to make sure there are no overlaps
-        tested = open(os.getcwd() + "/peak_results.BED")
+        tested = open(os.getcwd() + "/peak_results.bed")
         tested_tool2 = pybedtools.BedTool(tested).saveas(os.getcwd() + "/foo.bed")
         result = tested_tool2.intersect(tested_tool2)
         self.assertEqual(len(result), len(tested_tool2), 
                          "there are overlaps in the output file") 
         
         #cleanup
-        #os.remove(pkg_resources.resource_filename(__name__, "../src/peak_results.BED"))
-       
+        os.remove(os.getcwd() + "/peak_results.bed")
+        os.remove(os.getcwd() + "/foo.bed")
        
 
     
