@@ -338,6 +338,7 @@ def filter_results(results, poisson_cutoff, transcriptome_size, transcriptome_re
     
     """
     
+    print global_cutoff
     #combine results
     allpeaks = set([])
         
@@ -418,11 +419,13 @@ def main(options):
     poisson_cutoff = options.poisson_cutoff
 
     #gets all the genes to call peaks on
-    if options.gene is not None and len(options.gene ) > 0:
+
+    if options.gene is not None and len(options.gene) > 0:
         gene_list = options.gene
     else: #selects all genes
         gene_list = genes.keys()
-                
+    
+
     results = []
     
     #Set up peak calling by gene
@@ -434,12 +437,15 @@ def main(options):
         running_list = running_list[:maxgenes]
         length_list  = length_list[:maxgenes]
     
+
     transcriptome_size = sum(length_list)
     #do the parralization
     tasks =  [(gene, length, None, bamfile, margin, options.FDR_alpha, 
                options.threshold, minreads, poisson_cutoff, 
                options.plotit, 10, 1000, options.SloP, False)
               for gene, length in zip(running_list, length_list)]
+    
+    print tasks
     if options.debug:
         jobs = []
         for job in tasks:
@@ -468,7 +474,7 @@ def main(options):
     
     verboseprint("""Transcriptome size is %d, transcriptome 
      reads are %d""" % (transcriptome_size, transcriptome_reads))
-
+    print results
     allpeaks = filter_results(results, 
                               poisson_cutoff, 
                               transcriptome_size,  
@@ -509,7 +515,7 @@ def call_main():
     parser.add_option("--trim", dest="trim", action="store_true", default=False, help="Trim reads with the same start/stop to count as 1")
     parser.add_option("--premRNA", dest="premRNA", action="store_true", help="use premRNA length cutoff, default:%default", default=False)
     parser.add_option("--poisson-cutoff", dest="poisson_cutoff", type="float", help="p-value cutoff for poisson test, Default:%default", default=0.05, metavar="P")
-    parser.add_option("--global-cutoff", dest="global_cutoff", action="store_false", help="apply global transcriptome level cutoff to CLIP-seq peaks, Default:%default", default=True, metavar="P")
+    parser.add_option("--disable_global_cutoff", dest="global_cutoff", action="store_false", help="disables global transcriptome level cutoff to CLIP-seq peaks, Default:%default", default=True, metavar="P")
     parser.add_option("--FDR", dest="FDR_alpha", type="float", default=0.05, help="FDR cutoff for significant height estimation, default=%default")
     parser.add_option("--threshold", dest="threshold", type="int", default=None, help="Skip FDR calculation and set a threshold yourself")
     parser.add_option("--maxgenes", dest="maxgenes", default=None, help="stop computation after this many genes, for testing", metavar="NGENES")
@@ -535,7 +541,6 @@ def call_main():
             print
     else:   
         verboseprint = lambda *a: None      # do-nothing function
-
     
     #enforces required usage    
     if not (options.bam and ((options.species) or (options.geneBEDfile and options.geneMRNAfile and options.genePREMRNAfile))):

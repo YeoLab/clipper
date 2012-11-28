@@ -69,8 +69,6 @@ class test_peakfinder(unittest.TestCase):
         args = ["-b", pkg_resources.resource_filename(__name__, "../test/allup_test.bam"),
                  "-s", "hg19",
                   "-g", "ENSG00000198901", 
-                  "--serial", 
-                  "--job_name=peak_test",
                    "--outfile=" + os.getcwd() + "/peak_results.bed",
                    "-q"
                 ]    
@@ -91,7 +89,61 @@ class test_peakfinder(unittest.TestCase):
         
         #cleanup
         os.remove(os.getcwd() + "/peak_results.bed")
- 
+    
+    def test_transcriptome_filter(self):
+        
+        """
+        
+        Tests transcriptome filter, makes sure special test file 
+        detects only one peak when filter is enable and detects two peaks when filter is disabled
+        
+        
+        """
+        args = ["-b", pkg_resources.resource_filename(__name__, "../test/transcriptome_cutoff.bam"),
+                 "-s", "hg19",
+                  "-g", "ENSG00000198901", 
+                   "--outfile=" + os.getcwd() + "/peak_results.bed",
+                   "-q"
+                ]    
+        (options, args) = self.parser.parse_args(args)
+        main(options)
+        print os.getcwd()
+        tested = open(os.getcwd() + "/peak_results.bed")
+        correct = open(pkg_resources.resource_filename(__name__, "../test/peak_results_no_overlap.BED"))
+        
+        #problem with tracks being different
+        tested_tool = pybedtools.BedTool(tested)
+        correct_tool = pybedtools.BedTool(correct)
+        
+        #checks to make sure files are equal and there are not exact dups
+        self.assertEqual(len(tested_tool), 1)
+                
+        #cleanup
+        os.remove(os.getcwd() + "/peak_results.bed")
+    
+        args = ["-b", pkg_resources.resource_filename(__name__, "../test/transcriptome_cutoff.bam"),
+                 "-s", "hg19",
+                  "-g", "ENSG00000198901", 
+                   "--outfile=" + os.getcwd() + "/peak_results.bed",
+                   "-q"
+                   "--disable_global_filter"
+                ]    
+        (options, args) = self.parser.parse_args(args)
+        main(options)
+        print os.getcwd()
+        tested = open(os.getcwd() + "/peak_results.bed")
+        correct = open(pkg_resources.resource_filename(__name__, "../test/peak_results_no_overlap.BED"))
+        
+        #problem with tracks being different
+        tested_tool = pybedtools.BedTool(tested)
+        correct_tool = pybedtools.BedTool(correct)
+        
+        #checks to make sure files are equal and there are not exact dups
+        self.assertEqual(len(tested_tool), 2)
+                
+        #cleanup
+        os.remove(os.getcwd() + "/peak_results.bed")
+    
     def test_check_overlaps(self):
         
         """

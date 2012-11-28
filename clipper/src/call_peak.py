@@ -331,14 +331,16 @@ def call_peaks(loc, gene_length, bam_fileobj=None, bam_file=None,
     elif bam_fileobj is None:
         bam_fileobj = pysam.Samfile(bam_file, 'rb')
         
-    tx_start, tx_end = map(int, [tx_start, tx_end])
+    tx_start, tx_end = [int(x) for x in [tx_start, tx_end]]
     subset_reads = bam_fileobj.fetch(reference=chrom, start=tx_start, end=tx_end)
 
     #need to document reads to wiggle
     wiggle, jxns, pos_counts, lengths, allreads = readsToWiggle_pysam(subset_reads, tx_start, tx_end, signstrand, "center", False)
+
     #wiggle, pos_counts, lengths = readsToWiggle_pysam(subset_reads, tx_start, tx_end, signstrand, "center", False)
-    #bam_fileobj.close()
-    
+
+    #TODO have a check to kill this if there aren't any reads in a region
+        
     result = peaks_from_info(list(wiggle), pos_counts, lengths, loc, gene_length, margin, fdr_alpha, user_threshold, minreads, poisson_cutoff, plotit, w_cutoff, windowsize, SloP, correct_p)
 
     return result
