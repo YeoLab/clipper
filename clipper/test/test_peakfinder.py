@@ -41,7 +41,7 @@ class test_peakfinder(unittest.TestCase):
         self.parser.add_option("--FDR", dest="FDR_alpha", type="float", default=0.05, help="FDR cutoff for significant height estimation, default=%default")
         self.parser.add_option("--threshold", dest="threshold", type="int", default=None, help="Skip FDR calculation and set a threshold yourself")
         
-        self.parser.add_option("--global-cutoff", dest="global_cutoff", action="store_false", help="apply global transcriptome level cutoff to CLIP-seq peaks, Default:%default", default=True, metavar="P")
+        self.parser.add_option("--disable_global_cutoff", dest="global_cutoff", action="store_false", help="disables global transcriptome level cutoff to CLIP-seq peaks, Default:%default", default=True, metavar="P")
 
         self.parser.add_option("--serial", dest="serial", action="store_true", help="run genes in sequence (not parallel)")
         self.parser.add_option("--maxgenes", dest="maxgenes", default=None, help="stop computation after this many genes, for testing", metavar="NGENES")
@@ -56,8 +56,6 @@ class test_peakfinder(unittest.TestCase):
 
 
     
-    
-
     def test_allup(self):
         
         """
@@ -65,7 +63,7 @@ class test_peakfinder(unittest.TestCase):
         Performs basic all up test on entire program (except for main)
         
         """
-        
+
         args = ["-b", pkg_resources.resource_filename(__name__, "../test/allup_test.bam"),
                  "-s", "hg19",
                   "-g", "ENSG00000198901", 
@@ -74,7 +72,7 @@ class test_peakfinder(unittest.TestCase):
                 ]    
         (options, args) = self.parser.parse_args(args)
         main(options)
-        print os.getcwd()
+
         tested = open(os.getcwd() + "/peak_results.bed")
         correct = open(pkg_resources.resource_filename(__name__, "../test/peak_results_no_overlap.BED"))
         
@@ -90,60 +88,69 @@ class test_peakfinder(unittest.TestCase):
         #cleanup
         os.remove(os.getcwd() + "/peak_results.bed")
     
-    def test_transcriptome_filter(self):
+    def test_filter(self):
         
         """
         
-        Tests transcriptome filter, makes sure special test file 
+        Tests transcriptome filter 
+        makes sure special test file 
         detects only one peak when filter is enable and detects two peaks when filter is disabled
         
         
         """
+        
         args = ["-b", pkg_resources.resource_filename(__name__, "../test/transcriptome_cutoff.bam"),
                  "-s", "hg19",
                   "-g", "ENSG00000198901", 
-                   "--outfile=" + os.getcwd() + "/peak_results.bed",
+                  '-g', "ENSG00000226167",
+                   "--outfile=" + os.getcwd() + "/cut_off_included.bed",
                    "-q"
                 ]    
         (options, args) = self.parser.parse_args(args)
         main(options)
-        print os.getcwd()
-        tested = open(os.getcwd() + "/peak_results.bed")
-        correct = open(pkg_resources.resource_filename(__name__, "../test/peak_results_no_overlap.BED"))
+        
+        tested = open(os.getcwd() + "/cut_off_included.bed")
         
         #problem with tracks being different
         tested_tool = pybedtools.BedTool(tested)
-        correct_tool = pybedtools.BedTool(correct)
+   
         
         #checks to make sure files are equal and there are not exact dups
         self.assertEqual(len(tested_tool), 1)
                 
         #cleanup
-        os.remove(os.getcwd() + "/peak_results.bed")
-    
+        os.remove(os.getcwd() + "/cut_off_included.bed")
+        
+    def test_cutoff(self):
+        
+        """
+        
+        Tests that the cutoff code works if its enabled
+        
+        """
         args = ["-b", pkg_resources.resource_filename(__name__, "../test/transcriptome_cutoff.bam"),
                  "-s", "hg19",
                   "-g", "ENSG00000198901", 
-                   "--outfile=" + os.getcwd() + "/peak_results.bed",
-                   "-q"
-                   "--disable_global_filter"
+                  '-g', "ENSG00000226167",
+                   "--outfile=" + os.getcwd() + "/no_cut_off.bed",
+                   "-q",
+                   "--disable_global_cutoff"
                 ]    
         (options, args) = self.parser.parse_args(args)
         main(options)
-        print os.getcwd()
-        tested = open(os.getcwd() + "/peak_results.bed")
-        correct = open(pkg_resources.resource_filename(__name__, "../test/peak_results_no_overlap.BED"))
+        
+        tested = open(os.getcwd() + "/no_cut_off.bed")
         
         #problem with tracks being different
         tested_tool = pybedtools.BedTool(tested)
-        correct_tool = pybedtools.BedTool(correct)
+   
         
         #checks to make sure files are equal and there are not exact dups
         self.assertEqual(len(tested_tool), 2)
                 
         #cleanup
-        os.remove(os.getcwd() + "/peak_results.bed")
-    
+        os.remove(os.getcwd() + "/no_cut_off.bed")
+        
     def test_check_overlaps(self):
         
         """

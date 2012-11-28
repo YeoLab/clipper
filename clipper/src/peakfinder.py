@@ -445,7 +445,6 @@ def main(options):
                options.plotit, 10, 1000, options.SloP, False)
               for gene, length in zip(running_list, length_list)]
     
-    print tasks
     if options.debug:
         jobs = []
         for job in tasks:
@@ -474,7 +473,7 @@ def main(options):
     
     verboseprint("""Transcriptome size is %d, transcriptome 
      reads are %d""" % (transcriptome_size, transcriptome_reads))
-    print results
+
     allpeaks = filter_results(results, 
                               poisson_cutoff, 
                               transcriptome_size,  
