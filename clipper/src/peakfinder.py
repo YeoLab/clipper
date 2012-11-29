@@ -269,7 +269,6 @@ def build_transcript_data(species, gene_bed, gene_mrna, gene_pre_mrna, pre_mrna)
 def transcriptome_filter(poisson_cutoff, transcriptome_size, transcriptome_reads, cluster):
     
     """
-    
     filters each cluster by if it passes a transciptome wide cutoff or not, returns true if it passes
     transcriptome cutoff, false if not
     
@@ -277,7 +276,6 @@ def transcriptome_filter(poisson_cutoff, transcriptome_size, transcriptome_reads
     transcriptome_size - int number of genes in transcriptome
     transcritpmoe_reads - int total number of reads analized
     cluster - dict, stats about the cluster we are analizing {'Nreads' : int, 'size' : int}
-    
     """
     
     transcriptome_p = poissonP(transcriptome_reads, 
@@ -324,7 +322,7 @@ def count_transcriptome_reads(results):
     
     return transcriptome_reads
 
-def filter_results(results, poisson_cutoff, transcriptome_size, transcriptome_reads, global_cutoff):
+def filter_results(results, poisson_cutoff, transcriptome_size, transcriptome_reads, use_global_cutoff):
     
     """
     
@@ -337,8 +335,6 @@ def filter_results(results, poisson_cutoff, transcriptome_size, transcriptome_re
     transcriptome_size - number of genes there are in the transcriptome
     
     """
-    
-    print global_cutoff
     #combine results
     allpeaks = set([])
         
@@ -353,7 +349,7 @@ def filter_results(results, poisson_cutoff, transcriptome_size, transcriptome_re
             meets_cutoff = True
             try:
                 
-                if global_cutoff:
+                if use_global_cutoff:
                     meets_cutoff = meets_cutoff and transcriptome_filter(poisson_cutoff, 
                                                                          transcriptome_size, 
                                                                          transcriptome_reads,  
@@ -480,7 +476,7 @@ def main(options):
                               poisson_cutoff, 
                               transcriptome_size,  
                               transcriptome_reads, 
-                              options.global_cutoff)
+                              options.use_global_cutoff)
  
     outbed = options.outfile
     color = options.color
@@ -516,7 +512,7 @@ def call_main():
     parser.add_option("--trim", dest="trim", action="store_true", default=False, help="Trim reads with the same start/stop to count as 1")
     parser.add_option("--premRNA", dest="premRNA", action="store_true", help="use premRNA length cutoff, default:%default", default=False)
     parser.add_option("--poisson-cutoff", dest="poisson_cutoff", type="float", help="p-value cutoff for poisson test, Default:%default", default=0.05, metavar="P")
-    parser.add_option("--disable_global_cutoff", dest="global_cutoff", action="store_false", help="disables global transcriptome level cutoff to CLIP-seq peaks, Default:%default", default=True, metavar="P")
+    parser.add_option("--disable_global_cutoff", dest="use_global_cutoff", action="store_false", help="disables global transcriptome level cutoff to CLIP-seq peaks, Default:On", default=True, metavar="P")
     parser.add_option("--FDR", dest="FDR_alpha", type="float", default=0.05, help="FDR cutoff for significant height estimation, default=%default")
     parser.add_option("--threshold", dest="threshold", type="int", default=None, help="Skip FDR calculation and set a threshold yourself")
     parser.add_option("--maxgenes", dest="maxgenes", default=None, help="stop computation after this many genes, for testing", metavar="NGENES")
@@ -542,6 +538,8 @@ def call_main():
             print
     else:   
         verboseprint = lambda *a: None      # do-nothing function
+    if options.plotit:
+        options.debug=True
     
     #enforces required usage    
     if not (options.bam and ((options.species) or (options.geneBEDfile and options.geneMRNAfile and options.genePREMRNAfile))):
