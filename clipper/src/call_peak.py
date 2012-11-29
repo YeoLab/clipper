@@ -1,6 +1,6 @@
 '''
 Created on Jul 25, 2012
-
+@author: mlovci
 @author: gabrielp
 '''
 
@@ -18,11 +18,16 @@ import matplotlib.patches as patches
 from scipy import stats
 from random import sample as rs
 import math
+import logging
 
+
+
+    
     
 def verboseprint(*args):
     
-    """ prints out print statements if nessessary"""
+    """ DEPRACATED: USE logging
+    prints out print statements if nessessary"""
     
     # Print each argument separately so caller doesn't need to
     # stuff everything to be printed into a single string
@@ -119,7 +124,7 @@ def get_FDR_cutoff_mean(readlengths,
 
 
 
-def plot_spline(spline, data, xvals, section, threshold=None):
+def plot_spline(spline, title=None, threshold=None):
     
     """
     
@@ -131,47 +136,49 @@ def plot_spline(spline, data, xvals, section, threshold=None):
     threshold - line to draw so peaks don't go below threshold
     
     """
-    
     fig = plt.figure()
-    plt.title(section)
+    if title is not None:
+        plt.title(title)
     ax1 = fig.add_subplot(111)
-    ax1.plot(xvals, data)
-    ax1.plot(xvals, spline(xvals))
+    ax1.plot(spline._data[0], spline._data[1])
+    ax1.plot(spline._data[0], spline(spline._data[0]))
+
     if threshold is not None:
         ax1.axhline(y=threshold)
+
     plt.show()
+
+def get_norm_penalized_residuals(spline):
+    from scipy.linalg import norm
+
+    err = norm(spline(spline._data[0])) * spline.get_residual()
+    return err
     
-def find_spline_residuals(spline_range, spline_data, ydata, k, weight=None):
+    
+    
+
+def get_turn_penalized_residuals(spline):
+
+    func = spline(spline._data[0])
+    turns = sum(abs(diff(sign(diff(func))))) / 2     
+    err = sqrt((spline.get_residual()) * (turns ** 4))
+    return err
+
+def spline_loss(spline, errfunc=get_turn_penalized_residuals):
     
     """
-    
     Returns complexity penalized residuals from a smoothing spline
     
-    spline_range -- Int, range of spline
-    xdata -- list, wiggle track positions   
-    ydata -- list, wiggle track coverage 
-    k -- int, degree of spline
-    
     """
-    
-    #print spline_range
-    spline = find_univariate_spline(spline_range, spline_data, ydata, k, weight)
-    
-    #catches spline fitting error
-    if spline is None:
-        return Inf
-    
-    #calculates residuals
-    func = spline(spline_data)
-    
-    # number of turns in the function
-    turns = sum(abs(diff(sign(diff(func))))) / 2 
-    
-     
-    err = sqrt((spline.get_residual()) * (turns ** 4))
+
+    if spline is None:    #catches spline fitting error
+        raise TypeError("Spline is of None type")
+
+    err = errfunc(spline)
+
     return(err)
     
-def find_univariate_spline(spline_range, spline_data, ydata, k, weight=None):
+def fit_univariate_spline(smoothingFactor, xRange, yData,  k, weight=None):
     
     """
     
@@ -179,33 +186,143 @@ def find_univariate_spline(spline_range, spline_data, ydata, k, weight=None):
     or return the smoothing spline if resid ==False
     
     Parameters:
-    spline_range -- Int, range of spline
-    spline_data -- list, wiggle track positions   
-    ydata -- list, wiggle track coverage 
+    smoothingFactor -- parameter for UnivariateSpline
+    xRange -- Int, range of spline
+    yData -- list, wiggle track positions   
     k -- int, degree of spline
-    
-    Output: spline object and error if asked for by setting resid, probably want to factor out error calcluation into 
-    second function
-    
-    refer to scipy documentation for futher questions.
-    This functions results are undefined if all requiered argunments are not supplied
 
+    
+    Output: spline object
+    
     """
-
     try:
-        spline = interpolate.UnivariateSpline(spline_data, 
-                                              ydata, 
-                                              s=spline_range, 
+        spline = interpolate.UnivariateSpline(xRange, 
+                                              yData, 
+                                              s=smoothingFactor, 
                                               k=k, 
                                               w=weight)
-        return(spline)
-    
     except Exception as error: #This error shouldn't happen anymore
-        print >> sys.stderr, spline_range, spline_data, ydata, k, weight
-        verboseprint("failed to build spline", error)
+        print >> sys.stderr, xRange, yData, smoothingFactor, k, weight
+        logging.error("failed to build spline", error)
         raise
-        #return None
 
+    return(spline)
+
+class Spline(object):
+    """Class to fit data to a smooth curve"""
+    def __get__(self, obj, cls=None):
+        pass
+
+    def __set__(self, obj, val):
+        pass
+
+    def __delete__(self, obj):
+        pass
+
+    def __init__(self, xRange, yData, smoothingFactor=None, k=3, weight=None,
+                 lossFunction = get_turn_penalized_residuals):
+        if smoothingFactor is None:
+            smoothingFactor = len(xRange)
+        self.lossFunction = lossFunction
+        self.xRange = xRange
+        self.yData = yData
+        self.k=k
+        self.smoothingFactor = smoothingFactor
+        self.weight = weight
+        
+    def fit(self, smoothingFactor = None, weight = None, replace = True):
+        """fit a spline, return the spline. If replace is True, replace the current
+        class definition of the spline"""
+        if smoothingFactor is None:
+            smoothingFactor = self.smoothingFactor
+        if weight is None:
+            weight = self.weight            
+        spline = fit_univariate_spline(smoothingFactor, self.xRange,
+                                       self.yData, self.k, weight=self.weight)
+        if not hasattr(self, 'spline'):
+            self.spline = spline
+        elif replace:
+            self.spline = spline
+
+        return spline
+
+    def predict(self):
+        """get predicted values from the spline over the fitted area"""
+        return(self.spline(self.spline._data[0]))
+
+    def loss(self, spline = None, lossFunction = None, replace = True):
+        """calculate the result of the loss function"""
+        if lossFunction == None:
+            lossFunction = self.lossFunction
+
+        if spline == None:
+            spline = self.spline
+        error = spline_loss(spline, errfunc = lossFunction)
+        if not hasattr(self, 'error'):
+            self.error = error
+        elif replace:
+            self.error = error
+        return error
+
+    def fit_loss(self, smoothingFactor=None, replace=False, weight = None, lossFunction = None):
+        """fit a curve with a given smoothing parameter, return the result of the loss fxn"""
+        if lossFunction == None:
+            lossFunction = self.lossFunction
+
+        if smoothingFactor == None:
+            smoothingFactor = self.smoothingFactor
+
+        if weight == None:
+            weight = self.weight
+        spline = self.fit(smoothingFactor=smoothingFactor, replace=replace, weight=weight)
+        err = self.loss(spline)
+#        import pylab
+#        pylab.plot(spline._data[0], spline(spline._data[0]))
+        return err
+    
+
+    def plot(self, threshold=None, title=None):
+        """plot data and spline"""
+        if not hasattr(self, 'spline'):
+            self.fit()
+        plot_spline(self.spline, threshold=threshold, title=title)
+       
+
+    def optimize_fit(self, s_estimate=None, method = 'L-BFGS-B', bounds=((1,None),),
+                     replace=False, weight=None, lossFunction=None):
+        """optimize the smoothingFactor for fitting."""
+        import scipy
+        from scipy import optimize
+        if s_estimate == None:
+            s_estimate = self.smoothingFactor
+
+        if lossFunction == None:
+            lossFunction = self.lossFunction
+
+        minOpts = {'disp':True,
+                   'maxiter':40}
+
+
+        minimizeResult = scipy.optimize.minimize(self.fit_loss, s_estimate,
+                                          args = (replace, weight, lossFunction),
+                                          options = minOpts,
+                                          method = method,
+                                          bounds = bounds,
+                                          )
+        if minimizeResult.success:
+            optimizedSmoothingParameter = minimizeResult.x
+            self.optimizedSmoothingParam = optimizedSmoothingParameter
+            optimizedSpline = self.fit(optimizedSmoothingParameter, weight)
+        else:
+            logging.error("Problem spline fitting. Here is the message:\n%s" %(minimizeResult.message))
+            raise Exception
+        if replace:
+            self.smoothingFactor = optimizedSmoothingParameter
+            self.spline = optimizedSpline
+
+        return(optimizedSmoothingParameter, self.loss(optimizedSpline, lossFunction = lossFunction, replace=False))
+        
+    
 
 def plot_sections(wiggle, sections, threshold):
     
@@ -306,6 +423,7 @@ def call_peaks(loc, gene_length, bam_fileobj=None, bam_file=None,
     margin - space between sections for calling new peaks
     fdr_alpha - false discovery rate, p-value bonferoni correct from peaks script (called in setup)
     user_threshold - user defined FDR thershold (probably should be factored into fdr_alpha
+
     minreads - min reads in section to try and call peaks
     poisson_cutoff - p-value for signifance cut off for number of reads in peak that gets called - might want to use ashifted distribution
     plotit - makes figures 
@@ -325,7 +443,7 @@ def call_peaks(loc, gene_length, bam_fileobj=None, bam_file=None,
         #using a file opbject is faster for serial processing 
         #but doesn't work in parallel
         
-        verboseprint("""you have to pick either bam file or bam file 
+        logging.error("""you have to pick either bam file or bam file 
                         object, not both""")
         exit()
     elif bam_fileobj is None:
@@ -342,7 +460,7 @@ def call_peaks(loc, gene_length, bam_fileobj=None, bam_file=None,
     #TODO have a check to kill this if there aren't any reads in a region
         
     result = peaks_from_info(list(wiggle), pos_counts, lengths, loc, gene_length, margin, fdr_alpha, user_threshold, minreads, poisson_cutoff, plotit, w_cutoff, windowsize, SloP, correct_p)
-
+    
     return result
 
 def get_regions_above_threshold(threshold, values):
@@ -490,7 +608,7 @@ def find_local_maxima(arr):
     
     #walks through array, finding local maxima ranges
     
-    #hacky way to initalize a new array to all false
+    #to initalize a new array to all false
     maxima = empty(len(arr), dtype='bool')
     maxima.fill(False)
     
@@ -514,6 +632,9 @@ def find_local_maxima(arr):
         maxima[(max_range_start + len(arr) - 1) / 2] = True
         
     return maxima
+
+
+
 
 def peaks_from_info(wiggle, pos_counts, lengths, loc, gene_length, 
                     margin=25, fdr_alpha=0.05, user_threshold=None,
@@ -571,15 +692,11 @@ def peaks_from_info(wiggle, pos_counts, lengths, loc, gene_length,
         gene_threshold = get_FDR_cutoff_mean(lengths, 
                                              gene_length, 
                                              alpha=fdr_alpha)
-        
     else:
         gene_threshold = user_threshold
     
-    if gene_threshold == "best_error":
-        #verboseprint("""I had a hard time with this one: %s.  
-        #                I think I'll use a threshold of 50""" % (loc))
-        
-        threshold = 50
+    if not isinstance(gene_threshold, int):
+        raise TypeError
         
     peak_dict['clusters'] = {}
     peak_dict['sections'] = {}
@@ -605,28 +722,24 @@ def peaks_from_info(wiggle, pos_counts, lengths, loc, gene_length,
         sect_read_lengths = rs(lengths, Nreads) 
         peak_dict['sections'][sect] = {}
         threshold = int()
-        
+        peak_dict['sections'][sect]['nreads'] = int(Nreads)
         #makes sure there are enough reads
         if Nreads < minreads:
-            #verboseprint("""%d is not enough reads, skipping section: 
-            #                %s""" % (Nreads, sect))
+            logging.info("""%d is not enough reads, skipping section: %s""" %(Nreads, sect))
+            peak_dict['sections'][sect]['tried'] = False            
             continue
-        
         else:
+            logging.info("""Analyzing section %s with %d reads""" %(sect, Nreads))
             pass
-            #verboseprint("""Analyzing section %s with %d reads"""
-            #              % (sect, Nreads))
         
             
-        #sets super-local if requested, might be able to factor this
-        if user_threshold is None:
-            if SloP is True:
+        if user_threshold == None:
+            if SloP:
                 #use the minimum FDR cutoff between superlocal and gene-wide calculations
                 threshold = min(gene_theshold, get_FDR_cutoff_mean(sect_read_lengths, 
                                                 sect_length, 
                                                 alpha=fdr_alpha))
-                
-               #verboseprint("Using super-local threshold %d" % (threshold))
+                logging.info("Using super-local threshold %d" %(threshold))
                 
             else:
                 threshold = gene_threshold
@@ -636,359 +749,286 @@ def peaks_from_info(wiggle, pos_counts, lengths, loc, gene_length,
         #saves threshold for each individual section
         peak_dict['sections'][sect]['threshold'] = threshold
         peak_dict['sections'][sect]['nreads'] = int(Nreads)
-
+        peak_dict['sections'][sect]['tried'] = True
+        peak_dict['sections'][sect]['nPeaks'] = 0
         #if wiggle track never excides threshold
         if max(data) < threshold:
-            #verboseprint("data does not excede threshold, stopping")
+            logging.warn("data does not excede threshold, stopping")
             continue
         
-        #fitting splines logic, black magic 
+        degree = 3 #cubic spline
+        weights = None
+        #step 1, identify good initial value
+        initial_smoothing_value = (sectstop - sectstart + 1)
+        best_smoothing_value = initial_smoothing_value
+        best_estimate = 1
+        #step 1 naive spline
+        fitter = Spline(xvals, data, initial_smooting_value, degree, weights)
+        fitter.fit()
+
+        #step 2, refine so as not to runinto local minima later
+        #high-temp optimize
+
+        best_error = fitter.loss()
+        for i in range(2, 11):
+            cur_smoothing_value = initial_smoothing_value * i
+            #tries find optimal initial smooting paraater in this loop
+            cur_error = fitter.fit_loss(cur_smoothing_value)
+            if cur_error < best_error:
+                best_smoothing_value = cur_smoothing_value
+                best_estimate = i       
         try:
-            degree = 3 #cubic spline
-            weights = None 
-            
-            #for very large windows with many reads a large smoothing 
-            #parameter is required.  test several different options 
-            #to determine a reasonable inital estimate
-            #Goal is to find optimnal smooting paramater in multiple steps
-            #initial_smoothing_value initial estimate of smoothing paramater 
-            #step 1, identify good initial value
-            initial_smoothing_value = (sectstop - sectstart + 1)
-            best_smoothing_value = initial_smoothing_value
-            best_estimate = 1
-            
-            #step 2, refine so as not to runinto local minima later, 
-            #try to come up with a good way of getting optimal paramater
-            best_error = find_spline_residuals(initial_smoothing_value, 
-                                               xvals, 
-                                               data, 
-                                               degree, 
-                                               weights)
-            
-            for i in range(2, 11):
-                cur_smoothing_value = initial_smoothing_value * i
-                
-                #tries find optimal initial smooting paraater in this loop
-                cur_error = find_spline_residuals(cur_smoothing_value, 
-                                                  xvals, 
-                                                  data, 
-                                                  degree, 
-                                                  weights)
-                if cur_error < best_error:
-                    best_smoothing_value = cur_smoothing_value
-                    best_estimate = i       
-                        
-            try:
-                #fine optimization of smooting paramater
-                cutoff = float(0)
-                tries = 0
-                
-                # shouldn't get smoothing coef's this small.. increase 
-                #the initial estimate and try again. WARNING: BLACK MAGIC
-                while cutoff < 5:
-                    tries += 1
-                    
-                    # increasing this may improve accuracy, 
-                    #but at the cost of running time.
-                    if tries == 3: 
-                        break
-                    
-                    
-                    spline = optimize.minimize(find_spline_residuals, 
-                                               best_smoothing_value, 
-                                               args=(xvals, 
-                                                     data, 
-                                                     degree, 
-                                                     weights),
-                                               options={'disp' : False,
-                                                        'maxiter' : 10,
-                                                        }, 
-                                               #method="Powell", # old method
-                                               method="L-BFGS-B", #abnormal termination sometimes
-                                               #method="COBYLA",
-                                               bounds=((.1,None),),
-                                               )
-                    
-                    #fit a smoothing spline using an optimal parameter 
-                    #for smoothing and with weights proportional to the 
-                    #number of reads aligned at each position if weights 
-                    #is set
-                    if spline.success:
-                        cutoff = spline.x
-                        #print "cutoff is %s" % (cutoff)
-                    else:
-                        #print "%s failed spline building at section %s" % (loc, sect)
-                        #print spline.message
-                        pass
-                    
-                    best_smoothing_value += sect_length
-            except Exception as best_error:
-                print >> sys.stderr, "best smoothing value is:", best_smoothing_value
-                print >> sys.stderr,  "%s failed spline fitting at section %s (major crash)" % (loc, sect)
-                print >> sys.stderr, best_error
+            #fine optimization of smooting paramater
+            #low-temp optimize
+            fitter.optimize_fit(s_estimate=best_estimate, replace=True)
+
+        except Exception as error:
+            logging.error("%s failed spline fitting optimization at section %s (major crash)" %(loc, sect))
+            continue
+
+        spline_values = array([int(x) for x in fitter.predict()])
+
+        if plotit is True:
+            fitter.plot(title=str(peakn), threshold=threshold)
+
+        starts_and_stops, starts, stops = get_regions_above_threshold(threshold, 
+                                                                      spline_values)
+
+        #walks along spline, and calls peaks along spline
+        #for each start, take the next stop and find the peak 
+        #between the start and the stop this is where I need to 
+        #fix, some peaks starts start right after another start, 
+        #but not on top of it make sure the next start is after the 
+        #previous stop
+
+        #subsections that are above threshold
+        for p_start, p_stop in starts_and_stops: 
+
+            #peaks with-in this subsection, indexed from section 
+            #(not subsection) start
+            #find all local maxima
+            peaks = [x + p_start for x in xvals[find_local_maxima(spline_values[p_start:(p_stop + 1)])]]
+            #map(lambda x: x + p_start, 
+            #            xvals[diff(sign(diff(spline(xvals[p_start:(p_stop + 1)])))) < 0])
+
+            if not len(peaks) in (0,1):
+                assert len(peaks) in (0,1) #there should be one or zero peaks in every section
+
+            #handles logic if there are multiple peaks between 
+            #start and stop
+            if len(peaks) <= 0:
                 continue
+            if len(peaks) is 1:
+                #TODO All this formatting logic doesn't belong here 
+                #should be simplifed
+                #gets reads in peak
+                n_reads_in_peak = sum(cts[p_start:(p_stop + 1)])
+                logging.info("""Peak %d (%d - %d) has %d 
+                                 reads""" %(peakn,                                             
+                                             p_start,
+                                             (p_stop + 1),
+                                             n_reads_in_peak))
 
-
-       
-            #verboseprint ("optimized smoothing parameter")
-            #if we are going to save and output as a pickle fi is %s" %(str(cutoff))
-            #final fit spline
-
-            spline = find_univariate_spline(cutoff, 
-                                            xvals, 
-                                            data, 
-                                            degree, 
-                                            weights)
-            
-            spline_values = array([round(x) for x in spline(xvals)])
-            if plotit is True:
-                plot_spline(spline, data, xvals, peakn, threshold)
-            
-            starts_and_stops, starts, stops = get_regions_above_threshold(threshold, 
-                                                                          spline_values)
-
-            
-
-            #walks along spline, and calls peaks along spline
-            #for each start, take the next stop and find the peak 
-            #between the start and the stop this is where I need to 
-            #fix, some peaks starts start right after another start, 
-            #but not on top of it make sure the next start is after the 
-            #previous stop
-            
-            #subsections that are above threshold
-            for p_start, p_stop in starts_and_stops: 
-            
-                #peaks with-in this subsection, indexed from section 
-                #(not subsection) start
-                #find all local maxima
-                peaks = [x + p_start for x in xvals[find_local_maxima(spline_values[p_start:(p_stop + 1)])]]
-                #map(lambda x: x + p_start, 
-                #            xvals[diff(sign(diff(spline(xvals[p_start:(p_stop + 1)])))) < 0])
-                
-                if not len(peaks) in (0,1):
-                    assert len(peaks) in (0,1) #there should be one or zero peaks in every section
-                    
-                #handles logic if there are multiple peaks between 
-                #start and stop
-                if len(peaks) <= 0:
+                #makes sure there enough reads
+                if (n_reads_in_peak < minreads or 
+                    max(data[p_start:(p_stop + 1)]) < threshold):
+                    logging.info("""skipping peak, %d is not enough reads"""
+                                 %(n_reads_in_peak))
                     continue
-                if len(peaks) is 1:
-                    #TODO All this formatting logic doesn't belong here 
-                    #should be simplifed
-                    #gets reads in peak
-                    n_reads_in_peak = sum(cts[p_start:(p_stop + 1)])
-                    #verboseprint(""""Peak %d (%d - %d) has %d 
-                    #                 reads""" % (peakn, 
-                    #                             p_start, 
-                    #                             (p_stop + 1), 
-                    #                             n_reads_in_peak))
-                    
-                    #makes sure there enough reads
+
+                #formatting of bed track
+                #start and stop for bed track to be created
+                g_start = tx_start + sectstart + p_start
+                g_stop = tx_start + sectstart + p_stop
+
+                #highest point in start stop
+                peak = tx_start + sectstart + peaks[0]
+
+                #makes it thicker so we can see on the browser 
+                thick_start = peak - 2
+                thick_stop = peak + 2
+
+                #best_error checking logic to keep bed files from breaking
+                if thick_start < g_start:
+                    thick_start = g_start
+                if thick_stop > g_stop:
+                    thick_stop = g_stop
+
+                peak_length = g_stop - g_start + 1
+
+                #skip really small peaks
+                if peak_length < width_cutoff:
+                    continue
+                peak_name = gene_name + "_" + str(peakn) + "_" + str(int(n_reads_in_peak))
+
+                #super local logic 
+                #best_error check to make sure area is in area of gene
+
+                #distance from gene start
+                if peak - tx_start - windowsize < 0: 
+                    area_start = 0
+
+                #for super local gets area around peak for calculation
+                else:  
+                    area_start = peak - tx_start - windowsize
+                    #area_start = sectstart
+
+                #same thing except for end of gene instead of start
+                if peak + windowsize > tx_end: #distance to gene stop
+                    area_stop = tx_start - tx_end + 1
+                else:
+                    area_stop = peak - tx_start + windowsize
+                    #area_stop = sectstop
+
+                #use area reads + 1/2 all other reads in gene: 
+                #area_reads = sum(pos_counts[area_start:area_stop]) + 
+                #0.5*(sum(pos_counts) - 
+                #sum(pos_counts[area_start:area_stop]))
+
+                #use area reads:
+                area_reads = sum(pos_counts[area_start:area_stop])
+                area_size = area_stop - area_start + 1
+
+                #area_reads = sum(pos_counts[sectstart:sectstop])
+                #area_size = sect_length
+
+                #calcluates poisson based of whole gene vs peak
+                gene_pois_p = poissonP(nreads_in_gene, 
+                                       n_reads_in_peak, 
+                                       gene_length, 
+                                       peak_length)
+                if SloP is True:
+                    #same thing except for based on super local p-value
+                    slop_pois_p = poissonP(area_reads, 
+                                          n_reads_in_peak, 
+                                          area_size, 
+                                          peak_length)
+
+                #makes sure spop_poisP is defined, even if its 
+                #just normal, something to be removed later,
+                #slop should only be used when defined as true
+                else:
+                    slop_pois_p = gene_pois_p
+
+
+                if math.isnan(slop_pois_p):
+                    slop_pois_p = 1
+
+                #remove later    
+                if slop_pois_p > poisson_cutoff:
+                    #continue
+                    pass
+
+                #defines the bedline of a peak for returning
+                #TODO This should be abstracted out for now... seperate model from view
+                bedline = "%s\t%d\t%d\t%s\t%s\t%s\t%d\t%d" %(chrom, g_start, g_stop, peak_name, slop_pois_p, signstrand, thick_start, thick_stop)
+
+                #metadata for the specific bedline
+                peak_dict['clusters'][bedline] = {}
+                peak_dict['clusters'][bedline]['GeneP'] = gene_pois_p
+                peak_dict['clusters'][bedline]['SloP'] = slop_pois_p                    
+                peak_dict['clusters'][bedline]['Nreads'] = n_reads_in_peak
+                peak_dict['clusters'][bedline]['size'] = peak_length
+                peakn += 1
+                peak_dict['sections'][sect]['nPeaks'] +=1
+
+            #there are more than one peaks in this window
+            #NO LONGER NESSESSARY SHOULD REMOVE
+            else:  
+                #this handles peaks within peaks logic
+
+                #local minima in subsection, relative to section start
+                valleys = array(map(lambda x:x + p_start, xvals[diff(sign(diff(spline(xvals[p_start:p_stop + 1])))) > 0]))
+
+                for subpeak in peaks:
+                    subpeak_start = int()
+                    subpeak_stop = int()
+
+                    if any(valleys < subpeak):
+                        subpeak_start = valleys[valleys < subpeak][-1]
+                    else:
+                        subpeak_start = starts[starts < subpeak][-1]
+
+                    if any(valleys > subpeak):
+                        subpeak_stop = valleys[valleys > subpeak][0]
+                    else:
+                        subpeak_stop = stops[stops > subpeak][0]
+                    peak_length = subpeak_stop - subpeak_start + 1
+
+                    if peak_length < width_cutoff:#skip really small peaks
+                        continue
+                    n_reads_in_peak = sum(cts[subpeak_start:(subpeak_stop + 1)])
+
                     if (n_reads_in_peak < minreads or 
-                        max(data[p_start:(p_stop + 1)]) < threshold):
-                    #    verboseprint("""skipping peak, %d is not enough reads"""
-                    #                  % (n_reads_in_peak))
+                        max(data[subpeak_start:(subpeak_stop + 1)]) < 
+                        threshold):
                         continue
 
-                    #formatting of bed track
-                    #start and stop for bed track to be created
-                    g_start = tx_start + sectstart + p_start
-                    g_stop = tx_start + sectstart + p_stop
-                    
-                    #highest point in start stop
-                    peak = tx_start + sectstart + peaks[0]
-                    
-                    #makes it thicker so we can see on the browser 
+                    g_start = tx_start + subpeak_start + sectstart
+                    g_stop = tx_start + subpeak_stop + sectstart
+                    peak = tx_start + subpeak + sectstart
                     thick_start = peak - 2
-                    thick_stop = peak + 2
-                    
-                    #best_error checking logic to keep bed files from breaking
-                    if thick_start < g_start:
-                        thick_start = g_start
-                    if thick_stop > g_stop:
-                        thick_stop = g_stop
-                        
-                    peak_length = g_stop - g_start + 1
 
-                    #skip really small peaks
-                    if peak_length < width_cutoff:
-                        continue
-                    peak_name = gene_name + "_" + str(peakn) + "_" + str(int(n_reads_in_peak))
-                    
-                    #super local logic 
-                    #best_error check to make sure area is in area of gene
-                    
+                    if thick_start < g_start:
+                        thick_start = g_start                        
+                    thick_stop = peak + 2
+
+                    if thick_stop > g_stop:
+                        thick_stop = g_stop                        
+                    peak_name = "%s_%s_%s" %(gene_name, peakn, int(n_reads_in_peak))
+
                     #distance from gene start
                     if peak - tx_start - windowsize < 0: 
-                        area_start = 0
-                        
-                    #for super local gets area around peak for calculation
-                    else:  
+                        area_start = 0 
+                    else:
                         area_start = peak - tx_start - windowsize
-                        #area_start = sectstart
-                        
-                    #same thing except for end of gene instead of start
+
                     if peak + windowsize > tx_end: #distance to gene stop
                         area_stop = tx_start - tx_end + 1
                     else:
-                        area_stop = peak - tx_start + windowsize
                         #area_stop = sectstop
+                        area_stop = peak - tx_start + windowsize
 
-                    #use area reads + 1/2 all other reads in gene: 
-                    #area_reads = sum(pos_counts[area_start:area_stop]) + 
-                    #0.5*(sum(pos_counts) - 
-                    #sum(pos_counts[area_start:area_stop]))
-       
-                    #use area reads:
                     area_reads = sum(pos_counts[area_start:area_stop])
                     area_size = area_stop - area_start + 1
 
-                    #area_reads = sum(pos_counts[sectstart:sectstop])
-                    #area_size = sect_length
-
-                    #calcluates poisson based of whole gene vs peak
                     gene_pois_p = poissonP(nreads_in_gene, 
                                            n_reads_in_peak, 
                                            gene_length, 
                                            peak_length)
+
                     if SloP is True:
-                        #same thing except for based on super local p-value
                         slop_pois_p = poissonP(area_reads, 
-                                              n_reads_in_peak, 
-                                              area_size, 
-                                              peak_length)
-                        
-                    #makes sure spop_poisP is defined, even if its 
-                    #just normal, something to be removed later,
-                    #slop should only be used when defined as true
+                                               n_reads_in_peak, 
+                                               area_size, 
+                                               peak_length)
                     else:
                         slop_pois_p = gene_pois_p
-                    
-                    
+
                     if math.isnan(slop_pois_p):
                         slop_pois_p = 1
-                                            
-                    #remove later    
-                    if slop_pois_p > poisson_cutoff:
-                        #continue
-                        pass
-                                        
-                    #defines the bedline of a peak for returning
-                    #TODO This should be abstracted out for now... seperate model from view
-                    bedline = "%s\t%d\t%d\t%s\t%s\t%s\t%d\t%d" % (chrom, g_start, g_stop, peak_name, slop_pois_p, signstrand, thick_start, thick_stop)
 
-                    #metadata for the specific bedline
-                    peak_dict['clusters'][bedline] = {}
+                    #leave these in to allow for BH p-value correction
+                    if slop_pois_p > poisson_cutoff: 
+                        pass
+
+                    #output results again
+                    bedline = "%s\t%d\t%d\t%s\t%s\t%s\t%d\t%d" %(chrom, 
+                                                                  g_start, 
+                                                                  g_stop, 
+                                                                  peak_name, 
+                                                                  slop_pois_p, 
+                                                                  signstrand, 
+                                                                  thick_start, 
+                                                                  thick_stop
+                                                                  )
+
+                    peak_dict['clusters'][bedline] = {}                        
+                    peak_dict['clusters'][bedline]['SloP'] = slop_pois_p
                     peak_dict['clusters'][bedline]['GeneP'] = gene_pois_p
-                    peak_dict['clusters'][bedline]['SloP'] = slop_pois_p                    
                     peak_dict['clusters'][bedline]['Nreads'] = n_reads_in_peak
                     peak_dict['clusters'][bedline]['size'] = peak_length
-                    
-
                     peakn += 1
-                    
-                #there are more than one peaks in this window
-                #NO LONGER NESSESSARY SHOULD REMOVE
-                else:  
-                    #this handles peaks within peaks logic
-                    
-                    #local minima in subsection, relative to section start
-                    valleys = array(map(lambda x:x + p_start, xvals[diff(sign(diff(spline(xvals[p_start:p_stop + 1])))) > 0]))
-
-                    for subpeak in peaks:
-                        subpeak_start = int()
-                        subpeak_stop = int()
-                        
-                        if any(valleys < subpeak):
-                            subpeak_start = valleys[valleys < subpeak][-1]
-                        else:
-                            subpeak_start = starts[starts < subpeak][-1]
-                        
-                        if any(valleys > subpeak):
-                            subpeak_stop = valleys[valleys > subpeak][0]
-                        else:
-                            subpeak_stop = stops[stops > subpeak][0]
-                        peak_length = subpeak_stop - subpeak_start + 1
-                        
-                        if peak_length < width_cutoff:#skip really small peaks
-                            continue
-                        n_reads_in_peak = sum(cts[subpeak_start:(subpeak_stop + 1)])
-                        
-                        if (n_reads_in_peak < minreads or 
-                            max(data[subpeak_start:(subpeak_stop + 1)]) < 
-                            threshold):
-                            continue
-                        
-                        g_start = tx_start + subpeak_start + sectstart
-                        g_stop = tx_start + subpeak_stop + sectstart
-                        peak = tx_start + subpeak + sectstart
-                        thick_start = peak - 2
-                        
-                        if thick_start < g_start:
-                            thick_start = g_start                        
-                        thick_stop = peak + 2
-                        
-                        if thick_stop > g_stop:
-                            thick_stop = g_stop                        
-                        peak_name = "%s_%s_%s" % (gene_name, peakn, int(n_reads_in_peak))
-                        
-                        #distance from gene start
-                        if peak - tx_start - windowsize < 0: 
-                            area_start = 0 
-                        else:
-                            area_start = peak - tx_start - windowsize
-                        
-                        if peak + windowsize > tx_end: #distance to gene stop
-                            area_stop = tx_start - tx_end + 1
-                        else:
-                            #area_stop = sectstop
-                            area_stop = peak - tx_start + windowsize
-                        
-                        area_reads = sum(pos_counts[area_start:area_stop])
-                        area_size = area_stop - area_start + 1
-
-                        gene_pois_p = poissonP(nreads_in_gene, 
-                                               n_reads_in_peak, 
-                                               gene_length, 
-                                               peak_length)
-
-                        if SloP is True:
-                            slop_pois_p = poissonP(area_reads, 
-                                                   n_reads_in_peak, 
-                                                   area_size, 
-                                                   peak_length)
-                        else:
-                            slop_pois_p = gene_pois_p
-                        
-                        if math.isnan(slop_pois_p):
-                            slop_pois_p = 1
-                        
-                        #leave these in to allow for BH p-value correction
-                        if slop_pois_p > poisson_cutoff: 
-                            pass
-                        
-                        #output results again
-                        bedline = "%s\t%d\t%d\t%s\t%s\t%s\t%d\t%d" % (chrom, 
-                                                                      g_start, 
-                                                                      g_stop, 
-                                                                      peak_name, 
-                                                                      slop_pois_p, 
-                                                                      signstrand, 
-                                                                      thick_start, 
-                                                                      thick_stop
-                                                                      )
-                                                                                      
-                        peak_dict['clusters'][bedline] = {}                        
-                        peak_dict['clusters'][bedline]['SloP'] = slop_pois_p
-                        peak_dict['clusters'][bedline]['GeneP'] = gene_pois_p
-                        peak_dict['clusters'][bedline]['Nreads'] = n_reads_in_peak
-                        peak_dict['clusters'][bedline]['size'] = peak_length
-                        peakn += 1
-        except NameError as best_error:
-            print >> sys.stderr, best_error
-            print >> sys.stderr, "spline fitting failed for %s" % (loc)
-            raise
             
             
     #inflate p-values based on # of comparisons #bonferroni corrected
