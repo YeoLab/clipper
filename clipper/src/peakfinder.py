@@ -387,6 +387,8 @@ def filter_results(results, poisson_cutoff, transcriptome_size, transcriptome_re
 
 def main(options):
     
+    check_for_index(options.bam)
+    
     if options.np == 'autodetect':
         options.np = multiprocessing.cpu_count()
     pool = multiprocessing.Pool(int(options.np))
@@ -550,8 +552,6 @@ def call_main():
     #reads for us, trims strictly ignoring paired end and strandness
     if options.trim:
         options.bam = trim_reads(options.bam)
-    
-    check_for_index(options.bam)
     
     verboseprint("Starting peak calling")        
     main(options)
