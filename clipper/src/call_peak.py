@@ -9,6 +9,7 @@ import sys
 import pysam
 from clipper.src.peaks import readsToWiggle_pysam, shuffle, find_sections
 from scipy import optimize
+import matplotlib
 import matplotlib.pyplot as plt 
 from numpy import diff, sign, append, array, arange, r_, empty
 from math import sqrt
@@ -19,6 +20,8 @@ from scipy import stats
 from random import sample as rs
 import math
 import logging
+
+logging.basicConfig(level=logging.INFO)
 
 
 
@@ -299,8 +302,8 @@ class Spline(object):
         if lossFunction == None:
             lossFunction = self.lossFunction
 
-        minOpts = {'disp':True,
-                   'maxiter':40}
+        minOpts = {'disp':False,
+                   'maxiter':20}
 
 
         minimizeResult = scipy.optimize.minimize(self.fit_loss, s_estimate,
@@ -310,17 +313,17 @@ class Spline(object):
                                           bounds = bounds,
                                           )
         if minimizeResult.success:
-            optimizedSmoothingParameter = minimizeResult.x
-            self.optimizedSmoothingParam = optimizedSmoothingParameter
-            optimizedSpline = self.fit(optimizedSmoothingParameter, weight)
+            optimizedSmoothingFactor = minimizeResult.x
+            self.optimizedSmoothingFactor = optimizedSmoothingFactor
+            optimizedSpline = self.fit(optimizedSmoothingFactor, weight)
         else:
             logging.error("Problem spline fitting. Here is the message:\n%s" %(minimizeResult.message))
             raise Exception
         if replace:
-            self.smoothingFactor = optimizedSmoothingParameter
+            self.smoothingFactor = optimizedSmoothingFactor
             self.spline = optimizedSpline
 
-        return(optimizedSmoothingParameter, self.loss(optimizedSpline, lossFunction = lossFunction, replace=False))
+        return(optimizedSmoothingFactor, self.loss(optimizedSpline, lossFunction = lossFunction, replace=False))
         
     
 
@@ -434,7 +437,8 @@ def call_peaks(loc, gene_length, bam_fileobj=None, bam_file=None,
     correct_p - boolean bonferoni correction of p-values from poisson
     
     """
-    
+    if plotit:
+        matplotlib.rcParams['interactive']=True
     #setup
     chrom, gene_name, tx_start, tx_end, signstrand = loc
 
@@ -489,7 +493,6 @@ def get_regions_above_threshold(threshold, values):
     #threshold is at or equal to values, need to correct this
     starts = xlocs[r_[True, diff(values >= threshold)] & (values >= threshold)]
     stops = xlocs[r_[diff(values >= threshold), True] & (values >= threshold)]
-    
     stops = stops + 1 #add to fix off by one bug
     
     #print "original starts ", starts
@@ -687,12 +690,13 @@ def peaks_from_info(wiggle, pos_counts, lengths, loc, gene_length,
     nreads_in_gene = sum(pos_counts)
     
     #decides FDR calcalation, maybe move getFRDcutoff mean into c code
-    
+    gene_threshold = 0
     if user_threshold is None:
         gene_threshold = get_FDR_cutoff_mean(lengths, 
                                              gene_length, 
                                              alpha=fdr_alpha)
     else:
+        print "using user threshold"
         gene_threshold = user_threshold
     
     if not isinstance(gene_threshold, int):
@@ -736,7 +740,7 @@ def peaks_from_info(wiggle, pos_counts, lengths, loc, gene_length,
         if user_threshold == None:
             if SloP:
                 #use the minimum FDR cutoff between superlocal and gene-wide calculations
-                threshold = min(gene_theshold, get_FDR_cutoff_mean(sect_read_lengths, 
+                threshold = min(gene_threshold, get_FDR_cutoff_mean(sect_read_lengths, 
                                                 sect_length, 
                                                 alpha=fdr_alpha))
                 logging.info("Using super-local threshold %d" %(threshold))
@@ -759,35 +763,39 @@ def peaks_from_info(wiggle, pos_counts, lengths, loc, gene_length,
         degree = 3 #cubic spline
         weights = None
         #step 1, identify good initial value
-        initial_smoothing_value = (sectstop - sectstart + 1)
-        best_smoothing_value = initial_smoothing_value
-        best_estimate = 1
+        initial_smoothing_value = (sectstop - sectstart + 1)/4
+        bestSmoothingEstimate = initial_smoothing_value
+
         #step 1 naive spline
-        fitter = Spline(xvals, data, initial_smooting_value, degree, weights)
+        fitter = Spline(xvals, data, initial_smoothing_value, degree, weights, lossFunction=get_norm_penalized_residuals)
         fitter.fit()
 
         #step 2, refine so as not to runinto local minima later
         #high-temp optimize
 
         best_error = fitter.loss()
+        print "1, %f, %f" %(initial_smoothing_value, best_error)
         for i in range(2, 11):
             cur_smoothing_value = initial_smoothing_value * i
             #tries find optimal initial smooting paraater in this loop
             cur_error = fitter.fit_loss(cur_smoothing_value)
+            print "%d, %f, %f" %(i, cur_smoothing_value, cur_error)
             if cur_error < best_error:
-                best_smoothing_value = cur_smoothing_value
-                best_estimate = i       
+                bestSmoothingEstimate = cur_smoothing_value
+                best_error = cur_error
+                
         try:
             #fine optimization of smooting paramater
             #low-temp optimize
-            fitter.optimize_fit(s_estimate=best_estimate, replace=True)
+            op, loss = fitter.optimize_fit(s_estimate=bestSmoothingEstimate, replace=True)
+            print "optimized smoothing factor is %f" %(op)
 
         except Exception as error:
             logging.error("%s failed spline fitting optimization at section %s (major crash)" %(loc, sect))
             continue
 
         spline_values = array([int(x) for x in fitter.predict()])
-
+        print "using fitting parameter: %f" %(fitter.smoothingFactor)
         if plotit is True:
             fitter.plot(title=str(peakn), threshold=threshold)
 
