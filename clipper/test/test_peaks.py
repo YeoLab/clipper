@@ -68,6 +68,13 @@ class Test(unittest.TestCase):
     Tests very small input sizes 
     
     """
+    
+    def test_super_large_sizes(self):
+        result = shuffle(4434885, 5, 0, .05, [48] * 2003)
+        #print "bar"
+        #print result
+        self.assertEqual(sum(result), 5)
+        
     def test_small_sizes(self):
         #makes sure it works on edge cases
         result = shuffle(100, 3, 0, .05, [2,3,4])

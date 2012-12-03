@@ -69,10 +69,10 @@ extern "C" PyObject *peaks_shuffle(PyObject *self, PyObject *args)
   std::vector<long> OBS_CUTOFF(((L / num_reads) + 1) * 100, 0L);
   int redone = 0;
  
-  int GENE[L]; //will store the height at every position of the gene
+  std::vector<int> GENE(L, 0L); //will store the height at every position of the gene
 
   //This is height distribution, no reason to have length of gene, arbitrary starting depth choosen 
-  std::vector<int> HEIGHT(100, 0L); // will have the number of times you see every height across the gene  HEIGHT[3] = 10 means that there are 10 peaks with a height of 3
+  std::vector<long> HEIGHT(100, 0L); // will have the number of times you see every height across the gene  HEIGHT[3] = 10 means that there are 10 peaks with a height of 3
   
   srand(time(NULL)); // seed random-number generator with the current time
   for (int iteration = 1; iteration <= r; iteration++){
@@ -151,7 +151,7 @@ extern "C" PyObject *peaks_shuffle(PyObject *self, PyObject *args)
 
       //convert the integers to doubles and divide.
       double b = bigger_peaks;
-      double t =  total_num_peaks;
+      double t = total_num_peaks;
       double a = b/t;
       PVAL[height] = a;
 
