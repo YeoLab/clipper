@@ -68,9 +68,10 @@ class test_peakfinder(unittest.TestCase):
                  "-s", "hg19",
                   "-g", "ENSG00000198901", 
                    "--outfile=" + os.getcwd() + "/peak_results.bed",
-                   "-q"
-                ]    
+                ]
+
         (options, args) = self.parser.parse_args(args)
+        print "testing"
         main(options)
 
         tested = open(os.getcwd() + "/peak_results.bed")
