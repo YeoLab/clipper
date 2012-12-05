@@ -9,35 +9,27 @@ import sys
 import pysam
 from clipper.src.peaks import readsToWiggle_pysam, shuffle, find_sections
 from scipy import optimize
+
+#import pylab
 import matplotlib
-import matplotlib.pyplot as plt 
+import matplotlib.pyplot as plt
+import matplotlib.patches as patches
 from numpy import diff, sign, append, array, arange, r_, empty
 from math import sqrt
 from scipy import interpolate
 from matplotlib.path import Path
-import matplotlib.patches as patches
+
 from scipy import stats
 from random import sample as rs
 import math
 import logging
+#pylab.rcParams['interactive']=True
 
-logging.basicConfig(level=logging.INFO)
 
 
 
     
     
-def verboseprint(*args):
-    
-    """ DEPRACATED: USE logging
-    prints out print statements if nessessary"""
-    
-    # Print each argument separately so caller doesn't need to
-    # stuff everything to be printed into a single string
-    for arg in args:
-        print >> sys.stderr, arg,
-    print
-            
 def get_FDR_cutoff_mode(readlengths, 
                         genelength, 
                         iterations=1000, 
@@ -127,7 +119,7 @@ def get_FDR_cutoff_mean(readlengths,
 
 
 
-def plot_spline(spline, title=None, threshold=None):
+def plot_spline(spline, title=None, threshold=None, fig=None, label = "_nolegend_"):
     
     """
     
@@ -139,32 +131,39 @@ def plot_spline(spline, title=None, threshold=None):
     threshold - line to draw so peaks don't go below threshold
     
     """
-    fig = plt.figure()
-    if title is not None:
-        plt.title(title)
-    ax1 = fig.add_subplot(111)
-    ax1.plot(spline._data[0], spline._data[1])
-    ax1.plot(spline._data[0], spline(spline._data[0]))
+
+    if fig == None:
+        fig = plt.figure()
+    plt.plot(spline._data[0], spline._data[1], "blue", label="_nolegend")
+    plt.plot(spline._data[0], spline(spline._data[0]), label=label)
 
     if threshold is not None:
-        ax1.axhline(y=threshold)
+        plt.axhline(y=threshold)
 
+    plt.legend(loc=2)
     plt.show()
 
 def get_norm_penalized_residuals(spline):
     from scipy.linalg import norm
+    normwt = 10
+    residwt = 1
 
-    err = norm(spline(spline._data[0])) * spline.get_residual()
+    err = (normwt*norm(spline(spline._data[0]))**5) + (residwt*sqrt(spline.get_residual()))
     return err
     
     
     
+def count_turns(spline):
+    func = spline(spline._data[0])
+    turns = sum(abs(diff(sign(diff(func))))) / 2
+    return turns
 
 def get_turn_penalized_residuals(spline):
 
     func = spline(spline._data[0])
+
     turns = sum(abs(diff(sign(diff(func))))) / 2     
-    err = sqrt((spline.get_residual()) * (turns ** 4))
+    err = sqrt((spline.get_residual()) * (turns ** 5))/100
     return err
 
 def spline_loss(spline, errfunc=get_turn_penalized_residuals):
@@ -206,7 +205,7 @@ def fit_univariate_spline(smoothingFactor, xRange, yData,  k, weight=None):
                                               w=weight)
     except Exception as error: #This error shouldn't happen anymore
         print >> sys.stderr, xRange, yData, smoothingFactor, k, weight
-        logging.error("failed to build spline", error)
+        logging.error("failed to build spline %s" %(error))
         raise
 
     return(spline)
@@ -278,17 +277,18 @@ class Spline(object):
         if weight == None:
             weight = self.weight
         spline = self.fit(smoothingFactor=smoothingFactor, replace=replace, weight=weight)
-        err = self.loss(spline)
-#        import pylab
-#        pylab.plot(spline._data[0], spline(spline._data[0]))
+        err = self.loss(spline, lossFunction=lossFunction)
+
         return err
     
 
-    def plot(self, threshold=None, title=None):
+    def plot(self, threshold=None, title=None, label="_nolegend_"):
         """plot data and spline"""
         if not hasattr(self, 'spline'):
             self.fit()
-        plot_spline(self.spline, threshold=threshold, title=title)
+        if not hasattr(self, 'figure'):
+            self.figure = plt.figure()
+        plot_spline(self.spline, threshold=threshold, title=title, fig = self.figure, label=label)
        
 
     def optimize_fit(self, s_estimate=None, method = 'L-BFGS-B', bounds=((1,None),),
@@ -303,7 +303,7 @@ class Spline(object):
             lossFunction = self.lossFunction
 
         minOpts = {'disp':False,
-                   'maxiter':20}
+                   'maxiter':1000}
 
 
         minimizeResult = scipy.optimize.minimize(self.fit_loss, s_estimate,
@@ -438,7 +438,8 @@ def call_peaks(loc, gene_length, bam_fileobj=None, bam_file=None,
     
     """
     if plotit:
-        matplotlib.rcParams['interactive']=True
+        plt.rcParams['interactive']=True
+        pass
     #setup
     chrom, gene_name, tx_start, tx_end, signstrand = loc
 
@@ -671,7 +672,8 @@ def peaks_from_info(wiggle, pos_counts, lengths, loc, gene_length,
     correct_p - boolean bonferoni correction of p-values from poisson
         
     """
-    
+
+    print "calling peaks"
     peak_dict = {}
     
     #these are what is built in this dict, complicated enough that it might 
@@ -727,6 +729,7 @@ def peaks_from_info(wiggle, pos_counts, lengths, loc, gene_length,
         peak_dict['sections'][sect] = {}
         threshold = int()
         peak_dict['sections'][sect]['nreads'] = int(Nreads)
+
         #makes sure there are enough reads
         if Nreads < minreads:
             logging.info("""%d is not enough reads, skipping section: %s""" %(Nreads, sect))
@@ -767,23 +770,30 @@ def peaks_from_info(wiggle, pos_counts, lengths, loc, gene_length,
         bestSmoothingEstimate = initial_smoothing_value
 
         #step 1 naive spline
-        fitter = Spline(xvals, data, initial_smoothing_value, degree, weights, lossFunction=get_norm_penalized_residuals)
+        fitter = Spline(xvals, data, initial_smoothing_value, degree, weights)#, lossFunction=get_norm_penalized_residuals)
         fitter.fit()
 
+        ct = count_turns
         #step 2, refine so as not to runinto local minima later
         #high-temp optimize
 
         best_error = fitter.loss()
         print "1, %f, %f" %(initial_smoothing_value, best_error)
-        for i in range(2, 11):
+        fitter.plot()
+        for i in range(2, 50):
             cur_smoothing_value = initial_smoothing_value * i
             #tries find optimal initial smooting paraater in this loop
-            cur_error = fitter.fit_loss(cur_smoothing_value)
+            rpl = False
+            if plotit ==True:
+                rpl = True
+            cur_error = fitter.fit_loss(cur_smoothing_value, replace=rpl)
+            fitter.plot(label=str(cur_smoothing_value))
             print "%d, %f, %f" %(i, cur_smoothing_value, cur_error)
             if cur_error < best_error:
                 bestSmoothingEstimate = cur_smoothing_value
                 best_error = cur_error
-                
+        print "trying: %f, with err: %f" %(bestSmoothingEstimate, best_error)
+        
         try:
             #fine optimization of smooting paramater
             #low-temp optimize
@@ -791,6 +801,8 @@ def peaks_from_info(wiggle, pos_counts, lengths, loc, gene_length,
             print "optimized smoothing factor is %f" %(op)
 
         except Exception as error:
+            import code
+            code.interact(local=dict(locals().items() + globals().items()))
             logging.error("%s failed spline fitting optimization at section %s (major crash)" %(loc, sect))
             continue
 
@@ -1047,5 +1059,8 @@ def peaks_from_info(wiggle, pos_counts, lengths, loc, gene_length,
         
 
     peak_dict['Nclusters'] = peakn
-    
+    if plotit:
+        import sys
+        plt.show()
+        v = sys.stdin.read(1)
     return peak_dict
