@@ -14,7 +14,7 @@ from scipy import optimize
 import matplotlib
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
-from numpy import diff, sign, append, array, arange, r_, empty
+from numpy import diff, sign, append, array, arange, r_, empty, argmin
 from math import sqrt
 from scipy import interpolate
 from matplotlib.path import Path
@@ -210,6 +210,10 @@ def fit_univariate_spline(smoothingFactor, xRange, yData,  k, weight=None):
 
     return(spline)
 
+
+
+
+
 class Spline(object):
     """Class to fit data to a smooth curve"""
     def __get__(self, obj, cls=None):
@@ -221,16 +225,21 @@ class Spline(object):
     def __delete__(self, obj):
         pass
 
-    def __init__(self, xRange, yData, smoothingFactor=None, k=3, weight=None,
+    def test(self):
+        return NotImplemented #implement testing!!
+
+
+    def __init__(self, xRange, yData, smoothingFactor=None,
                  lossFunction = get_turn_penalized_residuals):
         if smoothingFactor is None:
             smoothingFactor = len(xRange)
         self.lossFunction = lossFunction
         self.xRange = xRange
         self.yData = yData
-        self.k=k
+        self.k=3 #degree of spline (cubic)
         self.smoothingFactor = smoothingFactor
-        self.weight = weight
+
+        self.weight = None
         
     def fit(self, smoothingFactor = None, weight = None, replace = True):
         """fit a spline, return the spline. If replace is True, replace the current
@@ -305,7 +314,6 @@ class Spline(object):
         minOpts = {'disp':False,
                    'maxiter':1000}
 
-
         minimizeResult = scipy.optimize.minimize(self.fit_loss, s_estimate,
                                           args = (replace, weight, lossFunction),
                                           options = minOpts,
@@ -324,8 +332,99 @@ class Spline(object):
             self.spline = optimizedSpline
 
         return(optimizedSmoothingFactor, self.loss(optimizedSpline, lossFunction = lossFunction, replace=False))
-        
+
+    def peaks(self, threshold=0, plotit = False):
+        """
+        run optimization on spline fitting.
+        return peak start/stops
+        """
+
+        #step 1, identify good initial value
+        initial_smoothing_value = self.smoothingFactor
+        bestSmoothingEstimate = initial_smoothing_value
+
+
+        #step 1 naive spline
+
+        self.fit()
+
+        #step 2, refine to avoid local minima later
+        #high-temp optimize
+
+        best_error = self.loss()
+        print "1, %f, %f" %(initial_smoothing_value, best_error)
+        if plotit == True:
+            self.plot()
+        for i in range(2, 50):
+            cur_smoothing_value = initial_smoothing_value * i
+            #tries find optimal initial smooting paraater in this loop
+            rpl = False
+            if plotit == True:
+                rpl = True
+            cur_error = self.fit_loss(cur_smoothing_value, replace=rpl)
+            if plotit == True:
+                self.plot(label=str(cur_smoothing_value))
+
+        print "%d, %f, %f" %(i, cur_smoothing_value, cur_error)
+        if cur_error < best_error:
+            bestSmoothingEstimate = cur_smoothing_value
+            best_error = cur_error
+        print "trying: %f, with err: %f" %(bestSmoothingEstimate, best_error)
+
+        try:
+            #fine optimization of smooting paramater
+            #low-temp optimize
+            op, loss = self.optimize_fit(s_estimate=bestSmoothingEstimate, replace=True)
+            print "optimized smoothing factor is %f" %(op)
+
+        except Exception as error:
+            logging.error("%s failed spline fitting optimization at section %s (major crash)" %(loc, sect))
+            self.fit_loss(bestSmoothingEstimate, replace=True) #just use the
+
+        spline_values = array([int(x) for x in self.predict()])
+        print "using fitting parameter: %f" %(self.smoothingFactor)
+        if plotit is True:
+            self.plot(title=str(peakn), threshold=threshold)
+
+        starts_and_stops, starts, stops = get_regions_above_threshold(threshold, 
+                                                                      spline_values)
+        return (spline_values, starts_and_stops, starts, stops)
+
+class GaussMix(object):
+    from sklearn import mixture as mix
     
+    def __init__(self, xvals, data):
+        #data should count one "base" per read (not one point for each position)
+        #initialize the fitter
+        #transform data
+        Tdata = list()
+        for x, n in zip(xvals, data):
+            for i in range(n):
+                Tdata.append(x)
+        self.data = Tdata #transformed to x-value frequency
+
+    def fit(self):
+        #try multiple numbers of components
+        tryThisMany = 20
+        models = [None for i in range(1,tryThisMany)]
+
+        for nComponents in range(1, tryThisMany):
+            #test fits for many possible numbers of components
+            models[nComponents] = mix.GMM(nComponents, covariance_type='full').fit(self.data)
+        #BIC = [m.bic(d) for m in models]
+        AIC = [m.aic(d) for m in models]
+        best = np.argmin(AIC)
+        self.nComponents = best + 1
+        self.GMM = models[best]
+        self.AIC = AIC[best]
+        
+    def predict(self):
+        #get predicted values for gaussian mix
+        pass
+
+
+
+
 
 def plot_sections(wiggle, sections, threshold):
     
@@ -762,57 +861,23 @@ def peaks_from_info(wiggle, pos_counts, lengths, loc, gene_length,
         if max(data) < threshold:
             logging.warn("data does not excede threshold, stopping")
             continue
+
+        print "here"
+        print plotit
+        fitType = "Spline"
+        ###gauss mixture model
+        if fitType == "Spline":
+            lf = get_norm_penalized_residuals
+            initial_smoothing_value = (sectstop - sectstart + 1)/4
+            fitter = Spline(xvals, data, initial_smoothing_value,
+                            lossFunction=lf)
         
-        degree = 3 #cubic spline
-        weights = None
-        #step 1, identify good initial value
-        initial_smoothing_value = (sectstop - sectstart + 1)/4
-        bestSmoothingEstimate = initial_smoothing_value
-
-        #step 1 naive spline
-        fitter = Spline(xvals, data, initial_smoothing_value, degree, weights)#, lossFunction=get_norm_penalized_residuals)
-        fitter.fit()
-
-        ct = count_turns
-        #step 2, refine so as not to runinto local minima later
-        #high-temp optimize
-
-        best_error = fitter.loss()
-        print "1, %f, %f" %(initial_smoothing_value, best_error)
-        fitter.plot()
-        for i in range(2, 50):
-            cur_smoothing_value = initial_smoothing_value * i
-            #tries find optimal initial smooting paraater in this loop
-            rpl = False
-            if plotit ==True:
-                rpl = True
-            cur_error = fitter.fit_loss(cur_smoothing_value, replace=rpl)
-            fitter.plot(label=str(cur_smoothing_value))
-            print "%d, %f, %f" %(i, cur_smoothing_value, cur_error)
-            if cur_error < best_error:
-                bestSmoothingEstimate = cur_smoothing_value
-                best_error = cur_error
-        print "trying: %f, with err: %f" %(bestSmoothingEstimate, best_error)
+        elif fitType == "Gaussian":
+            fitter = GaussMix(xvals, data)
+            
+            
+        (fit_values, starts_and_stops, starts, stops) = fitter.peaks(threshold, plotit)
         
-        try:
-            #fine optimization of smooting paramater
-            #low-temp optimize
-            op, loss = fitter.optimize_fit(s_estimate=bestSmoothingEstimate, replace=True)
-            print "optimized smoothing factor is %f" %(op)
-
-        except Exception as error:
-            import code
-            code.interact(local=dict(locals().items() + globals().items()))
-            logging.error("%s failed spline fitting optimization at section %s (major crash)" %(loc, sect))
-            continue
-
-        spline_values = array([int(x) for x in fitter.predict()])
-        print "using fitting parameter: %f" %(fitter.smoothingFactor)
-        if plotit is True:
-            fitter.plot(title=str(peakn), threshold=threshold)
-
-        starts_and_stops, starts, stops = get_regions_above_threshold(threshold, 
-                                                                      spline_values)
 
         #walks along spline, and calls peaks along spline
         #for each start, take the next stop and find the peak 
@@ -827,7 +892,7 @@ def peaks_from_info(wiggle, pos_counts, lengths, loc, gene_length,
             #peaks with-in this subsection, indexed from section 
             #(not subsection) start
             #find all local maxima
-            peaks = [x + p_start for x in xvals[find_local_maxima(spline_values[p_start:(p_stop + 1)])]]
+            peaks = [x + p_start for x in xvals[find_local_maxima(fit_values[p_start:(p_stop + 1)])]]
             #map(lambda x: x + p_start, 
             #            xvals[diff(sign(diff(spline(xvals[p_start:(p_stop + 1)])))) < 0])
 
@@ -952,103 +1017,6 @@ def peaks_from_info(wiggle, pos_counts, lengths, loc, gene_length,
                 peakn += 1
                 peak_dict['sections'][sect]['nPeaks'] +=1
 
-            #there are more than one peaks in this window
-            #NO LONGER NESSESSARY SHOULD REMOVE
-            else:  
-                #this handles peaks within peaks logic
-
-                #local minima in subsection, relative to section start
-                valleys = array(map(lambda x:x + p_start, xvals[diff(sign(diff(spline(xvals[p_start:p_stop + 1])))) > 0]))
-
-                for subpeak in peaks:
-                    subpeak_start = int()
-                    subpeak_stop = int()
-
-                    if any(valleys < subpeak):
-                        subpeak_start = valleys[valleys < subpeak][-1]
-                    else:
-                        subpeak_start = starts[starts < subpeak][-1]
-
-                    if any(valleys > subpeak):
-                        subpeak_stop = valleys[valleys > subpeak][0]
-                    else:
-                        subpeak_stop = stops[stops > subpeak][0]
-                    peak_length = subpeak_stop - subpeak_start + 1
-
-                    if peak_length < width_cutoff:#skip really small peaks
-                        continue
-                    n_reads_in_peak = sum(cts[subpeak_start:(subpeak_stop + 1)])
-
-                    if (n_reads_in_peak < minreads or 
-                        max(data[subpeak_start:(subpeak_stop + 1)]) < 
-                        threshold):
-                        continue
-
-                    g_start = tx_start + subpeak_start + sectstart
-                    g_stop = tx_start + subpeak_stop + sectstart
-                    peak = tx_start + subpeak + sectstart
-                    thick_start = peak - 2
-
-                    if thick_start < g_start:
-                        thick_start = g_start                        
-                    thick_stop = peak + 2
-
-                    if thick_stop > g_stop:
-                        thick_stop = g_stop                        
-                    peak_name = "%s_%s_%s" %(gene_name, peakn, int(n_reads_in_peak))
-
-                    #distance from gene start
-                    if peak - tx_start - windowsize < 0: 
-                        area_start = 0 
-                    else:
-                        area_start = peak - tx_start - windowsize
-
-                    if peak + windowsize > tx_end: #distance to gene stop
-                        area_stop = tx_start - tx_end + 1
-                    else:
-                        #area_stop = sectstop
-                        area_stop = peak - tx_start + windowsize
-
-                    area_reads = sum(pos_counts[area_start:area_stop])
-                    area_size = area_stop - area_start + 1
-
-                    gene_pois_p = poissonP(nreads_in_gene, 
-                                           n_reads_in_peak, 
-                                           gene_length, 
-                                           peak_length)
-
-                    if SloP is True:
-                        slop_pois_p = poissonP(area_reads, 
-                                               n_reads_in_peak, 
-                                               area_size, 
-                                               peak_length)
-                    else:
-                        slop_pois_p = gene_pois_p
-
-                    if math.isnan(slop_pois_p):
-                        slop_pois_p = 1
-
-                    #leave these in to allow for BH p-value correction
-                    if slop_pois_p > poisson_cutoff: 
-                        pass
-
-                    #output results again
-                    bedline = "%s\t%d\t%d\t%s\t%s\t%s\t%d\t%d" %(chrom, 
-                                                                  g_start, 
-                                                                  g_stop, 
-                                                                  peak_name, 
-                                                                  slop_pois_p, 
-                                                                  signstrand, 
-                                                                  thick_start, 
-                                                                  thick_stop
-                                                                  )
-
-                    peak_dict['clusters'][bedline] = {}                        
-                    peak_dict['clusters'][bedline]['SloP'] = slop_pois_p
-                    peak_dict['clusters'][bedline]['GeneP'] = gene_pois_p
-                    peak_dict['clusters'][bedline]['Nreads'] = n_reads_in_peak
-                    peak_dict['clusters'][bedline]['size'] = peak_length
-                    peakn += 1
             
             
     #inflate p-values based on # of comparisons #bonferroni corrected
