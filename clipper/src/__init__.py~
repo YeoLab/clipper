@@ -1,3 +1,0 @@
-__all__ = ['peakfinder', 'call_peak']
-import src.peakfinder
-import src.call_peak
