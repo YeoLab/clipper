@@ -64,12 +64,12 @@ class test_peakfinder(unittest.TestCase):
 
         args = ["-b", pkg_resources.resource_filename(__name__, "../test/allup_test.bam"),
                  "-s", "hg19",
-                  "-g", "ENSG00000198901", 
-                   "--outfile=" + os.getcwd() + "/peak_results.bed",
+                 "-g", "ENSG00000198901", 
+                 "--outfile=" + os.getcwd() + "/peak_results.bed",
                 ]
 
         (options, args) = self.parser.parse_args(args)
-        print "testing"
+        
         main(options)
 
         tested = open(os.getcwd() + "/peak_results.bed")

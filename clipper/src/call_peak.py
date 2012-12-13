@@ -11,13 +11,20 @@ from clipper.src.peaks import readsToWiggle_pysam, shuffle, find_sections
 from scipy import optimize
 
 #import pylab
+<<<<<<< Updated upstream
 import matplotlib
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 from numpy import diff, sign, append, array, arange, r_, empty, argmin
+=======
+#import matplotlib
+#import matplotlib.pyplot as plt
+#import matplotlib.patches as patches
+from numpy import diff, sign, append, array, arange, r_, empty
+>>>>>>> Stashed changes
 from math import sqrt
 from scipy import interpolate
-from matplotlib.path import Path
+#from matplotlib.path import Path
 
 from scipy import stats
 from random import sample as rs
@@ -150,7 +157,6 @@ def get_norm_penalized_residuals(spline):
 
     err = (normwt*norm(spline(spline._data[0]))**5) + (residwt*sqrt(spline.get_residual()))
     return err
-    
     
     
 def count_turns(spline):
@@ -325,7 +331,7 @@ class Spline(object):
             self.optimizedSmoothingFactor = optimizedSmoothingFactor
             optimizedSpline = self.fit(optimizedSmoothingFactor, weight)
         else:
-            logging.error("Problem spline fitting. Here is the message:\n%s" %(minimizeResult.message))
+            logging.error("Problem spline fitting. Here is the message:\n%s" % (minimizeResult.message))
             raise Exception
         if replace:
             self.smoothingFactor = optimizedSmoothingFactor
@@ -536,6 +542,8 @@ def call_peaks(loc, gene_length, bam_fileobj=None, bam_file=None,
     correct_p - boolean bonferoni correction of p-values from poisson
     
     """
+    
+    sys.stderr.write("plotit foo" + str(plotit))
     if plotit:
         plt.rcParams['interactive']=True
         pass
@@ -862,6 +870,7 @@ def peaks_from_info(wiggle, pos_counts, lengths, loc, gene_length,
             logging.warn("data does not excede threshold, stopping")
             continue
 
+<<<<<<< Updated upstream
         print "here"
         print plotit
         fitType = "Spline"
@@ -878,6 +887,51 @@ def peaks_from_info(wiggle, pos_counts, lengths, loc, gene_length,
             
         (fit_values, starts_and_stops, starts, stops) = fitter.peaks(threshold, plotit)
         
+=======
+        best_error = fitter.loss()
+        print "1, %f, %f" %(initial_smoothing_value, best_error)
+        if plotit:
+            fitter.plot()
+            
+        for i in range(2, 50):
+            cur_smoothing_value = initial_smoothing_value * i
+            #tries find optimal initial smooting paraater in this loop
+            rpl = False
+            if plotit ==True:
+                rpl = True
+                
+            cur_error = fitter.fit_loss(cur_smoothing_value, replace=rpl)
+            
+            if plotit:
+                fitter.plot(label=str(cur_smoothing_value))
+                print "%d, %f, %f" %(i, cur_smoothing_value, cur_error)
+            
+            if cur_error < best_error:
+                bestSmoothingEstimate = cur_smoothing_value
+                best_error = cur_error
+        print "trying: %f, with err: %f" %(bestSmoothingEstimate, best_error)
+        
+        try:
+            #fine optimization of smooting paramater
+            #low-temp optimize
+            op, loss = fitter.optimize_fit(s_estimate=bestSmoothingEstimate, replace=True)
+            print "optimized smoothing factor is %f" %(op)
+
+        except Exception as error:
+            #import code
+            #code.interact(local=dict(locals().items() + globals().items()))
+            logging.error("%s failed spline fitting optimization at section %s (major crash)" %(loc, sect))
+            continue
+
+        spline_values = array([int(x) for x in fitter.predict()])
+        print "using fitting parameter: %f" %(fitter.smoothingFactor)
+        
+        if plotit is True:
+            fitter.plot(title=str(peakn), threshold=threshold)
+
+        starts_and_stops, starts, stops = get_regions_above_threshold(threshold, 
+                                                                      spline_values)
+>>>>>>> Stashed changes
 
         #walks along spline, and calls peaks along spline
         #for each start, take the next stop and find the peak 
