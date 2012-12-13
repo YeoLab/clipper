@@ -419,7 +419,6 @@ class GaussMix(object):
         self.AIC = AIC[best]
         
     def predict(self):
-        #get predicted values for gaussian mix
         pass
 
 
@@ -1017,6 +1016,103 @@ def peaks_from_info(wiggle, pos_counts, lengths, loc, gene_length,
                 peakn += 1
                 peak_dict['sections'][sect]['nPeaks'] +=1
 
+            #there are more than one peaks in this window
+            #NO LONGER NESSESSARY SHOULD REMOVE
+            else:  
+                #this handles peaks within peaks logic
+
+                #local minima in subsection, relative to section start
+                valleys = array(map(lambda x:x + p_start, xvals[diff(sign(diff(spline(xvals[p_start:p_stop + 1])))) > 0]))
+
+                for subpeak in peaks:
+                    subpeak_start = int()
+                    subpeak_stop = int()
+
+                    if any(valleys < subpeak):
+                        subpeak_start = valleys[valleys < subpeak][-1]
+                    else:
+                        subpeak_start = starts[starts < subpeak][-1]
+
+                    if any(valleys > subpeak):
+                        subpeak_stop = valleys[valleys > subpeak][0]
+                    else:
+                        subpeak_stop = stops[stops > subpeak][0]
+                    peak_length = subpeak_stop - subpeak_start + 1
+
+                    if peak_length < width_cutoff:#skip really small peaks
+                        continue
+                    n_reads_in_peak = sum(cts[subpeak_start:(subpeak_stop + 1)])
+
+                    if (n_reads_in_peak < minreads or 
+                        max(data[subpeak_start:(subpeak_stop + 1)]) < 
+                        threshold):
+                        continue
+
+                    g_start = tx_start + subpeak_start + sectstart
+                    g_stop = tx_start + subpeak_stop + sectstart
+                    peak = tx_start + subpeak + sectstart
+                    thick_start = peak - 2
+
+                    if thick_start < g_start:
+                        thick_start = g_start                        
+                    thick_stop = peak + 2
+
+                    if thick_stop > g_stop:
+                        thick_stop = g_stop                        
+                    peak_name = "%s_%s_%s" %(gene_name, peakn, int(n_reads_in_peak))
+
+                    #distance from gene start
+                    if peak - tx_start - windowsize < 0: 
+                        area_start = 0 
+                    else:
+                        area_start = peak - tx_start - windowsize
+
+                    if peak + windowsize > tx_end: #distance to gene stop
+                        area_stop = tx_start - tx_end + 1
+                    else:
+                        #area_stop = sectstop
+                        area_stop = peak - tx_start + windowsize
+
+                    area_reads = sum(pos_counts[area_start:area_stop])
+                    area_size = area_stop - area_start + 1
+
+                    gene_pois_p = poissonP(nreads_in_gene, 
+                                           n_reads_in_peak, 
+                                           gene_length, 
+                                           peak_length)
+
+                    if SloP is True:
+                        slop_pois_p = poissonP(area_reads, 
+                                               n_reads_in_peak, 
+                                               area_size, 
+                                               peak_length)
+                    else:
+                        slop_pois_p = gene_pois_p
+
+                    if math.isnan(slop_pois_p):
+                        slop_pois_p = 1
+
+                    #leave these in to allow for BH p-value correction
+                    if slop_pois_p > poisson_cutoff: 
+                        pass
+
+                    #output results again
+                    bedline = "%s\t%d\t%d\t%s\t%s\t%s\t%d\t%d" %(chrom, 
+                                                                  g_start, 
+                                                                  g_stop, 
+                                                                  peak_name, 
+                                                                  slop_pois_p, 
+                                                                  signstrand, 
+                                                                  thick_start, 
+                                                                  thick_stop
+                                                                  )
+
+                    peak_dict['clusters'][bedline] = {}                        
+                    peak_dict['clusters'][bedline]['SloP'] = slop_pois_p
+                    peak_dict['clusters'][bedline]['GeneP'] = gene_pois_p
+                    peak_dict['clusters'][bedline]['Nreads'] = n_reads_in_peak
+                    peak_dict['clusters'][bedline]['size'] = peak_length
+                    peakn += 1
             
             
     #inflate p-values based on # of comparisons #bonferroni corrected
