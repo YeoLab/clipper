@@ -13,28 +13,6 @@ import clipper
 from clipper import data_dir
 from clipper.src.call_peak import call_peaks, poissonP
 import logging
-#logging.basicConfig(level=logging.INFO)
-logging.disable(logging.INFO)
-
-#define verbose printing here for test cases
-#get rid of this and switch to logging
-global varboseprint
-
-def verboseprint(*args):
-
-    """
-    
-    wrapper print function to print commands only if a flag at runtime is set
-    
-    """
-
-    # Print each argument separately so caller doesn't need to
-    # stuff everything to be printed into a single string
-    for arg in args:
-        print >> sys.stderr, arg,
-    print
-
-
 
 def trim_reads(bamfile):
     
@@ -76,7 +54,7 @@ def check_for_index(bamfile):
     if os.path.exists(bamfile + ".bai"):
         return 1
     else:
-        verboseprint("Index for %s does not exist, indexing bamfile" 
+        logging.error("Index for %s does not exist, indexing bamfile" 
                      % (bamfile))
         #result = pysam.index(str(bamfile))
 #TODO fix this, indexing is very fragile
@@ -284,7 +262,7 @@ def transcriptome_filter(poisson_cutoff, transcriptome_size, transcriptome_reads
                                cluster['size'])
     
     if math.isnan(transcriptome_p):
-        verboseprint("""Transcriptome P is NaN, transcriptome_reads = %d, 
+        logging.info("""Transcriptome P is NaN, transcriptome_reads = %d, 
          cluster reads = %d, transcriptome_size = %d, 
          cluster_size = %d""" % (transcriptome_reads, cluster['Nreads'], transcriptome_size, cluster['size']))
         return False
@@ -316,7 +294,7 @@ def count_transcriptome_reads(results):
     #print >> sys.stderr, results
     for gene_result in results:
         if gene_result is not None:
-            verboseprint("nreads", gene_result['nreads'])
+            logging.info("nreads", gene_result['nreads'])
             transcriptome_reads += gene_result['nreads']
     
     
@@ -362,7 +340,7 @@ def filter_results(results, poisson_cutoff, transcriptome_size, transcriptome_re
                 min_pval = min([corrected_SloP_pval, corrected_gene_pval])
                 
                 if not (min_pval < poisson_cutoff):
-                    verboseprint("Failed Gene Pvalue: %s and failed SloP Pvalue: %s for cluster_id %s" % (corrected_gene_pval, corrected_SloP_pval, cluster_id))
+                    logging.info("Failed Gene Pvalue: %s and failed SloP Pvalue: %s for cluster_id %s" % (corrected_gene_pval, corrected_SloP_pval, cluster_id))
                     meets_cutoff = False
                 
                 if meets_cutoff:
@@ -396,7 +374,7 @@ def main(options):
     if os.path.exists(bamfile):
         #re-set to include the full path to bamfile
         bamfile = os.path.abspath(bamfile) 
-        verboseprint("bam file is set to %s\n" % (bamfile))
+        logging.info("bam file is set to %s\n" % (bamfile))
     else:
         sys.stderr.write("Bam file not defined")
         raise IOError
@@ -458,7 +436,7 @@ def main(options):
 
     for job in jobs:
         results.append(job)   
-    verboseprint("finished with calling peaks")
+    logging.info("finished with calling peaks")
     
     #if we are going to save and output as a pickle file we should 
     #output as a pickle file we should factor instead create a method 
@@ -469,7 +447,7 @@ def main(options):
     
     transcriptome_reads = count_transcriptome_reads(results)
     
-    verboseprint("""Transcriptome size is %d, transcriptome 
+    logging.info("""Transcriptome size is %d, transcriptome 
      reads are %d""" % (transcriptome_size, transcriptome_reads))
 
     allpeaks = filter_results(results, 
@@ -481,7 +459,7 @@ def main(options):
     outbed = options.outfile
     color = options.color
     pybedtools.BedTool("\n".join(allpeaks), from_string=True).sort(stream=True).saveas(outbed, trackline="track name=\"%s\" visibility=2 colorByStrand=\"%s %s\"" % (outbed, color, color))
-    verboseprint("wrote peaks to %s" % (options.outfile))
+    logging.info("wrote peaks to %s" % (options.outfile))
     
 def call_main():
     
@@ -526,18 +504,6 @@ def call_main():
 
     (options, args) = parser.parse_args()
     
-    
-    #creates verbose or scilent output mode
-    global verboseprint
-    if options.verbose:
-        def verboseprint(*args):
-        # Print each argument separately so caller doesn't need to
-        # stuff everything to be printed into a single string
-            for arg in args:
-                print arg,
-            print
-    else:   
-        verboseprint = lambda *a: None      # do-nothing function
     if options.plotit:
         options.debug=True
     
@@ -551,7 +517,7 @@ def call_main():
     if options.trim:
         options.bam = trim_reads(options.bam)
     
-    verboseprint("Starting peak calling")        
+    logging.info("Starting peak calling")        
     main(options)
 
 

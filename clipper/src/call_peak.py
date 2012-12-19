@@ -11,13 +11,15 @@ from clipper.src.peaks import readsToWiggle_pysam, shuffle, find_sections
 from scipy import optimize
 
 #import pylab
+
 import matplotlib
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 from numpy import diff, sign, append, array, arange, r_, empty, argmin
+
 from math import sqrt
 from scipy import interpolate
-from matplotlib.path import Path
+#from matplotlib.path import Path
 
 from scipy import stats
 from random import sample as rs
@@ -150,7 +152,6 @@ def get_norm_penalized_residuals(spline):
 
     err = (normwt*norm(spline(spline._data[0]))**5) + (residwt*sqrt(spline.get_residual()))
     return err
-    
     
     
 def count_turns(spline):
@@ -325,7 +326,7 @@ class Spline(object):
             self.optimizedSmoothingFactor = optimizedSmoothingFactor
             optimizedSpline = self.fit(optimizedSmoothingFactor, weight)
         else:
-            logging.error("Problem spline fitting. Here is the message:\n%s" %(minimizeResult.message))
+            logging.error("Problem spline fitting. Here is the message:\n%s" % (minimizeResult.message))
             raise Exception
         if replace:
             self.smoothingFactor = optimizedSmoothingFactor
@@ -535,6 +536,8 @@ def call_peaks(loc, gene_length, bam_fileobj=None, bam_file=None,
     correct_p - boolean bonferoni correction of p-values from poisson
     
     """
+    
+    sys.stderr.write("plotit foo" + str(plotit))
     if plotit:
         plt.rcParams['interactive']=True
         pass
@@ -861,7 +864,6 @@ def peaks_from_info(wiggle, pos_counts, lengths, loc, gene_length,
             logging.warn("data does not excede threshold, stopping")
             continue
 
-        print "here"
         print plotit
         fitType = "Spline"
         ###gauss mixture model
@@ -876,7 +878,6 @@ def peaks_from_info(wiggle, pos_counts, lengths, loc, gene_length,
             
             
         (fit_values, starts_and_stops, starts, stops) = fitter.peaks(threshold, plotit)
-        
 
         #walks along spline, and calls peaks along spline
         #for each start, take the next stop and find the peak 

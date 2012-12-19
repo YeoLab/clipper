@@ -40,9 +40,6 @@ class test_peakfinder(unittest.TestCase):
         self.parser.add_option("--poisson-cutoff", dest="poisson_cutoff", type="float", help="p-value cutoff for poisson test, Default:%default", default=0.05, metavar="P")
         self.parser.add_option("--FDR", dest="FDR_alpha", type="float", default=0.05, help="FDR cutoff for significant height estimation, default=%default")
         self.parser.add_option("--threshold", dest="threshold", type="int", default=None, help="Skip FDR calculation and set a threshold yourself")
-        
-        self.parser.add_option("--disable_global_cutoff", dest="global_cutoff", action="store_false", help="disables global transcriptome level cutoff to CLIP-seq peaks, Default:%default", default=True, metavar="P")
-
         self.parser.add_option("--serial", dest="serial", action="store_true", help="run genes in sequence (not parallel)")
         self.parser.add_option("--maxgenes", dest="maxgenes", default=None, help="stop computation after this many genes, for testing", metavar="NGENES")
         self.parser.add_option("--job_name", dest="job_name", default="FAP", help="name for submitted job. Not used with --serial.  default:%default", metavar="NAME")
@@ -53,6 +50,7 @@ class test_peakfinder(unittest.TestCase):
         self.parser.add_option("--start", dest="start", default=False, action="store_true", help=SUPPRESS_HELP) #private, don't use
         self.parser.add_option("--save-pickle", dest="save_pickle", default=False, action = "store_true", help="Save a pickle file containing the analysis")
         self.parser.add_option("--debug", dest="debug", default=False, action="store_true", help="disables multipcoressing in order to get proper error tracebacks")
+        self.parser.add_option("--disable_global_cutoff", dest="use_global_cutoff", action="store_false", help="disables global transcriptome level cutoff to CLIP-seq peaks, Default:On", default=True, metavar="P")
 
 
     
@@ -66,12 +64,12 @@ class test_peakfinder(unittest.TestCase):
 
         args = ["-b", pkg_resources.resource_filename(__name__, "../test/allup_test.bam"),
                  "-s", "hg19",
-                  "-g", "ENSG00000198901", 
-                   "--outfile=" + os.getcwd() + "/peak_results.bed",
+                 "-g", "ENSG00000198901", 
+                 "--outfile=" + os.getcwd() + "/peak_results.bed",
                 ]
 
         (options, args) = self.parser.parse_args(args)
-        print "testing"
+        
         main(options)
 
         tested = open(os.getcwd() + "/peak_results.bed")
@@ -135,7 +133,8 @@ class test_peakfinder(unittest.TestCase):
                   '-g', "ENSG00000226167",
                    "--outfile=" + os.getcwd() + "/no_cut_off.bed",
                    "-q",
-                   "--disable_global_cutoff"
+                   "--disable_global_cutoff",
+                   '--debug'
                 ]    
         (options, args) = self.parser.parse_args(args)
         main(options)
