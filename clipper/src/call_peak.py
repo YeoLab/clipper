@@ -353,7 +353,7 @@ class Spline(object):
         #high-temp optimize
 
         best_error = self.loss()
-        print "1, %f, %f" %(initial_smoothing_value, best_error)
+        #print "1, %f, %f" %(initial_smoothing_value, best_error)
         if plotit == True:
             self.plot()
         for i in range(2, 50):
@@ -366,24 +366,24 @@ class Spline(object):
             if plotit == True:
                 self.plot(label=str(cur_smoothing_value))
 
-        print "%d, %f, %f" %(i, cur_smoothing_value, cur_error)
+        #print "%d, %f, %f" %(i, cur_smoothing_value, cur_error)
         if cur_error < best_error:
             bestSmoothingEstimate = cur_smoothing_value
             best_error = cur_error
-        print "trying: %f, with err: %f" %(bestSmoothingEstimate, best_error)
+        #print "trying: %f, with err: %f" %(bestSmoothingEstimate, best_error)
 
         try:
             #fine optimization of smooting paramater
             #low-temp optimize
             op, loss = self.optimize_fit(s_estimate=bestSmoothingEstimate, replace=True)
-            print "optimized smoothing factor is %f" %(op)
+            #print "optimized smoothing factor is %f" %(op)
 
         except Exception as error:
             logging.error("failed spline fitting optimization at section (major crash)")
             self.fit_loss(bestSmoothingEstimate, replace=True) #just use the
 
         spline_values = array([int(x) for x in self.predict()])
-        print "using fitting parameter: %f" %(self.smoothingFactor)
+        #print "using fitting parameter: %f" %(self.smoothingFactor)
         if plotit is True:
             self.plot(title=str(peakn), threshold=threshold)
 
@@ -537,7 +537,7 @@ def call_peaks(loc, gene_length, bam_fileobj=None, bam_file=None,
     
     """
     
-    sys.stderr.write("plotit foo" + str(plotit))
+    #sys.stderr.write("plotit foo" + str(plotit))
     if plotit:
         plt.rcParams['interactive']=True
         pass
@@ -774,7 +774,7 @@ def peaks_from_info(wiggle, pos_counts, lengths, loc, gene_length,
         
     """
 
-    print "calling peaks"
+    #print "calling peaks"
     peak_dict = {}
     
     #these are what is built in this dict, complicated enough that it might 
@@ -861,10 +861,10 @@ def peaks_from_info(wiggle, pos_counts, lengths, loc, gene_length,
         peak_dict['sections'][sect]['nPeaks'] = 0
         #if wiggle track never excides threshold
         if max(data) < threshold:
-            logging.warn("data does not excede threshold, stopping")
+            logging.info("data does not excede threshold, stopping")
             continue
 
-        print plotit
+        #print plotit
         fitType = "Spline"
         ###gauss mixture model
         if fitType == "Spline":
