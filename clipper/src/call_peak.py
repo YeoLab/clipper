@@ -379,7 +379,7 @@ class Spline(object):
             print "optimized smoothing factor is %f" %(op)
 
         except Exception as error:
-            logging.error("%s failed spline fitting optimization at section %s (major crash)" %(loc, sect))
+            logging.error("failed spline fitting optimization at section (major crash)")
             self.fit_loss(bestSmoothingEstimate, replace=True) #just use the
 
         spline_values = array([int(x) for x in self.predict()])
