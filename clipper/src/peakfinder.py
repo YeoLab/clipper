@@ -410,10 +410,12 @@ def main(options):
     
     #truncates for max genes
     if options.maxgenes is not None:
-        running_list = running_list[:maxgenes]
-        length_list  = length_list[:maxgenes]
+        import random
+        print xrange(len(genes.keys()))
+        ind = random.sample(xrange(len(genes.keys())), k=options.maxgenes)
+        running_list = running_list[ind]
+        length_list  = length_list[ind]
     
-
     transcriptome_size = sum(length_list)
     #do the parralization
     tasks =  [(gene, length, None, bamfile, margin, options.FDR_alpha, 
