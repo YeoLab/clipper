@@ -119,139 +119,157 @@ def get_FDR_cutoff_mean(readlengths,
         cutoff = mincut
     return int(round(cutoff, 0))
 
-
-
-def plot_spline(spline, title=None, threshold=None, fig=None, label = "_nolegend_"):
-    
-    """
-    
-    plots spline information
-    
-    spline - spline from scipy
-    data - wiggle track to plot
-    xvals - where to plot
-    threshold - line to draw so peaks don't go below threshold
-    
-    """
-
-    if fig == None:
-        fig = plt.figure()
-    plt.plot(spline._data[0], spline._data[1], "blue", label="_nolegend")
-    plt.plot(spline._data[0], spline(spline._data[0]), label=label)
-
-    if threshold is not None:
-        plt.axhline(y=threshold)
-
-    plt.legend(loc=2)
-    plt.show()
-
-def get_norm_penalized_residuals(spline):
-    from scipy.linalg import norm
-    normwt = 10
-    residwt = 1
-
-    err = (normwt*norm(spline(spline._data[0]))**5) + (residwt*sqrt(spline.get_residual()))
-    return err
-    
-    
 def count_turns(spline):
+    
+    """
+    
+    NOT USED (useful function though so I'll keep it around)
+    
+    """
     func = spline(spline._data[0])
     turns = sum(abs(diff(sign(diff(func))))) / 2
     return turns
-
-def get_turn_penalized_residuals(spline):
-
-    func = spline(spline._data[0])
-
-    turns = sum(abs(diff(sign(diff(func))))) / 2     
-    err = sqrt((spline.get_residual()) * (turns ** 5))/100
-    return err
-
-def spline_loss(spline, errfunc=get_turn_penalized_residuals):
     
-    """
-    Returns complexity penalized residuals from a smoothing spline
-    
-    """
-
-    if spline is None:    #catches spline fitting error
-        raise TypeError("Spline is of None type")
-
-    err = errfunc(spline)
-
-    return(err)
-    
-def fit_univariate_spline(smoothingFactor, xRange, yData,  k, weight=None):
+class PeakGenerator(object):
     
     """
     
-    Calculate a smoothing spline for ydata in xdata then return complexity-penalized residuals
-    or return the smoothing spline if resid ==False
-    
-    Parameters:
-    smoothingFactor -- parameter for UnivariateSpline
-    xRange -- Int, range of spline
-    yData -- list, wiggle track positions   
-    k -- int, degree of spline
-
-    
-    Output: spline object
+    An abstract class used to encapsulate all potental peak calling methods that
+    we have.  New peak calling algorithms should inheret from this class
     
     """
+
+    def __init__(self, xRange, yData):
+        
+        """
+        
+        All basic peak calling algorithms need a wiggle track and in the form of the range
+        of the data, and the value at each location
+        
+        """
+        
+        self.xRange = xRange
+        self.yData  = yData
     
-    try:
-        spline = interpolate.UnivariateSpline(xRange, 
-                                              yData, 
-                                              s=smoothingFactor, 
-                                              k=k, 
-                                              w=weight)
-    except Exception as error: #This error shouldn't happen anymore
-        print >> sys.stderr, xRange, yData, smoothingFactor, k, weight
-        logging.error("failed to build spline %s" %(error))
-        raise
-
-    return(spline)
-
-
-
-
-
-class Spline(object):
+    def peaks(self, threshold, plotit):
+        
+        """
+        
+        Idenitifes peaks given the constructed object
+        
+        threshold is the minimum threshold to report a peak at
+        plotit plots results
+        
+        function returns 
+        fit_values: ??
+        starts_and_stops: a list of tuples detailing the start and stop of each peak
+        starts: a list of all the starts
+        stops: a list of all the stops
+        
+        
+        """
+        
+        raise("Error abstract class, peaks not implemented")
+    
+class SmoothingSpline(PeakGenerator):
     """Class to fit data to a smooth curve"""
-    def __get__(self, obj, cls=None):
-        pass
-
-    def __set__(self, obj, val):
-        pass
-
-    def __delete__(self, obj):
-        pass
-
-    def test(self):
-        return NotImplemented #implement testing!!
 
 
+    
     def __init__(self, xRange, yData, smoothingFactor=None,
-                 lossFunction = get_turn_penalized_residuals):
+                 lossFunction = "get_turn_penalized_residuals"):
+        
+        super(SmoothingSpline,self).__init__(xRange, yData)
+        
         if smoothingFactor is None:
             smoothingFactor = len(xRange)
-        self.lossFunction = lossFunction
-        self.xRange = xRange
-        self.yData = yData
+            
         self.k=3 #degree of spline (cubic)
         self.smoothingFactor = smoothingFactor
 
         self.weight = None
+    
+        #Sets loss function
+        if lossFunction == "get_turn_penalized_residuals":
+            self.lossFunction = self.get_turn_penalized_residuals
+        elif lossFunction == "get_norm_penalized_residuals":
+            self.lossFunction = self.get_norm_penalized_residuals
+        else:
+            raise("loss function not implemented")
+
+    def get_norm_penalized_residuals(self, spline):
         
-    def fit(self, smoothingFactor = None, weight = None, replace = True):
-        """fit a spline, return the spline. If replace is True, replace the current
-        class definition of the spline"""
+        """
+        
+        Might think about turning this into a mixin...
+        
+        Still not quite sure how this works...
+        """
+        
+        from scipy.linalg import norm
+        normwt = 10
+        residwt = 1
+    
+        err = (normwt*norm(spline(spline._data[0]))**5) + (residwt*sqrt(spline.get_residual()))
+        return err
+
+    def get_turn_penalized_residuals(self, spline):
+    
+        """
+        
+        Might think about turning this into a mixin...
+        
+        Still not quite sure how this works...
+        """
+        func = spline(spline._data[0])
+    
+        turns = sum(abs(diff(sign(diff(func))))) / 2     
+        err = sqrt((spline.get_residual()) * (turns ** 5))/100
+        return err
+    
+    def fit_univariate_spline(self, smoothingFactor = None, weight = None, replace = True):
+        
+        """
+        
+        fit a spline, return the spline. If replace is True, replace the current
+        class definition of the spline
+             
+        (wrapper for UnivariateSpline with error handling and logging)
+        
+        Parameters:
+        smoothingFactor -- parameter for UnivariateSpline
+        xRange -- Int, range of spline
+        yData -- list, wiggle track positions   
+        k -- int, degree of spline
+        weight -- spline weight
+        
+        Output: spline object
+        
+        """
+        
         if smoothingFactor is None:
             smoothingFactor = self.smoothingFactor
+        
         if weight is None:
             weight = self.weight            
-        spline = fit_univariate_spline(smoothingFactor, self.xRange,
-                                       self.yData, self.k, weight=self.weight)
+        
+        try:
+            spline = interpolate.UnivariateSpline(self.xRange, 
+                                                  self.yData, 
+                                                  s=smoothingFactor, 
+                                                  k=self.k, 
+                                                  w=self.weight)
+            
+        except Exception as error: #This error shouldn't happen anymore
+ 
+            logging.error("failed to build spline %s, %s, %s, %s, %s, %s" % (error, 
+                                                                             self.xRange, 
+                                                                             self.yData, 
+                                                                             smoothingFactor, 
+                                                                             self.k, 
+                                                                             self.weight) )
+            raise
+        
         if not hasattr(self, 'spline'):
             self.spline = spline
         elif replace:
@@ -260,64 +278,93 @@ class Spline(object):
         return spline
 
     def predict(self):
-        """get predicted values from the spline over the fitted area"""
+        
+        """
+        
+        get predicted values from the spline over the fitted area
+        
+        """
+        
         return(self.spline(self.spline._data[0]))
-
-    def loss(self, spline = None, lossFunction = None, replace = True):
-        """calculate the result of the loss function"""
-        if lossFunction == None:
-            lossFunction = self.lossFunction
-
+    
+    def loss(self, spline = None, replace = True):
+        
+        """
+        
+        Calculate the result of the loss function
+        
+        """
+        
         if spline == None:
             spline = self.spline
-        error = spline_loss(spline, errfunc = lossFunction)
-        if not hasattr(self, 'error'):
-            self.error = error
-        elif replace:
-            self.error = error
-        return error
+            
+        if spline is None:    #catches spline fitting error
+            raise TypeError("Spline is of None type")
+        
+        return self.lossFunction(spline)
 
-    def fit_loss(self, smoothingFactor=None, replace=False, weight = None, lossFunction = None):
+
+    def fit_loss(self, smoothingFactor=None, replace=False, weight = None):
         """fit a curve with a given smoothing parameter, return the result of the loss fxn"""
-        if lossFunction == None:
-            lossFunction = self.lossFunction
 
         if smoothingFactor == None:
             smoothingFactor = self.smoothingFactor
 
         if weight == None:
             weight = self.weight
-        spline = self.fit(smoothingFactor=smoothingFactor, replace=replace, weight=weight)
-        err = self.loss(spline, lossFunction=lossFunction)
+        spline = self.fit_univariate_spline(smoothingFactor=smoothingFactor, replace=replace, weight=weight)
+        err = self.loss(spline)
 
         return err
     
-
+    def plot_spline(self, spline, title=None, threshold=None, fig=None, label = "_nolegend_"):
+        
+        """
+        
+        plots spline information
+        
+        spline - spline from scipy
+        data - wiggle track to plot
+        xvals - where to plot
+        threshold - line to draw so peaks don't go below threshold
+        
+        """
+    
+        if fig == None:
+            fig = plt.figure()
+        plt.plot(spline._data[0], spline._data[1], "blue", label="_nolegend")
+        plt.plot(spline._data[0], spline(spline._data[0]), label=label)
+    
+        if threshold is not None:
+            plt.axhline(y=threshold)
+    
+        plt.legend(loc=2)
+        plt.show()
+        
     def plot(self, threshold=None, title=None, label="_nolegend_"):
         """plot data and spline"""
+        
         if not hasattr(self, 'spline'):
-            self.fit()
+            self.fit_univariate_spline()
         if not hasattr(self, 'figure'):
             self.figure = plt.figure()
+            
         plot_spline(self.spline, threshold=threshold, title=title, fig = self.figure, label=label)
        
 
     def optimize_fit(self, s_estimate=None, method = 'L-BFGS-B', bounds=((1,None),),
-                     replace=False, weight=None, lossFunction=None):
+                     replace=False, weight=None):
         """optimize the smoothingFactor for fitting."""
         import scipy
         from scipy import optimize
         if s_estimate == None:
             s_estimate = self.smoothingFactor
 
-        if lossFunction == None:
-            lossFunction = self.lossFunction
-
         minOpts = {'disp':False,
                    'maxiter':1000}
 
         minimizeResult = scipy.optimize.minimize(self.fit_loss, s_estimate,
-                                          args = (replace, weight, lossFunction),
+                                          args = (replace, weight),
                                           options = minOpts,
                                           method = method,
                                           bounds = bounds,
@@ -325,7 +372,7 @@ class Spline(object):
         if minimizeResult.success:
             optimizedSmoothingFactor = minimizeResult.x
             self.optimizedSmoothingFactor = optimizedSmoothingFactor
-            optimizedSpline = self.fit(optimizedSmoothingFactor, weight)
+            optimizedSpline = self.fit_univariate_spline(optimizedSmoothingFactor, weight)
         else:
             logging.error("Problem spline fitting. Here is the message:\n%s" % (minimizeResult.message))
             raise Exception
@@ -333,7 +380,7 @@ class Spline(object):
             self.smoothingFactor = optimizedSmoothingFactor
             self.spline = optimizedSpline
 
-        return(optimizedSmoothingFactor, self.loss(optimizedSpline, lossFunction = lossFunction, replace=False))
+        return(optimizedSmoothingFactor, self.loss(optimizedSpline, replace=False))
 
     def peaks(self, threshold=0, plotit = False):
         """
@@ -348,7 +395,7 @@ class Spline(object):
 
         #step 1 naive spline
 
-        self.fit()
+        self.fit_univariate_spline()
 
         #step 2, refine to avoid local minima later
         #high-temp optimize
@@ -869,10 +916,9 @@ def peaks_from_info(wiggle, pos_counts, lengths, loc, gene_length,
         fitType = "Spline"
         ###gauss mixture model
         if fitType == "Spline":
-            lf = get_norm_penalized_residuals
             initial_smoothing_value = (sectstop - sectstart + 1)/4
-            fitter = Spline(xvals, data, initial_smoothing_value,
-                            lossFunction=lf)
+            fitter = SmoothingSpline(xvals, data, initial_smoothing_value,
+                            lossFunction="get_norm_penalized_residuals")
         
         elif fitType == "Gaussian":
             fitter = GaussMix(xvals, data)
