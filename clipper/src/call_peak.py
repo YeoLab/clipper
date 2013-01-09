@@ -198,6 +198,7 @@ def fit_univariate_spline(smoothingFactor, xRange, yData,  k, weight=None):
     Output: spline object
     
     """
+    
     try:
         spline = interpolate.UnivariateSpline(xRange, 
                                               yData, 

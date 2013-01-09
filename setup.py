@@ -44,6 +44,6 @@ setup(
     url = "https://github.com/YeoLab/clipper",
     
     #Other stuff I feel like including here
-    include_package_data = True,
+    include_package_data = True
     #zip_safe = True #True I think
 )

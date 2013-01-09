@@ -510,6 +510,56 @@ class Test(unittest.TestCase):
         #loc = ['chr15', 'bar', 91536649, 91537641, "+"]
         #result = peaks_from_info(wiggle, pos_counts,lengths,loc, 992, 25,.05, None, 3, .05, False, 10, 1000, False, .05)
         
+    def test_get_norm_penalized_residuals(self):
+        
+        """
+        
+        Tests get norm penalized residuals
+        
+        """
+        
+        assert False
+    
+    def test_count_turns(self):
+        
+        """
+        
+        Tests count turns
+        
+        """
+        
+        assert False
+    
+    def test_get_turn_penalized_residuals(self):
+        
+        """
+        
+        Tests get turn penalized residuals
+        
+        """
+        
+        assert False
+    
+    def test_spline_loss(self):
+        
+        """
+        
+        Tests spline loss
+        
+        """
+        
+        assert False
+        
+    def test_fit_univariate_spline(self):
+        
+        """
+        
+        Tests fit univariate spline
+        
+        """
+        
+        assert False
+        
 if __name__ == "__main__":
     #import sys;sys.argv = ['', 'Test.testName']
     unittest.main()
