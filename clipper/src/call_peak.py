@@ -195,7 +195,7 @@ class SmoothingSpline(PeakGenerator):
         elif lossFunction == "get_norm_penalized_residuals":
             self.lossFunction = self.get_norm_penalized_residuals
         else:
-            raise("loss function not implemented")
+            raise TypeError("loss function not implemented")
 
     def get_norm_penalized_residuals(self, spline):
         
@@ -204,6 +204,7 @@ class SmoothingSpline(PeakGenerator):
         Might think about turning this into a mixin...
         
         Still not quite sure how this works...
+        
         """
         
         from scipy.linalg import norm
@@ -220,6 +221,7 @@ class SmoothingSpline(PeakGenerator):
         Might think about turning this into a mixin...
         
         Still not quite sure how this works...
+        
         """
         func = spline(spline._data[0])
     
@@ -227,12 +229,11 @@ class SmoothingSpline(PeakGenerator):
         err = sqrt((spline.get_residual()) * (turns ** 5))/100
         return err
     
-    def fit_univariate_spline(self, smoothingFactor = None, weight = None, replace = True):
+    def fit_univariate_spline(self, smoothingFactor = None, weight = None):
         
         """
         
-        fit a spline, return the spline. If replace is True, replace the current
-        class definition of the spline
+        fit a spline, return the spline.
              
         (wrapper for UnivariateSpline with error handling and logging)
         
@@ -269,42 +270,21 @@ class SmoothingSpline(PeakGenerator):
                                                                              self.k, 
                                                                              self.weight) )
             raise
-        
-        if not hasattr(self, 'spline'):
-            self.spline = spline
-        elif replace:
-            self.spline = spline
 
         return spline
 
-    def predict(self):
+    def predict(self, spline):
         
         """
         
         get predicted values from the spline over the fitted area
         
+        TODO clarify data[0]
         """
-        
-        return(self.spline(self.spline._data[0]))
+                
+        return(spline(spline._data[0]))
     
-    def loss(self, spline = None, replace = True):
-        
-        """
-        
-        Calculate the result of the loss function
-        
-        """
-        
-        if spline == None:
-            spline = self.spline
-            
-        if spline is None:    #catches spline fitting error
-            raise TypeError("Spline is of None type")
-        
-        return self.lossFunction(spline)
-
-
-    def fit_loss(self, smoothingFactor=None, replace=False, weight = None):
+    def fit_loss(self, smoothingFactor=None, weight = None):
         """fit a curve with a given smoothing parameter, return the result of the loss fxn"""
 
         if smoothingFactor == None:
@@ -312,9 +292,10 @@ class SmoothingSpline(PeakGenerator):
 
         if weight == None:
             weight = self.weight
-        spline = self.fit_univariate_spline(smoothingFactor=smoothingFactor, replace=replace, weight=weight)
-        err = self.loss(spline)
 
+        spline = self.fit_univariate_spline(smoothingFactor=smoothingFactor, weight=weight)
+        err = self.lossFunction(spline)
+        
         return err
     
     def plot_spline(self, spline, title=None, threshold=None, fig=None, label = "_nolegend_"):
@@ -341,7 +322,7 @@ class SmoothingSpline(PeakGenerator):
         plt.legend(loc=2)
         plt.show()
         
-    def plot(self, threshold=None, title=None, label="_nolegend_"):
+    def plot(self, spline, threshold=None, title=None, label="_nolegend_"):
         """plot data and spline"""
         
         if not hasattr(self, 'spline'):
@@ -349,11 +330,10 @@ class SmoothingSpline(PeakGenerator):
         if not hasattr(self, 'figure'):
             self.figure = plt.figure()
             
-        plot_spline(self.spline, threshold=threshold, title=title, fig = self.figure, label=label)
+        plot_spline(spline, threshold=threshold, title=title, fig = self.figure, label=label)
        
-
     def optimize_fit(self, s_estimate=None, method = 'L-BFGS-B', bounds=((1,None),),
-                     replace=False, weight=None):
+                     weight=None):
         """optimize the smoothingFactor for fitting."""
         import scipy
         from scipy import optimize
@@ -364,28 +344,142 @@ class SmoothingSpline(PeakGenerator):
                    'maxiter':1000}
 
         minimizeResult = scipy.optimize.minimize(self.fit_loss, s_estimate,
-                                          args = (replace, weight),
+                                          args = (weight),
                                           options = minOpts,
                                           method = method,
                                           bounds = bounds,
                                           )
         if minimizeResult.success:
             optimizedSmoothingFactor = minimizeResult.x
-            self.optimizedSmoothingFactor = optimizedSmoothingFactor
             optimizedSpline = self.fit_univariate_spline(optimizedSmoothingFactor, weight)
         else:
             logging.error("Problem spline fitting. Here is the message:\n%s" % (minimizeResult.message))
             raise Exception
-        if replace:
-            self.smoothingFactor = optimizedSmoothingFactor
-            self.spline = optimizedSpline
 
-        return(optimizedSmoothingFactor, self.loss(optimizedSpline, replace=False))
+        return optimizedSpline 
 
-    def peaks(self, threshold=0, plotit = False):
+    def get_regions_above_threshold(self, threshold, values):
+        
         """
+    
+        Idea here is to call all regions above a given threshold and return start 
+        stop pairs for those regions added twist is that when everthere is a local
+        minima above the threshold we will treat that as a breakpoint
+        
+        generates start and stop positions for calling peaks on.  Helper function that was abstracted 
+        from peaks_from_info
+        
+        threshold -- threshold for what is siginifant peak
+        values -- the values (as a numpy array) arranged from 0-length of the section
+        
+        returns list of tuples(start, stop) used for calling peaks
+        
+        """
+        
+        xlocs = arange(0, len(values))
+        
+        #finds all turns, between above and below threshold
+        #and generate areas to call peaks in, also 
+        #makes sure starting and stopping above maxima is caught
+        #threshold is at or equal to values, need to correct this
+        starts = xlocs[r_[True, diff(values >= threshold)] & (values >= threshold)]
+        stops = xlocs[r_[diff(values >= threshold), True] & (values >= threshold)]
+        stops = stops + 1 #add to fix off by one bug
+        
+        #print "original starts ", starts
+        #print "original stops ", stops
+        #error correction incase my logic is wrong here, assuming that starts
+        #and stops are always paired, and the only two cases of not being 
+        #pared are if the spline starts above the cutoff or the spline starts
+        #below the cutoff
+        assert len(starts) == len(stops)
+        
+        ### important note: for getting values x->y [inclusive] 
+        #you must index an array as ar[x:(y+1)]|                    
+        # or else you end up with one-too-few values, the second 
+        #index is non-inclusive
+        
+        #gets all local minima, function taken from:
+        #http://stackoverflow.com/questions/4624970/finding-local-maxima-minima-with-numpy-in-a-1d-numpy-array
+        #Can't have local minima at start or end, that would get caught by 
+        #previous check, really need to think about that more
+        #print values
+        local_minima = self.find_local_minima(values)
+        #print xlocs[local_minima]
+        #r_[False, values[1:] < values[:-1]] & r_[values[:-1] < values[1:], False]
+        
+        #append to list any local minima above threshold
+        for i, minima in enumerate(local_minima):
+            if minima and values[i] >= threshold:
+                starts = append(starts, i)
+                stops = append(stops, i)
+        
+        starts = array(sorted(set(starts)))
+        stops = array(sorted(set(stops)))
+        starts_and_stops = []
+        
+        #print "starts after min: ", starts
+        #print "stops after min: ", stops
+        #making sure we aren't in some strange state
+        assert len(starts) == len(stops)
+        
+        #get all contigous start and stops pairs         
+        while len(starts) > 0:
+            stop_list = stops[stops > starts[0]]
+            
+            #if there are no more stops left exit the loop and return the 
+            #currently found starts and stops
+            if len(stop_list) == 0:
+                break 
+            stop = stop_list[0]
+            starts_and_stops.append((starts[0], stop))
+            starts = starts[starts >= stop]
+        
+        starts = array([x[0] for x in starts_and_stops])
+        stops  = array([x[1] for x in starts_and_stops])
+        return starts_and_stops, starts, stops
+    
+    def find_local_minima(self, arr):
+        
+        """
+        
+        Returns a list of boolean values for an array that mark if a value is a local 
+        minima or not True for yes false for no
+        
+        Importantly for ranges of local minima the value in the middle of the range
+        is chosen as the minimum value
+        
+        """
+        
+        #walks through array, finding local minima ranges
+        
+        #hacky way to initalize a new array to all false
+        minima = (arr == -1)
+        min_range_start = 0
+        decreasing = False
+        for i in range(len(arr[:-1])):
+            
+            #array needs to be smooth for this to work, otherwise we'll
+            #run into odd edge cases
+            #update location of minima start until 
+            if arr[i] > arr[i + 1]:
+                min_range_start = i + 1
+                decreasing = True
+            
+            if (arr[i] < arr[i+1]) and decreasing is True:
+                decreasing = False
+                #gets the local minima midpoint
+                minima[(min_range_start + i) / 2] = True
+        
+        return minima
+        
+    def peaks(self, threshold=0, plotit = False):
+        
+        """
+        
         run optimization on spline fitting.
         return peak start/stops
+        
         """
 
         #step 1, identify good initial value
@@ -395,47 +489,47 @@ class SmoothingSpline(PeakGenerator):
 
         #step 1 naive spline
 
-        self.fit_univariate_spline()
+        spline = self.fit_univariate_spline()
 
         #step 2, refine to avoid local minima later
         #high-temp optimize
 
-        best_error = self.loss()
+        best_error = self.lossFunction(spline)
         #print "1, %f, %f" %(initial_smoothing_value, best_error)
         if plotit == True:
             self.plot()
+            
         for i in range(2, 50):
             cur_smoothing_value = initial_smoothing_value * i
             #tries find optimal initial smooting paraater in this loop
-            rpl = False
-            if plotit == True:
-                rpl = True
-            cur_error = self.fit_loss(cur_smoothing_value, replace=rpl)
+
+            cur_error = self.fit_loss(cur_smoothing_value) 
+            
             if plotit == True:
                 self.plot(label=str(cur_smoothing_value))
 
-        #print "%d, %f, %f" %(i, cur_smoothing_value, cur_error)
-        if cur_error < best_error:
-            bestSmoothingEstimate = cur_smoothing_value
-            best_error = cur_error
-        #print "trying: %f, with err: %f" %(bestSmoothingEstimate, best_error)
+   
+            if cur_error < best_error:
+                bestSmoothingEstimate = cur_smoothing_value
+                best_error = cur_error
+
 
         try:
             #fine optimization of smooting paramater
             #low-temp optimize
-            op, loss = self.optimize_fit(s_estimate=bestSmoothingEstimate, replace=True)
+            optimizedSpline = self.optimize_fit(s_estimate=bestSmoothingEstimate)
             #print "optimized smoothing factor is %f" %(op)
 
         except Exception as error:
             logging.error("failed spline fitting optimization at section (major crash)")
-            self.fit_loss(bestSmoothingEstimate, replace=True) #just use the
+            raise
 
-        spline_values = array([int(x) for x in self.predict()])
-        #print "using fitting parameter: %f" %(self.smoothingFactor)
+        spline_values = array([int(x) for x in self.predict(optimizedSpline)])
+  
         if plotit is True:
             self.plot(title=str(peakn), threshold=threshold)
 
-        starts_and_stops, starts, stops = get_regions_above_threshold(threshold, 
+        starts_and_stops, starts, stops = self.get_regions_above_threshold(threshold, 
                                                                       spline_values)
         return (spline_values, starts_and_stops, starts, stops)
 
@@ -470,9 +564,44 @@ class GaussMix(object):
     def predict(self):
         pass
 
-
-
-
+def find_local_maxima(arr):
+    
+    """
+        
+        Returns a list of boolean values for an array that mark if a value is a local 
+    maxima or not True for yes false for no
+    
+    Importantly for ranges of local maxima the value in the middle of the range
+    is chosen as the minimum value
+    
+    """
+    
+    #walks through array, finding local maxima ranges
+    
+    #to initalize a new array to all false
+    maxima = empty(len(arr), dtype='bool')
+    maxima.fill(False)
+    
+    max_range_start = 0
+    increasing = True
+    for i in range(len(arr[:-1])):
+        
+        #update location of maxima start until 
+        if arr[i] < arr[i + 1]:
+    
+            max_range_start = i + 1
+            increasing = True
+        
+        if (arr[i] > arr[i+1]) and increasing is True:
+            increasing = False
+            #gets the local maxima midpoint
+            maxima[(max_range_start + i) / 2] = True
+    
+    #catches last case
+    if increasing: 
+        maxima[(max_range_start + len(arr) - 1) / 2] = True
+        
+    return maxima
 
 def plot_sections(wiggle, sections, threshold):
     
@@ -616,178 +745,6 @@ def call_peaks(loc, gene_length, bam_fileobj=None, bam_file=None,
     result = peaks_from_info(list(wiggle), pos_counts, lengths, loc, gene_length, margin, fdr_alpha, user_threshold, minreads, poisson_cutoff, plotit, w_cutoff, windowsize, SloP, correct_p)
     
     return result
-
-def get_regions_above_threshold(threshold, values):
-    
-    """
-
-    Idea here is to call all regions above a given threshold and return start 
-    stop pairs for those regions added twist is that when everthere is a local
-    minima above the threshold we will treat that as a breakpoint
-    
-    generates start and stop positions for calling peaks on.  Helper function that was abstracted 
-    from peaks_from_info
-    
-    threshold -- threshold for what is siginifant peak
-    values -- the values (as a numpy array) arranged from 0-length of the section
-    
-    returns list of tuples(start, stop) used for calling peaks
-    
-    """
-    
-    xlocs = arange(0, len(values))
-    
-    #finds all turns, between above and below threshold
-    #and generate areas to call peaks in, also 
-    #makes sure starting and stopping above maxima is caught
-    #threshold is at or equal to values, need to correct this
-    starts = xlocs[r_[True, diff(values >= threshold)] & (values >= threshold)]
-    stops = xlocs[r_[diff(values >= threshold), True] & (values >= threshold)]
-    stops = stops + 1 #add to fix off by one bug
-    
-    #print "original starts ", starts
-    #print "original stops ", stops
-    #error correction incase my logic is wrong here, assuming that starts
-    #and stops are always paired, and the only two cases of not being 
-    #pared are if the spline starts above the cutoff or the spline starts
-    #below the cutoff
-    assert len(starts) == len(stops)
-    
-    ### important note: for getting values x->y [inclusive] 
-    #you must index an array as ar[x:(y+1)]|                    
-    # or else you end up with one-too-few values, the second 
-    #index is non-inclusive
-    
-    #gets all local minima, function taken from:
-    #http://stackoverflow.com/questions/4624970/finding-local-maxima-minima-with-numpy-in-a-1d-numpy-array
-    #Can't have local minima at start or end, that would get caught by 
-    #previous check, really need to think about that more
-    #print values
-    local_minima = find_local_minima(values)
-    #print xlocs[local_minima]
-    #r_[False, values[1:] < values[:-1]] & r_[values[:-1] < values[1:], False]
-    
-    #append to list any local minima above threshold
-    for i, minima in enumerate(local_minima):
-        if minima and values[i] >= threshold:
-            starts = append(starts, i)
-            stops = append(stops, i)
-    
-    starts = array(sorted(set(starts)))
-    stops = array(sorted(set(stops)))
-    starts_and_stops = []
-    
-    #print "starts after min: ", starts
-    #print "stops after min: ", stops
-    #making sure we aren't in some strange state
-    assert len(starts) == len(stops)
-    
-    #get all contigous start and stops pairs
-    """
-    this was an attempt to fix an off by one bug that I didn't catch
-    before
-    for start, stop in zip(starts, stops):
-        if stop < start:
-            raise ValueError("stop less than start")
-        
-        #peak of length 1
-        elif start == stop:
-            starts_and_stops.append((start, stop + 1))
-            
-        else: #start < stop
-            starts_and_stops.append((start, stop))
-    """
-     
-    while len(starts) > 0:
-        stop_list = stops[stops > starts[0]]
-        
-        #if there are no more stops left exit the loop and return the 
-        #currently found starts and stops
-        if len(stop_list) == 0:
-            break 
-        stop = stop_list[0]
-        starts_and_stops.append((starts[0], stop))
-        starts = starts[starts >= stop]
-    
-    starts = array([x[0] for x in starts_and_stops])
-    stops  = array([x[1] for x in starts_and_stops])
-    return starts_and_stops, starts, stops
-
-def find_local_minima(arr):
-    
-    """
-    
-    Returns a list of boolean values for an array that mark if a value is a local 
-    minima or not True for yes false for no
-    
-    Importantly for ranges of local minima the value in the middle of the range
-    is chosen as the minimum value
-    
-    """
-    
-    #walks through array, finding local minima ranges
-    
-    #hacky way to initalize a new array to all false
-    minima = (arr == -1)
-    min_range_start = 0
-    decreasing = False
-    for i in range(len(arr[:-1])):
-        
-        #array needs to be smooth for this to work, otherwise we'll
-        #run into odd edge cases
-        #update location of minima start until 
-        if arr[i] > arr[i + 1]:
-            min_range_start = i + 1
-            decreasing = True
-        
-        if (arr[i] < arr[i+1]) and decreasing is True:
-            decreasing = False
-            #gets the local minima midpoint
-            minima[(min_range_start + i) / 2] = True
-    
-    return minima
-    
-def find_local_maxima(arr):
-    
-    """
-    
-    Returns a list of boolean values for an array that mark if a value is a local 
-    maxima or not True for yes false for no
-    
-    Importantly for ranges of local maxima the value in the middle of the range
-    is chosen as the minimum value
-    
-    """
-    
-    #walks through array, finding local maxima ranges
-    
-    #to initalize a new array to all false
-    maxima = empty(len(arr), dtype='bool')
-    maxima.fill(False)
-    
-    max_range_start = 0
-    increasing = True
-    for i in range(len(arr[:-1])):
-        
-        #update location of maxima start until 
-        if arr[i] < arr[i + 1]:
-
-            max_range_start = i + 1
-            increasing = True
-        
-        if (arr[i] > arr[i+1]) and increasing is True:
-            increasing = False
-            #gets the local maxima midpoint
-            maxima[(max_range_start + i) / 2] = True
-    
-    #catches last case
-    if increasing: 
-        maxima[(max_range_start + len(arr) - 1) / 2] = True
-        
-    return maxima
-
-
-
 
 def peaks_from_info(wiggle, pos_counts, lengths, loc, gene_length, 
                     margin=25, fdr_alpha=0.05, user_threshold=None,
