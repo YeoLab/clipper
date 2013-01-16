@@ -406,17 +406,17 @@ extern "C" PyObject *peaks_readsToWiggle_pysam(PyObject *self, PyObject *args) {
       }
       
       long pos = PyLong_AsLong(cur);
-      /*
       if (i+1 < positions_size){
 	PyObject *nextcur  = PyList_GetItem(aligned_positions, (i+1));
 	long nextpos = PyLong_AsLong(nextcur);
 	if (nextpos > (pos +1)){
-
+	  // fprintf(stderr,"junction: %d : ", pos);	  
+	  // fprintf(stderr,"%d \n",  nextpos);	  
 	  // the next position is > than this position + 1. this is a junction
-	  
+	  // coordinates are iffy... check it very closely if jxns is to be used.
 	  PyObject *jxn = PyTuple_New(2);
-	  PyTuple_SetItem(jxn, 0, PyInt_FromLong(pos));
-	  PyTuple_SetItem(jxn, 1, PyInt_FromLong(nextpos));
+	  PyTuple_SetItem(jxn, 0, PyInt_FromLong(pos+1));
+	  PyTuple_SetItem(jxn, 1, PyInt_FromLong(nextpos+1));
 	  
 	  if (PyDict_Contains(jxns, jxn)){
 	    
@@ -430,7 +430,7 @@ extern "C" PyObject *peaks_readsToWiggle_pysam(PyObject *self, PyObject *args) {
 	  }
 	}	
       }
-      */
+
       //Py_DECREF(cur);
       int wig_index = pos-tx_start;
       if (makeFractional) {

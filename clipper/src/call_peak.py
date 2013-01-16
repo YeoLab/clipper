@@ -19,7 +19,7 @@ from numpy import diff, sign, append, array, arange, r_, empty, argmin
 
 from math import sqrt
 from scipy import interpolate
-#from matplotlib.path import Path
+from matplotlib.path import Path
 
 from scipy import stats
 from random import sample as rs
@@ -385,7 +385,7 @@ class Spline(object):
         spline_values = array([int(x) for x in self.predict()])
         #print "using fitting parameter: %f" %(self.smoothingFactor)
         if plotit is True:
-            self.plot(title=str(peakn), threshold=threshold)
+            self.plot(threshold=threshold)
 
         starts_and_stops, starts, stops = get_regions_above_threshold(threshold, 
                                                                       spline_values)
@@ -810,7 +810,8 @@ def peaks_from_info(wiggle, pos_counts, lengths, loc, gene_length,
     peak_dict['nreads'] = int(nreads_in_gene)
     peak_dict['threshold'] = gene_threshold
     peak_dict['loc'] = loc
-    peakn = 1
+    peakn=1
+
  
     sections = find_sections(wiggle, margin)
     if plotit is True:      
