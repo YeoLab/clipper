@@ -329,6 +329,7 @@ extern "C" PyObject *peaks_readsToWiggle_pysam(PyObject *self, PyObject *args) {
   allreads = PySet_New(NULL);
   
   while (item = PyIter_Next(iterator)) {
+
     
     //skips reads on the wrong strand
     PyObject *is_reverse = PyObject_GetAttrString(item, "is_reverse");
@@ -390,10 +391,11 @@ extern "C" PyObject *peaks_readsToWiggle_pysam(PyObject *self, PyObject *args) {
     //generate wiggle track from files
 
     
-    //PyObject *read_loc = PyTuple_New(2);
-    //PyTuple_SetItem(read_loc, 0, PyInt_FromLong(read_start));
-    //PyTuple_SetItem(read_loc, 1, PyInt_FromLong(read_stop));
-    //PySet_Add(allreads, read_loc);
+    PyObject *read_loc = PyTuple_New(2);
+    PyTuple_SetItem(read_loc, 0, PyInt_FromLong(read_start));
+    PyTuple_SetItem(read_loc, 1, PyInt_FromLong(read_stop));
+    PySet_Add(allreads, read_loc);
+
 
     for(int i = 0; i < positions_size; i++) {
       //cur == pos == genome position (coordinate)
