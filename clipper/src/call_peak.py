@@ -56,7 +56,7 @@ def get_FDR_cutoff_mode(readlengths,
             return_val = process.wait()
             bad = 0
         except OSError:
-            print >> sys.stderr, "Couldn't open a process for thresholding, trying again"
+            logging.info("Couldn't open a process for thresholding, trying again")
             tries += 1
         
     if bad == 1:
@@ -386,8 +386,7 @@ class SmoothingSpline(PeakGenerator):
         stops = xlocs[r_[diff(values >= threshold), True] & (values >= threshold)]
         stops = stops + 1 #add to fix off by one bug
         
-        #print "original starts ", starts
-        #print "original stops ", stops
+
         #error correction incase my logic is wrong here, assuming that starts
         #and stops are always paired, and the only two cases of not being 
         #pared are if the spline starts above the cutoff or the spline starts
@@ -403,11 +402,9 @@ class SmoothingSpline(PeakGenerator):
         #http://stackoverflow.com/questions/4624970/finding-local-maxima-minima-with-numpy-in-a-1d-numpy-array
         #Can't have local minima at start or end, that would get caught by 
         #previous check, really need to think about that more
-        #print values
+
         local_minima = self.find_local_minima(values)
-        #print xlocs[local_minima]
-        #r_[False, values[1:] < values[:-1]] & r_[values[:-1] < values[1:], False]
-        
+
         #append to list any local minima above threshold
         for i, minima in enumerate(local_minima):
             if minima and values[i] >= threshold:
@@ -418,8 +415,6 @@ class SmoothingSpline(PeakGenerator):
         stops = array(sorted(set(stops)))
         starts_and_stops = []
         
-        #print "starts after min: ", starts
-        #print "stops after min: ", stops
         #making sure we aren't in some strange state
         assert len(starts) == len(stops)
         
@@ -495,7 +490,7 @@ class SmoothingSpline(PeakGenerator):
         #high-temp optimize
 
         best_error = self.lossFunction(spline)
-        #print "1, %f, %f" %(initial_smoothing_value, best_error)
+
         if plotit == True:
             self.plot()
             
@@ -518,13 +513,10 @@ class SmoothingSpline(PeakGenerator):
             #fine optimization of smooting paramater
             #low-temp optimize
             optimizedSpline = self.optimize_fit(s_estimate=bestSmoothingEstimate)
-            #print "optimized smoothing factor is %f" %(op)
 
         except Exception as error:
             logging.error("failed spline fitting optimization at section (major crash)")
-            #print self.xRange
-            #print self.yData
-            #print bestSmoothingEstimate
+
             raise
 
         #descretizes the data so it is easy to get regions above a given threshold
@@ -533,7 +525,6 @@ class SmoothingSpline(PeakGenerator):
         if plotit is True:
             self.plot(title=str(peakn), threshold=threshold)
         
-        print threshold, spline_values
         starts_and_stops, starts, stops = self.get_regions_above_threshold(threshold, 
                                                                       spline_values)
     
@@ -785,7 +776,6 @@ def peaks_from_info(wiggle, pos_counts, lengths, loc, gene_length,
         
     """
 
-    #print "calling peaks"
     peak_dict = {}
     
     #these are what is built in this dict, complicated enough that it might 
@@ -810,7 +800,7 @@ def peaks_from_info(wiggle, pos_counts, lengths, loc, gene_length,
                                              gene_length, 
                                              alpha=fdr_alpha)
     else:
-        print "using user threshold"
+        logging.info("using user threshold")
         gene_threshold = user_threshold
     
     if not isinstance(gene_threshold, int):
@@ -875,7 +865,6 @@ def peaks_from_info(wiggle, pos_counts, lengths, loc, gene_length,
             logging.info("data does not excede threshold, stopping")
             continue
 
-        #print plotit
         fitType = "Spline"
         ###gauss mixture model
         if fitType == "Spline":
