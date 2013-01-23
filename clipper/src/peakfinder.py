@@ -54,8 +54,7 @@ def check_for_index(bamfile):
     if os.path.exists(bamfile + ".bai"):
         return 1
     else:
-        logging.error("Index for %s does not exist, indexing bamfile" 
-                     % (bamfile))
+        logging.error("Index for %s does not exist, indexing bamfile" % (bamfile))
         #result = pysam.index(str(bamfile))
 #TODO fix this, indexing is very fragile
         process = call(["samtools", "index", str(bamfile)])
@@ -262,9 +261,7 @@ def transcriptome_filter(poisson_cutoff, transcriptome_size, transcriptome_reads
                                cluster['size'])
     
     if math.isnan(transcriptome_p):
-        logging.info("""Transcriptome P is NaN, transcriptome_reads = %d, 
-         cluster reads = %d, transcriptome_size = %d, 
-         cluster_size = %d""" % (transcriptome_reads, cluster['Nreads'], transcriptome_size, cluster['size']))
+        logging.info("""Transcriptome P is NaN, transcriptome_reads = %d, cluster reads = %d, transcriptome_size = %d, cluster_size = %d""" % (transcriptome_reads, cluster['Nreads'], transcriptome_size, cluster['size']))
         return False
     
     if transcriptome_p > poisson_cutoff:
@@ -294,7 +291,7 @@ def count_transcriptome_reads(results):
     #print >> sys.stderr, results
     for gene_result in results:
         if gene_result is not None:
-            logging.info("nreads", gene_result['nreads'])
+            logging.info("nreads: %d" % (gene_result['nreads']))
             transcriptome_reads += gene_result['nreads']
     
     
@@ -376,7 +373,7 @@ def main(options):
         bamfile = os.path.abspath(bamfile) 
         logging.info("bam file is set to %s\n" % (bamfile))
     else:
-        sys.stderr.write("Bam file not defined")
+        logging.error("Bam file: %s is not defined" % (bamfile))
         raise IOError
 
     genes, lengths = build_transcript_data(options.species, 
@@ -449,8 +446,7 @@ def main(options):
     
     transcriptome_reads = count_transcriptome_reads(results)
     
-    logging.info("""Transcriptome size is %d, transcriptome 
-     reads are %d""" % (transcriptome_size, transcriptome_reads))
+    logging.info("""Transcriptome size is %d, transcriptome reads are %d""" % (transcriptome_size, transcriptome_reads))
 
     allpeaks = filter_results(results, 
                               poisson_cutoff, 

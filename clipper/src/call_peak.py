@@ -173,11 +173,18 @@ class PeakGenerator(object):
     
 class SmoothingSpline(PeakGenerator):
     """Class to fit data to a smooth curve"""
-
-
     
     def __init__(self, xRange, yData, smoothingFactor=None,
                  lossFunction = "get_turn_penalized_residuals"):
+        
+        """
+        
+        xRange -- the range to interpolate the spline over, must be monotonically increasing
+        yData  -- the yAxis of the spline that corosponds to the xRange
+        smoothingFactor -- tradeoff between smoothness of the spline and how well it fits
+        lossFunction -- loss function to use to optomize the spline
+        
+        """
         
         super(SmoothingSpline,self).__init__(xRange, yData)
         
@@ -186,8 +193,6 @@ class SmoothingSpline(PeakGenerator):
             
         self.k=3 #degree of spline (cubic)
         self.smoothingFactor = smoothingFactor
-
-        self.weight = None
     
         #Sets loss function
         if lossFunction == "get_turn_penalized_residuals":
@@ -197,36 +202,42 @@ class SmoothingSpline(PeakGenerator):
         else:
             raise TypeError("loss function not implemented")
 
-    def get_norm_penalized_residuals(self, spline):
+    def get_norm_penalized_residuals(self, spline, norm_weight = 10, residual_weight = 1):
         
         """
         
-        Might think about turning this into a mixin...
+        Returns an error value for the spline.  IN this case the error is calculated by
+        a weighted combination of the norm and the residuals
         
-        Still not quite sure how this works...
+        spline -- the smoothing spline to get the weight of
+        norm_weight --the weight to apply to the norm
+        residual_weight -- the weight to apply to the residuals
         
         """
         
         from scipy.linalg import norm
-        normwt = 10
-        residwt = 1
-    
-        err = (normwt*norm(spline(spline._data[0]))**5) + (residwt*sqrt(spline.get_residual()))
+        
+        #the exponent is a magic number and subject to change
+        err = (norm_weight*norm(spline(self.xRange))**5) + (residual_weight*sqrt(spline.get_residual()))
         return err
 
     def get_turn_penalized_residuals(self, spline):
     
         """
         
-        Might think about turning this into a mixin...
+        Returns an error value for the spline.  IN this case the error is calculated by
+        by the numbers of turns 
         
-        Still not quite sure how this works...
+        spline -- the smoothing spline to get the weight of
         
         """
-        func = spline(spline._data[0])
+        
+        func = spline(self.xRange)
     
-        turns = sum(abs(diff(sign(diff(func))))) / 2     
-        err = sqrt((spline.get_residual()) * (turns ** 5))/100
+        turns = sum(abs(diff(sign(diff(func))))) / 2
+        
+        #divide by 100 is probably arbitary but might be nessessary...     
+        err = sqrt((spline.get_residual()) * (turns ** 5)) / 100
         return err
     
     def fit_univariate_spline(self, smoothingFactor = None, weight = None):
@@ -250,16 +261,13 @@ class SmoothingSpline(PeakGenerator):
         
         if smoothingFactor is None:
             smoothingFactor = self.smoothingFactor
-        
-        if weight is None:
-            weight = self.weight            
-        
+                  
         try:
             spline = interpolate.UnivariateSpline(self.xRange, 
                                                   self.yData, 
                                                   s=smoothingFactor, 
                                                   k=self.k, 
-                                                  w=self.weight)
+                                                  w=weight)
             
         except Exception as error: #This error shouldn't happen anymore
  
@@ -268,30 +276,16 @@ class SmoothingSpline(PeakGenerator):
                                                                              self.yData, 
                                                                              smoothingFactor, 
                                                                              self.k, 
-                                                                             self.weight) )
+                                                                             weight) )
             raise
 
         return spline
 
-    def predict(self, spline):
-        
-        """
-        
-        get predicted values from the spline over the fitted area
-        
-        TODO clarify data[0]
-        """
-                
-        return(spline(spline._data[0]))
-    
     def fit_loss(self, smoothingFactor=None, weight = None):
         """fit a curve with a given smoothing parameter, return the result of the loss fxn"""
 
         if smoothingFactor == None:
             smoothingFactor = self.smoothingFactor
-
-        if weight == None:
-            weight = self.weight
 
         spline = self.fit_univariate_spline(smoothingFactor=smoothingFactor, weight=weight)
         err = self.lossFunction(spline)
@@ -334,7 +328,9 @@ class SmoothingSpline(PeakGenerator):
        
     def optimize_fit(self, s_estimate=None, method = 'L-BFGS-B', bounds=((1,None),),
                      weight=None):
-        """optimize the smoothingFactor for fitting."""
+        """optimize the smoothingFactor for fitting.
+        
+        TNC"""
         import scipy
         from scipy import optimize
         if s_estimate == None:
@@ -343,19 +339,29 @@ class SmoothingSpline(PeakGenerator):
         minOpts = {'disp':False,
                    'maxiter':1000}
 
+
+        #print s_estimate
+        #print minOpts
+        #print method
+        #print bounds
+        #print self.xRange
+        #print self.yData
         minimizeResult = scipy.optimize.minimize(self.fit_loss, s_estimate,
-                                          args = (weight),
+                                          #args = (weight),
                                           options = minOpts,
                                           method = method,
                                           bounds = bounds,
                                           )
         if minimizeResult.success:
             optimizedSmoothingFactor = minimizeResult.x
-            optimizedSpline = self.fit_univariate_spline(optimizedSmoothingFactor, weight)
         else:
-            logging.error("Problem spline fitting. Here is the message:\n%s" % (minimizeResult.message))
-            raise Exception
-
+            
+            #if optimization fails then we revert back to the estimate, probably should log this
+            optimizedSmoothingFactor = s_estimate
+            #logging.error("Problem spline fitting. Here is the message:\n%s" % (minimizeResult.message))
+            #raise Exception
+        
+        optimizedSpline = self.fit_univariate_spline(optimizedSmoothingFactor, weight)
         return optimizedSpline 
 
     def get_regions_above_threshold(self, threshold, values):
@@ -366,8 +372,7 @@ class SmoothingSpline(PeakGenerator):
         stop pairs for those regions added twist is that when everthere is a local
         minima above the threshold we will treat that as a breakpoint
         
-        generates start and stop positions for calling peaks on.  Helper function that was abstracted 
-        from peaks_from_info
+        generates start and stop positions for calling peaks on.
         
         threshold -- threshold for what is siginifant peak
         values -- the values (as a numpy array) arranged from 0-length of the section
@@ -522,9 +527,12 @@ class SmoothingSpline(PeakGenerator):
 
         except Exception as error:
             logging.error("failed spline fitting optimization at section (major crash)")
+            #print self.xRange
+            #print self.yData
+            #print bestSmoothingEstimate
             raise
 
-        spline_values = array([int(x) for x in self.predict(optimizedSpline)])
+        spline_values = array([int(x) for x in optimizedSpline(self.xRange)])
   
         if plotit is True:
             self.plot(title=str(peakn), threshold=threshold)

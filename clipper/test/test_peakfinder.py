@@ -3,7 +3,7 @@ from clipper.src.peakfinder import *
 import pkg_resources           
 import pysam
 import filecmp
-class test_peakfinder(unittest.TestCase):
+class Test(unittest.TestCase):
     
     parser = None
     def setUp(self):
@@ -61,7 +61,7 @@ class test_peakfinder(unittest.TestCase):
         Performs basic all up test on entire program (except for main)
         
         """
-        self.assertTrue(False, "test is currently disabled output from logging causes it to crash")
+        #self.assertTrue(False, "test is currently disabled output from logging causes it to crash")
         args = ["-b", pkg_resources.resource_filename(__name__, "../test/allup_test.bam"),
                  "-s", "hg19",
                  "-g", "ENSG00000198901", 

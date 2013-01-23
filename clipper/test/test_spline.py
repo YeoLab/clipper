@@ -99,27 +99,6 @@ class Test(unittest.TestCase):
         #tests error mode
         #self.assertRaises(TypeError, find_univariate_spline, None, None, None, None)
      
-
-    def test_predict(self):
-        
-        """
-        
-        Tests preidct
-        
-        """
-        
-        assert False
-
-    def test_loss(self):
-        
-        """
-        
-        Tests loss
-        
-        """
-        
-        assert False
-
     def test_fit_loss(self):
         
         """
@@ -128,17 +107,49 @@ class Test(unittest.TestCase):
         
         """
         
-        assert False
+        x1 = range(10)
+        x2 = range(10)
+        x2.reverse()
+        xvals = range(20)
+        data = x1 + x2
+        smoothing = 5 
+        #expected
+        expected = interpolate.UnivariateSpline(xvals, data, k=3)
+        
+        smoothing_spline = SmoothingSpline(xvals, data)
+        self.assertEqual(smoothing_spline.get_turn_penalized_residuals(expected), smoothing_spline.fit_loss())
+        
+        smoothing_spline = SmoothingSpline(xvals, data, lossFunction="get_norm_penalized_residuals")
+        self.assertEqual(smoothing_spline.get_norm_penalized_residuals(expected), smoothing_spline.fit_loss())
+
     
     def test_optimize_fit(self):
         
         """
         
-        Tests optomize fit
+        Tests optimize fit
         
         """
         
-        assert False
+        x1 = range(10)
+        x2 = range(10)
+        x2.reverse()
+        xvals = range(20)
+        data = x1 + x2
+        smoothing = 5 
+        #expected
+        expected = interpolate.UnivariateSpline(xvals, data, k=3)
+        
+        smoothing_spline = SmoothingSpline(xvals, data)
+        
+        result = smoothing_spline.optimize_fit()
+        result.get_residual()
+        
+        xvals = [ 0,  1,  2, 3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21]
+        ydata = [9930, 9930, 9930, 9930, 9930, 9930, 9930, 9930, 9930, 9930, 9930, 9930, 9930, 9930, 9930, 9930, 9930, 9930, 9930, 9930, 9930, 0]
+        
+        smoothing_spline = SmoothingSpline(xvals, ydata, lossFunction="get_norm_penalized_residuals")
+        smoothing_spline.optimize_fit(225)
         
     def test_peaks(self):
         
@@ -156,29 +167,54 @@ class Test(unittest.TestCase):
         
         Tests get norm penalized residuals
         
+        Should shore this up, and do error checking...
         """
+        x1 = range(10)
+        x2 = range(10)
+        x2.reverse()
+        xvals = range(20)
+        data = x1 + x2
+        smoothing = 5 
+        #expected
+        expected = interpolate.UnivariateSpline(xvals, data, k=3, s=smoothing)
+        #(10*norm(expected(xvals))**5) + 1 * sqrt(expected.get_residual())
+        #test
+        smoothing_spline = SmoothingSpline(xvals, data)
         
-        assert False
+        result = smoothing_spline.get_norm_penalized_residuals(expected)
         
+        
+        #here the final math result
+        self.assertEqual(74590259.948699772, result)
     def test_get_turn_penalized_residuals(self):
         
         """
         
         Tests get turn penalized residuals
         
+        This isn't a great test, because I don't know how it should work
+        its an arbitray error function though, so it should be alright
         """
         
-        assert False
-    
-    def test_spline_loss(self):
         
-        """
         
-        Tests spline loss
+        x1 = range(10)
+        x2 = range(10)
+        x2.reverse()
+        xvals = range(20)
+        data = x1 + x2
+        smoothing = 5 
+        #expected
+        expected = interpolate.UnivariateSpline(xvals, data, k=3, s=smoothing)
+        #(10*norm(expected(xvals))**5) + 1 * sqrt(expected.get_residual())
+        #test
+        smoothing_spline = SmoothingSpline(xvals, data)
         
-        """
+        turns = sum(abs(diff(sign(diff(expected(xvals)))))) / 2
+        self.assertEqual(1, turns, "turn calculation is wrong")
         
-        assert False
+        self.assertEqual(0.02235811645548004, smoothing_spline.get_turn_penalized_residuals(expected))
+   
         
     def test_fit_univariate_spline(self):
         
@@ -188,7 +224,27 @@ class Test(unittest.TestCase):
         
         """
         
-        assert False
+        x1 = range(10)
+        x2 = range(10)
+        x2.reverse()
+        xvals = range(20)
+        data = x1 + x2
+        smoothing = 5 
+        #expected
+        expected = interpolate.UnivariateSpline(xvals, data, k=3, s=smoothing)
+        #(10*norm(expected(xvals))**5) + 1 * sqrt(expected.get_residual())
+        #test
+        smoothing_spline = SmoothingSpline(xvals, data)
+        
+        #tests automatic setting of spline smoothing factor
+        expected = interpolate.UnivariateSpline(xvals, data, k=3, s=len(xvals))
+        result = smoothing_spline.fit_univariate_spline()
+        self.assertEqual(expected.get_residual(), result.get_residual())
+        
+        #tests manual setting of factor
+        expected = interpolate.UnivariateSpline(xvals, data, k=3, s=smoothing)
+        result = smoothing_spline.fit_univariate_spline(smoothingFactor=smoothing)
+        self.assertEqual(expected.get_residual(), result.get_residual())
         
     def test_find_local_minima(self):
         
