@@ -329,6 +329,7 @@ extern "C" PyObject *peaks_readsToWiggle_pysam(PyObject *self, PyObject *args) {
   allreads = PySet_New(NULL);
   
   while (item = PyIter_Next(iterator)) {
+
     
     //skips reads on the wrong strand
     PyObject *is_reverse = PyObject_GetAttrString(item, "is_reverse");
@@ -390,10 +391,11 @@ extern "C" PyObject *peaks_readsToWiggle_pysam(PyObject *self, PyObject *args) {
     //generate wiggle track from files
 
     
-    //PyObject *read_loc = PyTuple_New(2);
-    //PyTuple_SetItem(read_loc, 0, PyInt_FromLong(read_start));
-    //PyTuple_SetItem(read_loc, 1, PyInt_FromLong(read_stop));
-    //PySet_Add(allreads, read_loc);
+    PyObject *read_loc = PyTuple_New(2);
+    PyTuple_SetItem(read_loc, 0, PyInt_FromLong(read_start));
+    PyTuple_SetItem(read_loc, 1, PyInt_FromLong(read_stop));
+    PySet_Add(allreads, read_loc);
+
 
     for(int i = 0; i < positions_size; i++) {
       //cur == pos == genome position (coordinate)
@@ -406,17 +408,17 @@ extern "C" PyObject *peaks_readsToWiggle_pysam(PyObject *self, PyObject *args) {
       }
       
       long pos = PyLong_AsLong(cur);
-      /*
       if (i+1 < positions_size){
 	PyObject *nextcur  = PyList_GetItem(aligned_positions, (i+1));
 	long nextpos = PyLong_AsLong(nextcur);
 	if (nextpos > (pos +1)){
-
+	  // fprintf(stderr,"junction: %d : ", pos);	  
+	  // fprintf(stderr,"%d \n",  nextpos);	  
 	  // the next position is > than this position + 1. this is a junction
-	  
+	  // coordinates are iffy... check it very closely if jxns is to be used.
 	  PyObject *jxn = PyTuple_New(2);
-	  PyTuple_SetItem(jxn, 0, PyInt_FromLong(pos));
-	  PyTuple_SetItem(jxn, 1, PyInt_FromLong(nextpos));
+	  PyTuple_SetItem(jxn, 0, PyInt_FromLong(pos+1));
+	  PyTuple_SetItem(jxn, 1, PyInt_FromLong(nextpos+1));
 	  
 	  if (PyDict_Contains(jxns, jxn)){
 	    
@@ -430,7 +432,7 @@ extern "C" PyObject *peaks_readsToWiggle_pysam(PyObject *self, PyObject *args) {
 	  }
 	}	
       }
-      */
+
       //Py_DECREF(cur);
       int wig_index = pos-tx_start;
       if (makeFractional) {
