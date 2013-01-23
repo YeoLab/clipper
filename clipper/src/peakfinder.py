@@ -13,7 +13,8 @@ import clipper
 from clipper import data_dir
 from clipper.src.call_peak import call_peaks, poissonP
 import logging
-
+logging.captureWarnings(True)
+    
 def trim_reads(bamfile):
     
     """
@@ -54,8 +55,7 @@ def check_for_index(bamfile):
     if os.path.exists(bamfile + ".bai"):
         return 1
     else:
-        logging.error("Index for %s does not exist, indexing bamfile" 
-                     % (bamfile))
+        logging.error("Index for %s does not exist, indexing bamfile" % (bamfile))
         #result = pysam.index(str(bamfile))
 #TODO fix this, indexing is very fragile
         process = call(["samtools", "index", str(bamfile)])
@@ -262,16 +262,11 @@ def transcriptome_filter(poisson_cutoff, transcriptome_size, transcriptome_reads
                                cluster['size'])
     
     if math.isnan(transcriptome_p):
-        logging.info("""Transcriptome P is NaN, transcriptome_reads = %d, 
-         cluster reads = %d, transcriptome_size = %d, 
-         cluster_size = %d""" % (transcriptome_reads, cluster['Nreads'], transcriptome_size, cluster['size']))
+        logging.info("""Transcriptome P is NaN, transcriptome_reads = %d, cluster reads = %d, transcriptome_size = %d, cluster_size = %d""" % (transcriptome_reads, cluster['Nreads'], transcriptome_size, cluster['size']))
         return False
     
     if transcriptome_p > poisson_cutoff:
-        print """%s\n Failed Transcriptome cutoff with %s reads, 
-        pval: %s""" % (cluster, 
-            cluster['Nreads'], 
-            transcriptome_p)
+        logging.info("%s\n Failed Transcriptome cutoff with %s reads, pval: %s" % (cluster, cluster['Nreads'], transcriptome_p))
 
         return False
     
@@ -291,10 +286,10 @@ def count_transcriptome_reads(results):
     """
     #count total number of reads in transcriptiome
     transcriptome_reads = 0
-    #print >> sys.stderr, results
+
     for gene_result in results:
         if gene_result is not None:
-            logging.info("nreads", gene_result['nreads'])
+            logging.info("nreads: %d" % (gene_result['nreads']))
             transcriptome_reads += gene_result['nreads']
     
     
@@ -317,10 +312,10 @@ def filter_results(results, poisson_cutoff, transcriptome_size, transcriptome_re
     allpeaks = set([])
         
     for gene_result in results:
-        
+
         #alert user that there aren't any clusters for specific gene
         if gene_result['clusters'] is None:
-            print >> sys.stderr, gene_result, "no clusters"
+            loging.info("%s no clusters" % (gene_result))
 
         
         for cluster_id, cluster in gene_result['clusters'].items():
@@ -344,15 +339,13 @@ def filter_results(results, poisson_cutoff, transcriptome_size, transcriptome_re
                     meets_cutoff = False
                 
                 if meets_cutoff:
-                    #print >> sys.stderr, cluster_id, cluster
                     chrom, g_start, g_stop, peak_name, geneP, signstrand, thick_start, thick_stop = cluster_id.split("\t")
                 
                     #adds beadline to total peaks that worked
                     allpeaks.add("%s\t%d\t%d\t%s\t%s\t%s\t%d\t%d" % (chrom, int(g_start), int(g_stop), peak_name, min_pval, signstrand, int(thick_start), int(thick_stop)))
         
             except NameError as error:
-                print >> sys.stderr, error
-                print >> sys.stderr, "parsing failed"
+                logging.error("parsing failed: %s" % (error))
                 raise error
             
     return allpeaks
@@ -376,7 +369,7 @@ def main(options):
         bamfile = os.path.abspath(bamfile) 
         logging.info("bam file is set to %s\n" % (bamfile))
     else:
-        sys.stderr.write("Bam file not defined")
+        logging.error("Bam file: %s is not defined" % (bamfile))
         raise IOError
 
     genes, lengths = build_transcript_data(options.species, 
@@ -411,7 +404,7 @@ def main(options):
     #truncates for max genes
     if options.maxgenes is not None:
         import random
-        print xrange(len(genes.keys()))
+
         ind = random.sample(xrange(len(genes.keys())), k=options.maxgenes)
         running_list = running_list[ind]
         length_list  = length_list[ind]
@@ -449,8 +442,7 @@ def main(options):
     
     transcriptome_reads = count_transcriptome_reads(results)
     
-    logging.info("""Transcriptome size is %d, transcriptome 
-     reads are %d""" % (transcriptome_size, transcriptome_reads))
+    logging.info("""Transcriptome size is %d, transcriptome reads are %d""" % (transcriptome_size, transcriptome_reads))
 
     allpeaks = filter_results(results, 
                               poisson_cutoff, 
