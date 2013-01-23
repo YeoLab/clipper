@@ -65,7 +65,7 @@ class Test(unittest.TestCase):
         args = ["-b", pkg_resources.resource_filename(__name__, "../test/allup_test.bam"),
                  "-s", "hg19",
                  "-g", "ENSG00000198901", 
-                 "--outfile=" + os.getcwd() + "/peak_results.bed",
+                 "--outfile=" + os.getcwd() + "/allup_peak_results.bed",
                 ]
 
         (options, args) = self.parser.parse_args(args)
@@ -73,7 +73,7 @@ class Test(unittest.TestCase):
         
         main(options)
         
-        tested = open(os.getcwd() + "/peak_results.bed")
+        tested = open(os.getcwd() + "/allup_peak_results.bed")
         correct = open(pkg_resources.resource_filename(__name__, "../test/peak_results_no_overlap.BED"))
         
         
@@ -94,7 +94,7 @@ class Test(unittest.TestCase):
             self.assertEqual(test, correct)
         
         #cleanup
-        os.remove(os.getcwd() + "/peak_results.bed")
+        os.remove(os.getcwd() + "/allup_peak_results.bed")
         """
     def test_filter(self):
         
@@ -107,7 +107,7 @@ class Test(unittest.TestCase):
         
         """
 
-        args = ["-b", pkg_resources.resource_filename(__name__, "../test/transcriptome_cutoff.bam"),
+        args = ["-b", pkg_resources.resource_filename(__name__, "../test/baz.sort.bam"),
                  "-s", "hg19",
                   "-g", "ENSG00000198901", 
                   '-g', "ENSG00000226167",
@@ -133,10 +133,10 @@ class Test(unittest.TestCase):
         
         """
         
-        Tests that the cutoff code works if its enabled
+        test_cutoff Tests that the cutoff code works if its enabled
         
         """
-        args = ["-b", pkg_resources.resource_filename(__name__, "../test/transcriptome_cutoff.bam"),
+        args = ["-b", pkg_resources.resource_filename(__name__, "../test/baz.sort.bam"),
                  "-s", "hg19",
                   "-g", "ENSG00000198901", 
                   '-g', "ENSG00000226167",
@@ -158,7 +158,7 @@ class Test(unittest.TestCase):
         self.assertEqual(len(tested_tool), 2)
                 
         #cleanup
-        os.remove(os.getcwd() + "/no_cut_off.bed")
+        #os.remove(os.getcwd() + "/no_cut_off.bed")
         
     def test_check_overlaps(self):
         
@@ -173,22 +173,22 @@ class Test(unittest.TestCase):
                   "-g", "ENSG00000198901", 
                   "--serial", 
                   "--job_name=peak_test",
-                   "--outfile=" + os.getcwd() + "/peak_results.bed",
+                   "--outfile=" + os.getcwd() + "/overlap_peak_results.bed",
                    "-q"
                 ]    
         (options, args) = self.parser.parse_args(args)
         main(options)
         
         #tests to make sure there are no overlaps
-        tested = open(os.getcwd() + "/peak_results.bed")
+        tested = open(os.getcwd() + "/overlap_peak_results.bed")
         tested_tool2 = pybedtools.BedTool(tested).saveas(os.getcwd() + "/foo.bed")
         result = tested_tool2.intersect(tested_tool2)
         self.assertEqual(len(result), len(tested_tool2), 
                          "there are overlaps in the output file") 
         
         #cleanup
-        os.remove(os.getcwd() + "/peak_results.bed")
-        os.remove(os.getcwd() + "/foo.bed")
+        #os.remove(os.getcwd() + "/overlap_peak_results.bed")
+        #os.remove(os.getcwd() + "/foo.bed")
        
 
     

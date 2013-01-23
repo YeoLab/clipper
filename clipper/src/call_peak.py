@@ -339,13 +339,6 @@ class SmoothingSpline(PeakGenerator):
         minOpts = {'disp':False,
                    'maxiter':1000}
 
-
-        #print s_estimate
-        #print minOpts
-        #print method
-        #print bounds
-        #print self.xRange
-        #print self.yData
         minimizeResult = scipy.optimize.minimize(self.fit_loss, s_estimate,
                                           #args = (weight),
                                           options = minOpts,
@@ -354,10 +347,12 @@ class SmoothingSpline(PeakGenerator):
                                           )
         if minimizeResult.success:
             optimizedSmoothingFactor = minimizeResult.x
+            logging.info("Minimization succeeded")
         else:
             
             #if optimization fails then we revert back to the estimate, probably should log this
             optimizedSmoothingFactor = s_estimate
+            logging.info("Minimization failed")
             #logging.error("Problem spline fitting. Here is the message:\n%s" % (minimizeResult.message))
             #raise Exception
         
@@ -532,13 +527,16 @@ class SmoothingSpline(PeakGenerator):
             #print bestSmoothingEstimate
             raise
 
+        #descretizes the data so it is easy to get regions above a given threshold
         spline_values = array([int(x) for x in optimizedSpline(self.xRange)])
   
         if plotit is True:
             self.plot(title=str(peakn), threshold=threshold)
-
+        
+        print threshold, spline_values
         starts_and_stops, starts, stops = self.get_regions_above_threshold(threshold, 
                                                                       spline_values)
+    
         return (spline_values, starts_and_stops, starts, stops)
 
 class GaussMix(object):
@@ -905,11 +903,8 @@ def peaks_from_info(wiggle, pos_counts, lengths, loc, gene_length,
             #(not subsection) start
             #find all local maxima
             peaks = [x + p_start for x in xvals[find_local_maxima(fit_values[p_start:(p_stop + 1)])]]
-            #map(lambda x: x + p_start, 
-            #            xvals[diff(sign(diff(spline(xvals[p_start:(p_stop + 1)])))) < 0])
 
-            if not len(peaks) in (0,1):
-                assert len(peaks) in (0,1) #there should be one or zero peaks in every section
+            assert len(peaks) in (0,1) 
 
             #handles logic if there are multiple peaks between 
             #start and stop

@@ -105,41 +105,7 @@ class Test(unittest.TestCase):
         
         pass
             
-    """
-    No longer used. Merged into univarate spline functin
-    
-    def test_find_univariateSpline(self):
         
-
-    """
-    """
-      No longer used, different norm penalties are now in place
-  
-    def test_find_spline_residuals(self):
-        
-
-        
-        #Test for find_spline_residuals function
-        
-
-        
-        #setup 
-        x1 = range(10)
-        x2 = range(10)
-        x2.reverse()
-        xvals = range(20)
-        data = x1 + x2
-        smoothing = 5 
-        #expected
-        expected = interpolate.UnivariateSpline(xvals, data, k=3, s=smoothing)
-        residual = find_spline_residuals(smoothing, xvals, data, 3)
-        self.assertAlmostEqual(residual, sqrt(expected.get_residual()))
-        
-        #tests error mode
-        self.assertRaises(TypeError, find_spline_residuals, None, None, None, None)
-    """   
-        
-
     def test_poissonP(self):
         
         """

@@ -314,7 +314,7 @@ def filter_results(results, poisson_cutoff, transcriptome_size, transcriptome_re
     allpeaks = set([])
         
     for gene_result in results:
-        
+        print gene_result
         #alert user that there aren't any clusters for specific gene
         if gene_result['clusters'] is None:
             print >> sys.stderr, gene_result, "no clusters"

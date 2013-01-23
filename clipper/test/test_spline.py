@@ -157,8 +157,13 @@ class Test(unittest.TestCase):
         
         Tests peaks
         
-        """
+        need to test: 
         
+        really the only thing I need to test is the spline values 
+        starts and stops - 
+        (spline_values, starts_and_stops, starts, stops)
+        """
+
         assert False
         
     def test_get_norm_penalized_residuals(self):
@@ -422,29 +427,30 @@ class Test(unittest.TestCase):
         
         #more real tests
     
-#    def test_get_start_stop_pairs_above_threshold_regression(self):
-#        
-#        """
-#        
-#        regresstion test to make sure I didn't break anything
-#        tests generating start and stops function, this is kind of a badly written function,
-#        need better tests and edge cases 
-#        
-#        """
-#        
-#        #test to make sure stuff doesn't break, should have made regression test...
-#        cutoff = 71.5879289615 
-#        xvals = array([ 0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22,
-#                  23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45,
-#                  46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68])
-#        data = array([2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 2, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0]) 
-#        degree = 3 
-#        weights = None
-#        threshold = 3
-#
-#        spline = find_univariate_spline(cutoff, xvals, data, degree, weights)
-#        
-#        starts_and_stops, starts, stops = get_regions_above_threshold(threshold, spline(xvals))
+    def test_get_start_stop_pairs_above_threshold_regression(self):
+        
+        """
+        
+        regresstion test to make sure I didn't break anything
+        tests generating start and stops function, this is kind of a badly written function,
+        need better tests and edge cases 
+        
+        """
+        
+        
+        #test to make sure stuff doesn't break, should have made regression test...
+        cutoff = 71.5879289615 
+        xvals = array([ 0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22,
+                  23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45,
+                  46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68])
+        data = array([2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 2, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0]) 
+
+        threshold = 3
+        
+        smoothing_spline = SmoothingSpline(xvals, data)
+        spline = smoothing_spline.fit_univariate_spline(smoothingFactor = cutoff)
+        
+        starts_and_stops, starts, stops = smoothing_spline.get_regions_above_threshold(threshold, spline(xvals))
         
 if __name__ == "__main__":
     #import sys;sys.argv = ['', 'Test.testName']
