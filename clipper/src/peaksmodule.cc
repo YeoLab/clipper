@@ -52,6 +52,7 @@ extern "C" PyObject *peaks_shuffle(PyObject *self, PyObject *args)
   
   //parse args
   if(!PyArg_ParseTuple(args, "iiifO", &L, &r, &T, &alpha, &reads)) {
+    
       return NULL;
     }
   
@@ -302,7 +303,8 @@ extern "C" PyObject *peaks_readsToWiggle_pysam(PyObject *self, PyObject *args) {
   bool makeFractional; //flag to return either whole number coverage or coverage normalzied by length of reads
   //parse args
   if(!PyArg_ParseTuple(args, "OiissO", &reads, &tx_start, &tx_end, &keepstrand, &usePos, &fractional_input)) {
-      return NULL;
+    PyErr_SetString(PyExc_TypeError, "One of the argunments is null");  
+    return NULL;
   }
   
   //error checking

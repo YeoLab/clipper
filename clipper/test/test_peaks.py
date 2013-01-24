@@ -221,6 +221,25 @@ class Test(unittest.TestCase):
         wiggle_true = [0.06060606060606061, 0.06060606060606061, 0.06060606060606061, 0.06060606060606061, 0.06060606060606061, 0.06060606060606061, 0.06060606060606061, 0.06060606060606061, 0.33333333333333326, 0.33333333333333326, 0.33333333333333326, 0.33333333333333326, 0.33333333333333326, 0.33333333333333326, 0.33333333333333326, 0.33333333333333326, 0.33333333333333326, 0.33333333333333326, 0.33333333333333326, 0.33333333333333326, 0.33333333333333326, 0.33333333333333326, 0.33333333333333326, 0.33333333333333326, 0.33333333333333326, 0.33333333333333326, 0.33333333333333326, 0.33333333333333326, 0.33333333333333326, 0.33333333333333326, 0.33333333333333326, 0.33333333333333326, 0.33333333333333326, 0.2727272727272727, 0.2727272727272727, 0.2727272727272727, 0.2727272727272727, 0.2727272727272727, 0.2727272727272727, 0.2727272727272727, 0.2727272727272727, 0.0, 0.0, 0.0]
         for true, test in zip(wiggle_true, wiggle):
             self.assertEqual(test, true)
+            
+    def test_readsToWiggle_paysam_none(self):
+        
+        """
+        
+        Tests null input for reads to wiggle pysam
+        
+        """
+        
+        reads = pysam.Samfile(os.path.join(clipper.test_dir(), "allup_test.bam"))      
+        reads = reads.fetch(region="chr15:91536649-91537641")
+        
+        self.assertRaises(TypeError, readsToWiggle_pysam, (None, 91537632, 91537675, '-', 'center', False))
+        #readsToWiggle_pysam(reads, None, 91537675, '-', 'center', False)
+        #readsToWiggle_pysam(reads, 91537632, None, '-', 'center', False)
+        #readsToWiggle_pysam(reads, 91537632, 91537675, None, 'center', False)
+        #readsToWiggle_pysam(reads, 91537632, 91537675, '-', None, False)
+        #readsToWiggle_pysam(reads, 91537632, 91537675, '-', 'center', None)
+        
 if __name__ == "__main__":
     #import sys;sys.argv = ['', 'Test.testName']
     unittest.main()

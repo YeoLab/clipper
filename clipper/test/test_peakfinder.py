@@ -3,6 +3,8 @@ from clipper.src.peakfinder import *
 import pkg_resources           
 import pysam
 import filecmp
+import pybedtools
+
 class Test(unittest.TestCase):
     
     parser = None
@@ -51,6 +53,7 @@ class Test(unittest.TestCase):
         self.parser.add_option("--save-pickle", dest="save_pickle", default=False, action = "store_true", help="Save a pickle file containing the analysis")
         self.parser.add_option("--debug", dest="debug", default=False, action="store_true", help="disables multipcoressing in order to get proper error tracebacks")
         self.parser.add_option("--disable_global_cutoff", dest="use_global_cutoff", action="store_false", help="disables global transcriptome level cutoff to CLIP-seq peaks, Default:On", default=True, metavar="P")
+        self.parser.add_option("--bedFile", dest="bedFile", help="use a bed file instead of the AS structure data")
 
 
     
@@ -252,7 +255,37 @@ class Test(unittest.TestCase):
         #cleanup (should be in taredown)
         os.remove(pkg_resources.resource_filename(__name__, "../test/not_indexed_test.bam.bai"))
     
+    
+    def test_build_transcript_data_bed(self):
+        
+        """
+        
+        Tests building transcript data from bed with both pre-mrna and mrna data
+        
+        """
+        
+        test = pybedtools.BedTool(clipper.test_file("test_bed_creation.bed"))
 
+        true_genes = {"ENST00000237247" : ["chr1", "ENST00000237247", 66999065, 67210057, "+"], 
+                      "ENST00000371039" : ["chr1", "ENST00000371039", 66999274, 67210768, "+"], 
+                      "ENST00000424320" : ["chr1", "ENST00000424320", 66999297, 67145425, "+"]}
+        
+        #tests mrna
+        true_lengths = {"ENST00000237247" : 3997, "ENST00000371039" : 4080, "ENST00000424320" : 951}
+        
+        genes, lengths = build_transcript_data_bed(test, False)
+        
+        self.assertDictEqual(true_genes, genes, "mrna genes not equal")
+        self.assertDictEqual(true_lengths, lengths, "mrna lengths not equal")
+        
+        #tests pre-mrna 
+        
+        true_lengths = {"ENST00000237247" : 210992, "ENST00000371039" : 211494, "ENST00000424320" : 146128}
+        genes, lengths = build_transcript_data_bed(test, True)
+        
+        self.assertDictEqual(true_genes, genes, "pre-mrna genes not equal")
+        self.assertDictEqual(true_lengths, lengths, "pre-mrna lengths not equal")
+        
     def test_build_geneinfo(self):
         self.maxDiff = 10000000
         """
