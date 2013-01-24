@@ -182,7 +182,36 @@ def get_acceptable_species():
     
     return acceptable_species
     
+def build_transcript_data_bed(bed_file, pre_mrna):
     
+    """
+    
+    Generates gene lengths and gene names from BED12 file
+    
+    bed_file - pybedtools object defining genes
+    pre_mrna - flag True indicates use pre-mRNA lengths instead of mRNA lengths 
+    
+    TODO just turn this totally into a pybedtools object instead of converting 
+    it to a dictionary
+    """
+    
+    gene_info = {}
+    gene_lengths = {}
+    
+    for line in bed_file:
+        
+        #builds gene info
+        gene_info[line.name] = [line.chrom, line.name, line.start, line.stop, line.strand]
+        #builds gene lengths
+        
+        if pre_mrna:
+            gene_lengths[line.name] = line.stop - line.start
+        else:
+            #Just gets the lengths of the exons (although no mention of cds or not...
+            gene_lengths[line.name] = sum([int(x) for x in line[10][:-1].strip().split(",")])
+            
+    return gene_info, gene_lengths
+
 def build_transcript_data(species, gene_bed, gene_mrna, gene_pre_mrna, pre_mrna):
     
     """
@@ -198,7 +227,8 @@ def build_transcript_data(species, gene_bed, gene_mrna, gene_pre_mrna, pre_mrna)
     gene_bed - an abribtary bed file of locations to search for peaks (should be gene locations)
     gene_mrna - the effective length of the mrna of a gene (unmappable regions removed)
     gene_premrna - the effective length of the pre-mrna (unmappable regions removed)
-    
+    pre_mrna - flag True indicates use pre-mRNA lengths instead of mRNA lengths
+     
     returns genes and lengths dict
     
     """
@@ -371,12 +401,15 @@ def main(options):
     else:
         logging.error("Bam file: %s is not defined" % (bamfile))
         raise IOError
-
-    genes, lengths = build_transcript_data(options.species, 
-                                           options.geneBEDfile, 
-                                           options.geneMRNAfile, 
-                                           options.genePREMRNAfile,
-                                           options.premRNA)
+    
+    if options.bedFile is not None:
+        genes, lengths = build_transcript_data_bed(options.bedFile, options.premRNA)
+    else:
+        genes, lengths = build_transcript_data(options.species, 
+                                               options.geneBEDfile, 
+                                               options.geneMRNAfile, 
+                                               options.genePREMRNAfile,
+                                               options.premRNA)
     
     margin = int(options.margin)
     
@@ -495,7 +528,7 @@ def call_main():
     parser.add_option("--verbose", "-q", dest="verbose", action="store_true", help="suppress notifications")
     parser.add_option("--save-pickle", dest="save_pickle", default=False, action="store_true", help="Save a pickle file containing the analysis")
     parser.add_option("--debug", dest="debug", default=False, action="store_true", help="disables multipcoressing in order to get proper error tracebacks")
-
+    parser.add_option("--bedFile", dest="bedFile", help="use a bed file instead of the AS structure data")
     (options, args) = parser.parse_args()
     
     if options.plotit:
