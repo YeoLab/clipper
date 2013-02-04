@@ -900,9 +900,12 @@ def peaks_from_info(wiggle, pos_counts, lengths, loc, gene_length,
         elif fitType == "Gaussian":
             fitter = GaussMix(xvals, data)
             
-            
-        (fit_values, starts_and_stops, starts, stops) = fitter.peaks(threshold, plotit)
-
+        try:
+            (fit_values, starts_and_stops, starts, stops) = fitter.peaks(threshold, plotit)
+        except Exception as error:
+            print gene_name
+            print error
+         
         #walks along spline, and calls peaks along spline
         #for each start, take the next stop and find the peak 
         #between the start and the stop this is where I need to 
