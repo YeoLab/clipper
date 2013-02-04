@@ -477,15 +477,32 @@ def main(options):
     
     logging.info("""Transcriptome size is %d, transcriptome reads are %d""" % (transcriptome_size, transcriptome_reads))
 
-    allpeaks = filter_results(results, 
+    filtered_peaks = filter_results(results, 
                               poisson_cutoff, 
                               transcriptome_size,  
                               transcriptome_reads, 
                               options.use_global_cutoff)
- 
+    
+    
+    allpeaks = set([])
+    for gene_result in results:
+        for cluster_id, cluster in gene_result['clusters'].items():
+            corrected_SloP_pval = gene_result['clusters'][cluster_id]['SloP']
+            corrected_gene_pval = gene_result['clusters'][cluster_id]['GeneP']
+            min_pval = min([corrected_SloP_pval, corrected_gene_pval])
+            chrom, g_start, g_stop, peak_name, geneP, signstrand, thick_start, thick_stop = cluster_id.split("\t")
+            n_reads_in_peak = gene_result['clusters'][cluster_id]['Nreads']
+            peak_length = gene_result['clusters'][cluster_id]['size']
+            #adds beadline to total peaks that worked
+            allpeaks.add("%s\t%d\t%d\t%s\t%s\t%s\t%d\t%d\t%s\t%d" % (chrom, int(g_start), int(g_stop), peak_name, min_pval, signstrand, int(thick_start), int(thick_stop), n_reads_in_peak, peak_length))
+
+   
+    
     outbed = options.outfile
     color = options.color
-    pybedtools.BedTool("\n".join(allpeaks), from_string=True).sort(stream=True).saveas(outbed, trackline="track name=\"%s\" visibility=2 colorByStrand=\"%s %s\"" % (outbed, color, color))
+    pybedtools.BedTool("\n".join(filtered_peaks), from_string=True).sort(stream=True).saveas(outbed, trackline="track name=\"%s\" visibility=2 colorByStrand=\"%s %s\"" % (outbed, color, color))
+    pybedtools.BedTool("\n".join(allpeaks), from_string=True).sort(stream=True).saveas(outbed + "_all"  , trackline="track name=\"%s\" visibility=2 colorByStrand=\"%s %s\"" % (outbed, color, color))
+
     logging.info("wrote peaks to %s" % (options.outfile))
     
 def call_main():
