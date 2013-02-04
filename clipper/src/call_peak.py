@@ -521,7 +521,7 @@ class SmoothingSpline(PeakGenerator):
 
         #descretizes the data so it is easy to get regions above a given threshold
         spline_values = array([int(x) for x in optimizedSpline(self.xRange)])
-  
+        print logging.info(spline_values)
         if plotit is True:
             self.plot(title=str(peakn), threshold=threshold)
         
@@ -638,7 +638,30 @@ def plot_sections(wiggle, sections, threshold):
         axis.add_patch(patch)
     plt.show()
 
+def negative_binomial(reads_in_gene, reads_in_peak, gene_length, peak_length):
+    
+    """
+    Paramaters
+    ----------
+    reads_in_gene: Integer representing number of reads in gene
+    reads_in_peak: Integer reperesnting the number of reads in a specific peak
+    gene_length: Integer representing length of gene
+    peak_length: Integer representing length of peak
+    
+    Returns double, the p-value that the peak is significant
+    If calcluation fails returns 1
+    
+    """
+    
+    #lambda
+    lam = (float(reads_in_gene) / (gene_length)) * (peak_length)
 
+    if lam < 3:
+        lam = 3
+        
+    p = (lam) / (reads_in_peak + lam)
+    stats.nbinom.cdf(reads_in_peak, p)
+    
 def poissonP(reads_in_gene, reads_in_peak, gene_length, peak_length):
     
     """
