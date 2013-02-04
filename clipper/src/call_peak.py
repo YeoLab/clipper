@@ -718,7 +718,7 @@ def call_peaks(loc, gene_length, bam_fileobj=None, bam_file=None,
         pass
     #setup
     chrom, gene_name, tx_start, tx_end, signstrand = loc
-
+    logging.error("running on gene %s" % (loc))
     #logic reading bam files
     if bam_file is None and bam_fileobj is None:
         #using a file opbject is faster for serial processing 
