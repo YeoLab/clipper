@@ -904,7 +904,8 @@ def peaks_from_info(wiggle, pos_counts, lengths, loc, gene_length,
             (fit_values, starts_and_stops, starts, stops) = fitter.peaks(threshold, plotit)
         except Exception as error:
             print gene_name
-            print error
+            raise error
+            
          
         #walks along spline, and calls peaks along spline
         #for each start, take the next stop and find the peak 
