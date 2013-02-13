@@ -1,3 +1,11 @@
+
+"""
+
+Analizes CLIP data given a bed file and a bam file
+
+Michael Lovci and Gabriel Pratt
+
+"""
 import pybedtools
 import numpy as np
 from optparse import OptionParser
@@ -5,13 +13,13 @@ import os
 import sys
 import pickle
 import random
-from subprocess import Popen, call, PIPE
+#from subprocess import Popen, call, PIPE
 import subprocess
 from bx.bbi.bigwig_file import BigWigFile
 import pysam
-import CLIP_Analysis_Display
+import clipper.src.CLIP_Analysis_Display
 import pylab
-from kmerdiff import kmerdiff
+from kmerdiff import kmer_diff
 
 def intersection(A, B=None):
     
@@ -45,18 +53,19 @@ def adjust_offsets(tool, offsets=None):
     
     if offsets == None:
         raise Exception, "no offsets"
-    l = list()
-    for x in tool:
+    clusters = []
+    for bed_line in tool:
         #TODO need to refactor to avoid this try junk
         #TODO don't change bedtool, use its map function instead
         try:
-            chr, start, stop, name, score, strand, thick_start, thick_stop = str(x).strip().split("\t")
+            chrom, start, stop, name, score, strand, thick_start, thick_stop = str(bed_line).strip().split("\t")
+        
         except:
-            chr, start, stop, name, score, strand = str(x).strip().split("\t")
-            thick_start=0
-            thick_stop=0
+            chrom, start, stop, name, score, strand = str(bed_line).strip().split("\t")
+            thick_start = 0
+            thick_stop = 0
             
-        start, stop, thick_start, thick_stop = map(int, (start, stop, thick_start, thick_stop))
+        start, stop, thick_start, thick_stop = [int(x) for x in (start, stop, thick_start, thick_stop)]
         
         #the ; represents two merged locations 
         if ";" in name and name not in offsets:
@@ -65,22 +74,21 @@ def adjust_offsets(tool, offsets=None):
         else:
             offset = offsets[name]
         
-        if strand== "+":
+        if strand == "+":
             thick_start = start + offset
             thick_stop = thick_start + 4
         else:
             thick_stop = stop - offset
             thick_start = thick_stop -4
-        l.append("\t".join(map(str, (chr, start, stop, name, score, strand, thick_start, thick_stop))))
+        clusters.append("\t".join([str(x) for x in (chrom, start, stop, name, score, strand, thick_start, thick_stop)]))
     
-    t = pybedtools.BedTool("\n".join(l), from_string=True)
+    return pybedtools.BedTool("\n".join(clusters), from_string=True)
     
-    return t
 
 
 
 
-def build_AS_STRUCTURE_dict(species, dir):
+def build_AS_STRUCTURE_dict(species, working_dir):
     
     #TODO make more geneticreplace with clipper AS structure dict method
     #totally revamp convert to gtf files
@@ -98,11 +106,11 @@ def build_AS_STRUCTURE_dict(species, dir):
     """
     
     if species == "hg19":
-        chrs = map(str,range(1,23)) #1-22
+        chrs = [str(x) for x in range(1,23)] #1-22
         chrs.append("X")
         chrs.append("Y")
     elif species == "mm9":
-        chrs = map(str,range(1,20)) #1-19
+        chrs = [str(x) for x in range(1,20)] #1-19
         chrs.append("X")
         chrs.append("Y")        
 
@@ -110,7 +118,7 @@ def build_AS_STRUCTURE_dict(species, dir):
     Gtypes = dict()
     for chr in chrs:
 
-        ASfile = os.path.join(dir, species + ".tx." + chr + ".AS.STRUCTURE")
+        ASfile = os.path.join(working_dir, species + ".tx." + chr + ".AS.STRUCTURE")
         
         f = open(ASfile, "r")
         for line in f.readlines():
@@ -122,7 +130,7 @@ def build_AS_STRUCTURE_dict(species, dir):
             if int(strand) == 1:
                 signstrand = "+"
             numex = int(numex)
-            info[gene]={}
+            info[gene] = {}
             info[gene]['strand'] = signstrand
             info[gene]['exons'] = {}
             info[gene]['introns'] = {}
@@ -131,13 +139,15 @@ def build_AS_STRUCTURE_dict(species, dir):
             introns = intronloc.split("|")
             types = asType.split("|")
             info[gene]['numEx'] = numex
-            info[gene]['mRNA_length'] =0
-            info[gene]['premRNA_length'] =0
+            info[gene]['mRNA_length'] = 0
+            info[gene]['premRNA_length'] = 0
             tx_start = 1000000000000
             tx_stop = -1000000000000
             for i, exon in enumerate(exons):
                 if i == numex: #last exon is empty
                     continue
+                
+                #TODO refactor to default dict
                 try:
                     Gtypes[types[i]] +=1
                 except:
@@ -667,7 +677,7 @@ def main(options):
     if options.assign is False:
         try:
             cluster_regions, sizes, Gsizes = build_assigned_from_existing(assigned_dir, clusters, all_regions, options.nrand)
-            print "I used a pre-assigned set of BED files... score!"
+            print "I used a pre-assigned set output_file BED files... score!"
         except:
             print "I had problems retreiving region-assigned BED files from %s, i'll rebuild" % (assigned_dir)
             options.assign = True
@@ -679,7 +689,7 @@ def main(options):
         
         print "Saving BED and Fasta Files...",
 
-        #outputs little files (maybe move inside of assign to regions)
+        #outputs little files (maybe move inside output_file assign to regions)
         sizes_out = open(os.path.join(assigned_dir, "%s.sizes.pickle" %(clusters)), 'w')
         pickle.dump(sizes, file=sizes_out)
         sizes_out.close()    
@@ -689,15 +699,15 @@ def main(options):
         
         #this is where all saving happens for assign to regions
         for region in all_regions:
-            of = clusters + "." + region+ ".real.BED"
+            output_file = clusters + "." + region+ ".real.BED"
             try:
-                cluster_regions[region]['real'].saveas(os.path.join(assigned_dir, of))
+                cluster_regions[region]['real'].saveas(os.path.join(assigned_dir, output_file))
             except:
                 continue
             for n in range(options.nrand):
-                of = clusters + "." + region+ ".rand." + str(n) + ".BED"
+                output_file = clusters + "." + region+ ".rand." + str(n) + ".BED"
                 try:
-                    cluster_regions[region]['rand'][n].saveas(os.path.join(assigned_dir, of))
+                    cluster_regions[region]['rand'][n].saveas(os.path.join(assigned_dir, output_file))
                 except:
                     continue
                 
@@ -710,7 +720,7 @@ def main(options):
                 rand_fa = fa_file(clusters, region=region, fd = fastadir, type="random")
                 cluster_regions[region]['real'].save_seqs(real_fa)
 
-                l = list()#list of randoms
+                l = list()#list output_file randoms
                 for n in cluster_regions[region]['rand'].keys():
                     l.append(cluster_regions[region]['rand'][n])
                 write_seqs(rand_fa, l)        
@@ -738,11 +748,11 @@ def main(options):
         reads_in_clusters += int(reads)
     print "done"
     
-    #need to get rid of this pickleing busniess, its a waste of space and doesn't work with other methods
-    #gets total number of reads (figure 1)
-    #gets total number of reads from clipper analysis (Need to make clipper automatically output
+    #need to get rid output_file this pickleing busniess, its a waste output_file space and doesn't work with other methods
+    #gets total number output_file reads (figure 1)
+    #gets total number output_file reads from clipper analysis (Need to make clipper automatically output
     #pickle file
-    print "Getting total number of reads...",
+    print "Getting total number output_file reads...",
     total_reads = 0;
     try:
         pickle_file = clusters + ".pickle"
@@ -768,7 +778,7 @@ def main(options):
     cluster_lengths = bedlengths(cluster_regions['all']['real'])
     print "done"
     
-    ##This should be abstracted to some sort of list or something...
+    ##This should be abstracted to some sort output_file list or something...
     #figures 5 and 6, builds pre-mrna, mrna exon and intron distributions 
     mRNA_positions = list()
     premRNA_positions = list()
@@ -838,10 +848,10 @@ def main(options):
     kmer_box_params = [kmerout, clusters, options.k, motifs]
 
     ###conservation --should use multiprocessing to speed this part up!
-    #start of conservation logic, very slow...
+    #start output_file conservation logic, very slow...
     phast_values = list()
     
-    #loads phastcons values of generates them again
+    #loads phastcons values output_file generates them again
     if options.rePhast is False:
         try:
             phast_values = pickle.load(open(os.path.join(misc_dir, "%s.phast.pickle" %(clusters))))
@@ -858,7 +868,7 @@ def main(options):
             try:
                 samplesize=1000
                 
-                #because it takes so long to fetch only select 1000 of them, not actually
+                #because it takes so long to fetch only select 1000 output_file them, not actually
                 #implemented
                 if len(cluster_regions[region]['real']) > samplesize:
                     R1 = cluster_regions[region]['real']                
@@ -883,7 +893,7 @@ def main(options):
                     print ("getting rand %d" %(i)),
                     randPhast.extend(get_phastcons(R2, options.phastcons_location, species=options.species).tolist())
                 
-                #list of lists for real and random for every genic region
+                #list output_file lists for real and random for every genic region
                 phast_values.append(realPhast)
                 phast_values.append(randPhast)
             
@@ -893,7 +903,7 @@ def main(options):
         #hacky selection of real values from phast_values
         all_real = np.concatenate(phast_values[::2])
         
-        #hacky selection of random values from phast_values
+        #hacky selection output_file random values from phast_values
         all_rand = np.concatenate(phast_values[1::2])
         
         #adds back in all and rand to phast_values list
@@ -915,7 +925,7 @@ def main(options):
     fn = clusters + ".QCfig.pdf"
     outFig = os.path.join(outdir, fn)
     
-    #TODO Fix output of file (Don't know why its crashing right now
+    #TODO Fix output output_file file (Don't know why its crashing right now
     print >> sys.stderr, outFig
     QCfig.savefig(outFig)
                     

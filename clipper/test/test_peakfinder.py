@@ -523,7 +523,43 @@ class Test(unittest.TestCase):
     
     def tearDown(self):
         pass
+    
+    def test_mapper_premrna(self):
         
+        """
+        
+        tests the mapper to make sure that its not breaking / outputs call_peaks results
+        
+        """
+        
+        args = ["-b", pkg_resources.resource_filename(__name__, "../test/allup_test.bam"),
+                 "-s", "hg19",
+                 "-g", "ENSG00000198901", 
+                 "--outfile=" + os.getcwd() + "/allup_peak_results.bed",
+                ]
+
+        (options, args) = self.parser.parse_args(args)
+        
+        mapper(options, "chr1    66999065    67210057    ENST00000237247    0    +    67000041    67208778    0    27    25,123,64,25,84,57,55,176,12,12,25,52,86,93,75,501,81,128,127,60,112,156,133,203,65,165,1302,    0,863,92464,99687,100697,106394,109427,110161,127130,134147,137612,138561,139898,143621,146295,148486,150724,155765,156807,162051,185911,195881,200365,205952,207275,207889,209690,")
+   
+    def test_mapper_mrna(self):
+        
+        """
+        
+        Tests the pre mrna mapper
+        
+        """
+        
+        args = ["-b", pkg_resources.resource_filename(__name__, "../test/allup_test.bam"),
+                 "-s", "hg19",
+                 "-g", "ENSG00000198901", 
+                 "--outfile=" + os.getcwd() + "/allup_peak_results.bed",
+                ]
+
+        (options, args) = self.parser.parse_args(args)
+        
+        mapper(options, "chr1    66999065    67210057    ENST00000237247    0    +    67000041    67208778    0    27    25,123,64,25,84,57,55,176,12,12,25,52,86,93,75,501,81,128,127,60,112,156,133,203,65,165,1302,    0,863,92464,99687,100697,106394,109427,110161,127130,134147,137612,138561,139898,143621,146295,148486,150724,155765,156807,162051,185911,195881,200365,205952,207275,207889,209690,")
+
 if __name__ == '__main__':
     unittest.main()
     os.remove(pkg_resources.resource_filename(__name__, "../src/peak_results.BED"))

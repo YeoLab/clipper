@@ -181,7 +181,8 @@ def get_acceptable_species():
         acceptable_species.add(fn)
     
     return acceptable_species
-    
+
+ 
 def build_transcript_data_bed(bed_file, pre_mrna):
     
     """
@@ -207,7 +208,7 @@ def build_transcript_data_bed(bed_file, pre_mrna):
         if pre_mrna:
             gene_lengths[line.name] = line.stop - line.start
         else:
-            #Just gets the lengths of the exons (although no mention of cds or not...
+            #Just gets the lengths of the exons (although no mention of cds or not... not important)
             gene_lengths[line.name] = sum([int(x) for x in line[10][:-1].strip().split(",")])
             
     return gene_info, gene_lengths
@@ -380,8 +381,34 @@ def filter_results(results, poisson_cutoff, transcriptome_size, transcriptome_re
             
     return allpeaks
 
+def mapper(options, line):
+    bedtool = pybedtools.BedTool(line, from_string=True)
 
-
+    #loads in the last bedline, because bedtools doesn't have a .next()
+    for bedline in bedtool:
+        pass
+    
+    if options.premRNA:
+        length = bedline.stop - bedline.start
+    else:
+        length = sum([int(x) for x in bedline[10][:-1].strip().split(",")]) #Just gets the lengths of the exons (although no mention of cds or not... not important)
+    
+    print call_peaks([bedline.chrom, bedline.name, bedline.start, bedline.stop, bedline.strand], length, None, options.bam, int(options.margin), options.FDR_alpha, 
+        options.threshold, int(options.minreads), options.poisson_cutoff, 
+        options.plotit, 10, 1000, options.SloP, False)
+    
+def hadoop_mapper(options):
+    
+    """
+    
+    Expermental mapper to give call peaks (running call_peak function) from hadoop
+    
+    """
+    #being lazy for now will make this integrated eventually
+   
+    for line in sys.stdin:
+        mapper(options, line)
+        
 def main(options):
     
     check_for_index(options.bam)
@@ -546,8 +573,10 @@ def call_main():
     parser.add_option("--save-pickle", dest="save_pickle", default=False, action="store_true", help="Save a pickle file containing the analysis")
     parser.add_option("--debug", dest="debug", default=False, action="store_true", help="disables multipcoressing in order to get proper error tracebacks")
     parser.add_option("--bedFile", dest="bedFile", help="use a bed file instead of the AS structure data")
+    parser.add_option("--hadoop", dest="hadoop",default=False, help="Run as hadoop job")
+
     (options, args) = parser.parse_args()
-    
+ 
     if options.plotit:
         options.debug=True
     
@@ -561,8 +590,12 @@ def call_main():
     if options.trim:
         options.bam = trim_reads(options.bam)
     
-    logging.info("Starting peak calling")        
-    main(options)
+    logging.info("Starting peak calling")
+    
+    if options.hadoop:
+        hadoop_mapper(options)
+    else:
+        main(options)
 
 
 if __name__ == "__main__":

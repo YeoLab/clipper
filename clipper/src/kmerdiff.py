@@ -36,9 +36,13 @@ Other    104        0.0075155    0.0000000    10000000000.0000000
 import os
 import sys
 import subprocess
+from collections import namedtuple
+from math import sqrt
+
 def kmer_diff(file1, file2, k):
     
     """
+    
     ASSUMES EMBOSS IS INSTALLED AND IN YOUR PATH
     (Need to include some checks for if this is not the case)
     
@@ -48,17 +52,17 @@ def kmer_diff(file1, file2, k):
     
     """
     
-    Motif = namedtype('Motif', ['freq1', 'freq2', 'delta'])
+    Motif = namedtuple('Motif', ['freq1', 'freq2', 'delta'])
     
     #call compseq
     subprocess.call(['compseq', 
-                     '-word', k, 
+                     '-word', str(k), 
                      '-sequence', file1,
                      '-outfile', file1 + ".compseq"]
                     )
     
     subprocess.call(['compseq', 
-                     '-word', k, 
+                     '-word', str(k), 
                      '-sequence', file2,
                      '-outfile', file2 + ".compseq"]
                     )
@@ -68,36 +72,47 @@ def kmer_diff(file1, file2, k):
     
     results = {}
     for key in freq1.keys():
-        g = (freq1[key] + freq2[key]) / (n1 + n2)
         
+        try:
+            g = (freq1[key] + freq2[key]) / (n1 + n2)
+        except ZeroDivisionError:
+            g = 0
+            
+        #delta is some sort of strange change measurement, not quite 
         if g == 0:
             delta = 0
         else:
-            delta = (freq1[key] / n1) - (freq2[key] / n2) / sqrt(((1/n1 + 1/n2) * g * (1-g)))
+            
+            delta = ((freq1[key] / n1) - (freq2[key] / n2)) / sqrt((1/n1 + 1/n2) * g * (1-g))
         
         results[key] = Motif(freq1[key], freq2[key], delta)
-    
+        
     return results, n1, n2
+
 def parse_compseq(file):
     
     """
     
-    parses compseq file to return the total number of something...
-    
-    also the number of occurances for each sequence
-    
+    parses compseq file to return the total number of reported kmers
+
+    Returns a tuple
+    total - other: The total number of kmers counted and reported
+    result: A dict {kmer : count times kmer is observed}
+    consider refactoring to just store the results in a proper data structure with everything accessable
+
     """
+  
     fi = open(file)
     
     result = {}
     for line in fi:
-        line_split = line.strip().split()
+        line_split = line.strip().split("\t")
         if line.startswith("Total count"):
             total = float(line_split[1])
-        if line.startswith("Other"):
+        elif line.startswith("Other"):
             other = float(line_split[1])
-        if not (line.startswith("#") or line.startswith("Word size") or line.startswith("\n")):
-            result[line[0]] = float(line[1])
+        elif not (line.startswith("#") or line.startswith("Word size") or line.startswith("\n")):
+            result[line_split[0]] = float(line_split[1])
     return total - other, result
 
 if __name__ == "__main__":

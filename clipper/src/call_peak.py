@@ -850,9 +850,6 @@ def peaks_from_info(wiggle, pos_counts, lengths, loc, gene_length,
         xvals = arange(0, sect_length)
         Nreads = sum(cts)
 
-        #gets random subset of lengths of reads for calculations on a section
-        #not exactly the right way to do this but it should be very close.
-        sect_read_lengths = rs(lengths, Nreads) 
         peak_dict['sections'][sect] = {}
         threshold = int()
         peak_dict['sections'][sect]['nreads'] = int(Nreads)
@@ -869,6 +866,11 @@ def peaks_from_info(wiggle, pos_counts, lengths, loc, gene_length,
             
         if user_threshold == None:
             if SloP:
+                
+                #gets random subset of lengths of reads for calculations on a section
+                #not exactly the right way to do this but it should be very close.
+                sect_read_lengths = rs(lengths, Nreads) 
+                
                 #use the minimum FDR cutoff between superlocal and gene-wide calculations
                 threshold = min(gene_threshold, get_FDR_cutoff_mean(sect_read_lengths, 
                                                 sect_length, 
