@@ -531,7 +531,7 @@ class SmoothingSpline(PeakGenerator):
 
         #descretizes the data so it is easy to get regions above a given threshold
         spline_values = array([int(x) for x in optimizedSpline(self.xRange)])
-  
+        print logging.info(spline_values)
         if plotit is True:
 
             self.plot(title="A fit", threshold=threshold)       
@@ -648,7 +648,30 @@ def plot_sections(wiggle, sections, threshold):
         axis.add_patch(patch)
     plt.show()
 
+def negative_binomial(reads_in_gene, reads_in_peak, gene_length, peak_length):
+    
+    """
+    Paramaters
+    ----------
+    reads_in_gene: Integer representing number of reads in gene
+    reads_in_peak: Integer reperesnting the number of reads in a specific peak
+    gene_length: Integer representing length of gene
+    peak_length: Integer representing length of peak
+    
+    Returns double, the p-value that the peak is significant
+    If calcluation fails returns 1
+    
+    """
+    
+    #lambda
+    lam = (float(reads_in_gene) / (gene_length)) * (peak_length)
 
+    if lam < 3:
+        lam = 3
+        
+    p = (lam) / (reads_in_peak + lam)
+    stats.nbinom.cdf(reads_in_peak, p)
+    
 def poissonP(reads_in_gene, reads_in_peak, gene_length, peak_length):
     
     """
@@ -727,7 +750,7 @@ def call_peaks(loc, gene_length, bam_fileobj=None, bam_file=None,
         pass
     #setup
     chrom, gene_name, tx_start, tx_end, signstrand = loc
-
+    logging.error("running on gene %s" % (loc))
     #logic reading bam files
     if bam_file is None and bam_fileobj is None:
         #using a file opbject is faster for serial processing 
@@ -886,10 +909,13 @@ def peaks_from_info(wiggle, pos_counts, lengths, loc, gene_length,
         elif fitType == "Gaussian":
             fitter = GaussMix(xvals, data)
             
-            
-        (fit_values, starts_and_stops, starts, stops) = fitter.peaks(threshold, plotit)
-            
 
+        try:
+            (fit_values, starts_and_stops, starts, stops) = fitter.peaks(threshold, plotit)
+        except Exception as error:
+            print gene_name
+            print error
+         
         #walks along spline, and calls peaks along spline
         #for each start, take the next stop and find the peak 
         #between the start and the stop this is where I need to 

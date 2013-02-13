@@ -26,6 +26,7 @@ setup(
                         'matplotlib >= 1.1.0',
                         'pp >= 1.6.2',
                         'pybedtools >= 0.5',
+                        'scikit-learn >= 0.12.1',
                         ],
       
     setup_requires = ["setuptools_git >= 0.3",],
