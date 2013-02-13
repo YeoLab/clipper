@@ -190,10 +190,11 @@ class SmoothingSpline(PeakGenerator):
         
         if smoothingFactor is None:
             smoothingFactor = len(xRange)
-            
-        self.k=3 #degree of spline (cubic)
+        
+        self.k = 3 #degree of spline (cubic)
         self.smoothingFactor = smoothingFactor
-    
+        self.spline = None
+
         #Sets loss function
         if lossFunction == "get_turn_penalized_residuals":
             self.lossFunction = self.get_turn_penalized_residuals
@@ -216,7 +217,7 @@ class SmoothingSpline(PeakGenerator):
         """
         
         from scipy.linalg import norm
-        
+
         #the exponent is a magic number and subject to change
         err = (norm_weight*norm(spline(self.xRange))**5) + (residual_weight*sqrt(spline.get_residual()))
         return err
@@ -233,11 +234,12 @@ class SmoothingSpline(PeakGenerator):
         """
         
         func = spline(self.xRange)
-    
+
         turns = sum(abs(diff(sign(diff(func))))) / 2
-        
+
         #divide by 100 is probably arbitary but might be nessessary...     
         err = sqrt((spline.get_residual()) * (turns ** 5)) / 100
+
         return err
     
     def fit_univariate_spline(self, smoothingFactor = None, weight = None):
@@ -270,7 +272,6 @@ class SmoothingSpline(PeakGenerator):
                                                   w=weight)
             
         except Exception as error: #This error shouldn't happen anymore
- 
             logging.error("failed to build spline %s, %s, %s, %s, %s, %s" % (error, 
                                                                              self.xRange, 
                                                                              self.yData, 
@@ -304,33 +305,28 @@ class SmoothingSpline(PeakGenerator):
         threshold - line to draw so peaks don't go below threshold
         
         """
-    
-        if fig == None:
-            fig = plt.figure()
-        plt.plot(spline._data[0], spline._data[1], "blue", label="_nolegend")
-        plt.plot(spline._data[0], spline(spline._data[0]), label=label)
+
+        ax = plt.gca()
+        ax.plot(spline._data[0], spline._data[1], "blue", label="_nolegend")
+        ax.plot(spline._data[0], spline(spline._data[0]), label=label)
     
         if threshold is not None:
-            plt.axhline(y=threshold)
-    
-        plt.legend(loc=2)
-        plt.show()
+            ax.axhline(y=threshold)
         
-    def plot(self, spline, threshold=None, title=None, label="_nolegend_"):
+    def plot(self, threshold=None, title=None, label="_nolegend_"):
         """plot data and spline"""
         
-        if not hasattr(self, 'spline'):
-            self.fit_univariate_spline()
-        if not hasattr(self, 'figure'):
-            self.figure = plt.figure()
-            
-        plot_spline(spline, threshold=threshold, title=title, fig = self.figure, label=label)
-       
+        spline = self.spline
+        
+        self.plot_spline(spline, threshold=threshold, title=title, label=label)
+
     def optimize_fit(self, s_estimate=None, method = 'L-BFGS-B', bounds=((1,None),),
                      weight=None):
-        """optimize the smoothingFactor for fitting.
+        """
+
+        optimize the smoothingFactor for fitting.
         
-        TNC"""
+        """
         import scipy
         from scipy import optimize
         if s_estimate == None:
@@ -345,9 +341,11 @@ class SmoothingSpline(PeakGenerator):
                                           method = method,
                                           bounds = bounds,
                                           )
+
         if minimizeResult.success:
             optimizedSmoothingFactor = minimizeResult.x
             logging.info("Minimization succeeded")
+
         else:
             
             #if optimization fails then we revert back to the estimate, probably should log this
@@ -357,6 +355,9 @@ class SmoothingSpline(PeakGenerator):
             #raise Exception
         
         optimizedSpline = self.fit_univariate_spline(optimizedSmoothingFactor, weight)
+        smoothingFactor = optimizedSmoothingFactor
+        self.spline = optimizedSpline
+        
         return optimizedSpline 
 
     def get_regions_above_threshold(self, threshold, values):
@@ -485,20 +486,27 @@ class SmoothingSpline(PeakGenerator):
         #step 1 naive spline
 
         spline = self.fit_univariate_spline()
+        self.spline = spline
+        
+        if plotit == True:
+            self.plot()
+            
 
+            
         #step 2, refine to avoid local minima later
         #high-temp optimize
 
         best_error = self.lossFunction(spline)
 
-        if plotit == True:
-            self.plot()
-            
-        for i in range(2, 50):
-            cur_smoothing_value = initial_smoothing_value * i
-            #tries find optimal initial smooting paraater in this loop
 
-            cur_error = self.fit_loss(cur_smoothing_value) 
+            
+        for i in range(2, 50):   #tries find optimal initial smooting parameter in this loop
+
+            
+            cur_smoothing_value = initial_smoothing_value * i
+
+            cur_error = self.fit_loss(cur_smoothing_value)
+            self.spline = self.fit_univariate_spline(cur_smoothing_value)
             
             if plotit == True:
                 self.plot(label=str(cur_smoothing_value))
@@ -508,11 +516,13 @@ class SmoothingSpline(PeakGenerator):
                 bestSmoothingEstimate = cur_smoothing_value
                 best_error = cur_error
 
-
         try:
             #fine optimization of smooting paramater
             #low-temp optimize
             optimizedSpline = self.optimize_fit(s_estimate=bestSmoothingEstimate)
+            self.spline = optimizedSpline
+            if plotit:
+                self.plot(title = "optimized spline", threshold=threshold)
 
         except Exception as error:
             logging.error("failed spline fitting optimization at section (major crash)")
@@ -523,10 +533,10 @@ class SmoothingSpline(PeakGenerator):
         spline_values = array([int(x) for x in optimizedSpline(self.xRange)])
         print logging.info(spline_values)
         if plotit is True:
-            self.plot(title=str(peakn), threshold=threshold)
+
+            self.plot(title="A fit", threshold=threshold)       
         
         starts_and_stops, starts, stops = self.get_regions_above_threshold(threshold, 
-
                                                                       spline_values)
     
         return (spline_values, starts_and_stops, starts, stops)
@@ -696,11 +706,10 @@ def poissonP(reads_in_gene, reads_in_peak, gene_length, peak_length):
         
         #TODO: check with boyko or someone else about this math.  
         #I think its a strong over estimate of the mean
-        lam = (float(reads_in_gene) / (gene_length)) * (peak_length)
+        lam = 1 + ((float(reads_in_gene) / (gene_length)) * (peak_length)) #expect at least one read.
 
-        if lam < 3:
-            lam = 3
         cum_p = 1 - stats.poisson.cdf(reads_in_peak, int(lam))
+
         return cum_p
     
     except Exception as error:
@@ -902,6 +911,7 @@ def peaks_from_info(wiggle, pos_counts, lengths, loc, gene_length,
         elif fitType == "Gaussian":
             fitter = GaussMix(xvals, data)
             
+
         try:
             (fit_values, starts_and_stops, starts, stops) = fitter.peaks(threshold, plotit)
         except Exception as error:

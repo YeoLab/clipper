@@ -415,6 +415,7 @@ def main(options):
     
     if options.np == 'autodetect':
         options.np = multiprocessing.cpu_count()
+
     pool = multiprocessing.Pool(int(options.np))
     
     #job_server = pp.Server(ncpus=options.np) #old pp stuff
