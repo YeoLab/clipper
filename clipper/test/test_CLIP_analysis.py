@@ -8,6 +8,7 @@ import CLIP_analysis
 from optparse import OptionParser, SUPPRESS_HELP 
 import os
 import pkg_resources       
+import clipper
 
 class Test(unittest.TestCase):
     
@@ -49,9 +50,9 @@ class Test(unittest.TestCase):
         
         """ runs entire program on small test dataset """
         
-        args = ["--clusters", pkg_resources.resource_filename(__name__, "../test/fox_2_test.BED"),
+        args = ["--clusters", clipper.test_file("FOX2.CLIP_peaks.BED"),
                 "-s", "mm9",
-                "--bam", pkg_resources.resource_filename(__name__, "../test/FOX2Brain.all.bam"),
+                "--bam", clipper.test_file("FOX2Brain.all.bam"),
                 "--AS_Structure", "/home/gabrielp/bioinformatics/Yeo_Lab/clip_analysis_metadata/mm9data4",
                 '--genome_location', '/home/gabrielp/bioinformatics/Yeo_Lab/clip_analysis_metadata/mm9/mm9.fa', 
                 "--regions_location", '/home/gabrielp/bioinformatics/Yeo_Lab/clip_analysis_metadata/regions',

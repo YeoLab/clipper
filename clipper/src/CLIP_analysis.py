@@ -19,12 +19,15 @@ from bx.bbi.bigwig_file import BigWigFile
 import pysam
 import clipper.src.CLIP_Analysis_Display
 import pylab
-from kmerdiff import kmer_diff
+from clipper.src.kmerdiff import kmer_diff
 
 def intersection(A, B=None):
     
     """
     
+    A : bedtool
+    B : bedtool
+    Returns A - B and A intersect B 
     A with b and returns everything in a but not b and everything in a but... ???
     
     """
@@ -213,7 +216,7 @@ def assign_to_regions(tool, speciesFA, regions_dir, species="hg19", nrand = 3, g
     offsets = get_offsets_bed12(tool)
     tool =  tool.merge(s=True, nms=True, scores="max")
     tool = adjust_offsets(tool, offsets)
-    Gsizes = [G_exon_size, G_UTR3_size, G_UTR5_size, G_proxintron_size, G_distintron_size]
+    genic_region_sizes = [G_exon_size, G_UTR3_size, G_UTR5_size, G_proxintron_size, G_distintron_size]
     sizes = [0, 0, 0, 0, 0]
 
     print "There are a total offsets %d clusters I'll examine" %(len(tool))
@@ -226,8 +229,8 @@ def assign_to_regions(tool, speciesFA, regions_dir, species="hg19", nrand = 3, g
             print e
             "prnt intersection failed"
             continue
-        only_overlapping = pybedtools.BedTool(str(only_overlapping.filter(eliminate_invalid_bed12)), from_string=True)
-        no_overlapping = pybedtools.BedTool(str(no_overlapping.filter(eliminate_invalid_bed12)), from_string=True)
+        only_overlapping = pybedtools.BedTool(str(only_overlapping.filter(is_valid_bed12)), from_string=True)
+        no_overlapping = pybedtools.BedTool(str(no_overlapping.filter(is_valid_bed12)), from_string=True)
         noCT = len(no_overlapping)
         onlyCT = len(only_overlapping)
         last += onlyCT
@@ -292,7 +295,7 @@ def assign_to_regions(tool, speciesFA, regions_dir, species="hg19", nrand = 3, g
     for i in range(nrand):
         bed_dict['all']['rand'][i] = bed_dict['all']['rand'][i].sort()
         bed_dict['all']['rand'][i].sequence(fi=speciesFA, s=True)
-    return bed_dict, sizes, Gsizes
+    return bed_dict, sizes, genic_region_sizes
 
 def build_assigned_from_existing(assigned_dir, clusters, regions, nrand):
     
@@ -330,7 +333,7 @@ def build_assigned_from_existing(assigned_dir, clusters, regions, nrand):
 
     return CLUS_regions, sizes, Gsizes
 
-def eliminate_invalid_bed12(x):
+def is_valid_bed12(x):
     
     """
     
@@ -338,7 +341,7 @@ def eliminate_invalid_bed12(x):
     
     x - bedline
     
-    returns either true or false if its a valid line or not
+    returns either true if line is valid 
     
     """
     
@@ -361,16 +364,16 @@ def get_offsets_bed12(tool):
     
     """
     
-    of = {}
+    offset_dict = {}
     for line in tool:
-        chr, start, stop, name, score, strand, tstart, tstop = str(line).split("\t")
-        start, stop, tstart, tstop = map(int, (start, stop, tstart, tstop))
+        chrom, start, stop, name, score, strand, tstart, tstop = str(line).split("\t")
+        start, stop, tstart, tstop = [int(x) for x in (start, stop, tstart, tstop)]
         if strand == "+":
             offset = tstart -start 
         else:
             offset = stop - tstop
-        of[name] = offset
-    return of
+        offset_dict[name] = offset
+    return offset_dict
 
 
     
@@ -391,7 +394,7 @@ def RNA_position(bedline, GI):
     exon_frac = None
     intron_frac = None
     nearest_type=None
-    chr, start, stop, name, score, strand, thickstart, thickstop = str(bedline).strip().split("\t")
+    chrom, start, stop, name, score, strand, thickstart, thickstop = str(bedline).strip().split("\t")
     thickstart, thickstop = map(int, (thickstart, thickstop))
     position = int((thickstart + thickstop)/2)
     try:
@@ -648,7 +651,7 @@ def main(options):
 
     #makes output file names 
     clusters = str.replace(clusters, ".BED", "")
-    options.k = map(int, options.k)
+    options.k = [int(x) for x in options.k]
     outdir = options.outdir
     
     #sets up output dirs
@@ -676,7 +679,7 @@ def main(options):
 
     if options.assign is False:
         try:
-            cluster_regions, sizes, Gsizes = build_assigned_from_existing(assigned_dir, clusters, all_regions, options.nrand)
+            cluster_regions, sizes, genic_region_sizes = build_assigned_from_existing(assigned_dir, clusters, all_regions, options.nrand)
             print "I used a pre-assigned set output_file BED files... score!"
         except:
             print "I had problems retreiving region-assigned BED files from %s, i'll rebuild" % (assigned_dir)
@@ -684,7 +687,7 @@ def main(options):
             
     if options.assign is True:
         print "Assigning Clusters to Genic Regions"
-        cluster_regions, sizes, Gsizes = assign_to_regions(clusters_bed,options.genome_location, options.regions_location, species=species, getseq=True, nrand=options.nrand)
+        cluster_regions, sizes, genic_region_sizes = assign_to_regions(clusters_bed,options.genome_location, options.regions_location, species=species, getseq=True, nrand=options.nrand)
         print "Done Assigning"
         
         print "Saving BED and Fasta Files...",
@@ -693,8 +696,8 @@ def main(options):
         sizes_out = open(os.path.join(assigned_dir, "%s.sizes.pickle" %(clusters)), 'w')
         pickle.dump(sizes, file=sizes_out)
         sizes_out.close()    
-        Gsizes_out = open(os.path.join(assigned_dir, "Gsizes.pickle"), 'w')
-        pickle.dump(Gsizes, file=Gsizes_out)
+        Gsizes_out = open(os.path.join(assigned_dir, "genic_region_sizes.pickle"), 'w')
+        pickle.dump(genic_region_sizes, file=Gsizes_out)
         Gsizes_out.close()
         
         #this is where all saving happens for assign to regions
@@ -711,7 +714,7 @@ def main(options):
                 except:
                     continue
                 
-        print "done"
+        print "done saving genic region clasifications"
 
         #creates pretty file names for all regions
         for region in all_regions:
@@ -788,6 +791,8 @@ def main(options):
     #also builds figure 10 (exon distances)
     GENES, Gtypes = build_AS_STRUCTURE_dict(species, options.as_structure)
     types = {}
+    
+    #default dict...
     for type in ["CE:", "SE:", "MXE:", "A5E:", "A3E:"]:
         types[type]=0
     print "locating clusters within genes",
@@ -916,7 +921,7 @@ def main(options):
     Zscores = None  #old. remove
     
     #build qc figure
-    QCfig_params = [reads_in_clusters, (total_reads - reads_in_clusters), cluster_lengths, reads_per_cluster, premRNA_positions, mRNA_positions, exon_positions, intron_positions, Gsizes, sizes, Gtype_count, type_count, Zscores, homerout, kmer_box_params, phast_values]
+    QCfig_params = [reads_in_clusters, (total_reads - reads_in_clusters), cluster_lengths, reads_per_cluster, premRNA_positions, mRNA_positions, exon_positions, intron_positions, genic_region_sizes, sizes, Gtype_count, type_count, Zscores, homerout, kmer_box_params, phast_values]
 
     #save results 
     pickout = open(os.path.join(outdir, "misc", "%s.qcfig_params.pickle" %(clusters)), 'w')
