@@ -181,7 +181,8 @@ def get_acceptable_species():
         acceptable_species.add(fn)
     
     return acceptable_species
-    
+
+ 
 def build_transcript_data_bed(bed_file, pre_mrna):
     
     """
@@ -207,7 +208,7 @@ def build_transcript_data_bed(bed_file, pre_mrna):
         if pre_mrna:
             gene_lengths[line.name] = line.stop - line.start
         else:
-            #Just gets the lengths of the exons (although no mention of cds or not...
+            #Just gets the lengths of the exons (although no mention of cds or not... not important)
             gene_lengths[line.name] = sum([int(x) for x in line[10][:-1].strip().split(",")])
             
     return gene_info, gene_lengths
@@ -283,20 +284,33 @@ def transcriptome_filter(poisson_cutoff, transcriptome_size, transcriptome_reads
     poisson_cutoff - float,user set cutoff 
     transcriptome_size - int number of genes in transcriptome
     transcritpmoe_reads - int total number of reads analized
-    cluster - dict, stats about the cluster we are analizing {'Nreads' : int, 'size' : int}
+    cluster - named tuple , namedtuple('Peak', ['chrom', 
+                                      'genomic_start', 
+                                      'genomic_stop', 
+                                      'gene_name', 
+                                      'super_local_poisson_p', 
+                                      'strand',
+                                      'thick_start',
+                                      'thick_stop',
+                                      'peak_number',
+                                      'number_reads_in_peak',
+                                      'gene_poisson_p',
+                                      'size'
+                                      'p'
+                                      ])
     """
     
     transcriptome_p = poissonP(transcriptome_reads, 
-                               cluster['Nreads'], 
+                               cluster.number_reads_in_peak, 
                                transcriptome_size, 
-                               cluster['size'])
+                               cluster.size)
     
     if math.isnan(transcriptome_p):
-        logging.info("""Transcriptome P is NaN, transcriptome_reads = %d, cluster reads = %d, transcriptome_size = %d, cluster_size = %d""" % (transcriptome_reads, cluster['Nreads'], transcriptome_size, cluster['size']))
+        logging.info("""Transcriptome P is NaN, transcriptome_reads = %d, cluster reads = %d, transcriptome_size = %d, cluster_size = %d""" % (transcriptome_reads, cluster.number_reads_in_peak, transcriptome_size, cluster.size))
         return False
     
     if transcriptome_p > poisson_cutoff:
-        logging.info("%s\n Failed Transcriptome cutoff with %s reads, pval: %s" % (cluster, cluster['Nreads'], transcriptome_p))
+        logging.info("%s\n Failed Transcriptome cutoff with %s reads, pval: %s" % (cluster, cluster.number_reads_in_peak, transcriptome_p))
 
         return False
     
@@ -345,10 +359,10 @@ def filter_results(results, poisson_cutoff, transcriptome_size, transcriptome_re
 
         #alert user that there aren't any clusters for specific gene
         if gene_result['clusters'] is None:
-            loging.info("%s no clusters" % (gene_result))
+            logging.info("%s no clusters" % (gene_result))
 
         
-        for cluster_id, cluster in gene_result['clusters'].items():
+        for cluster in gene_result['clusters']:
             meets_cutoff = True
             try:
                 
@@ -360,19 +374,28 @@ def filter_results(results, poisson_cutoff, transcriptome_size, transcriptome_re
                 
                 #should factor out this as well, but I'll leave it be until nessessary            
                 #does SlOP always get used?  it looks like it does
-                corrected_SloP_pval = gene_result['clusters'][cluster_id]['SloP']
-                corrected_gene_pval = gene_result['clusters'][cluster_id]['GeneP']
+                corrected_SloP_pval = cluster.super_local_poisson_p
+                corrected_gene_pval = cluster.gene_poisson_p
                 min_pval = min([corrected_SloP_pval, corrected_gene_pval])
                 
                 if not (min_pval < poisson_cutoff):
-                    logging.info("Failed Gene Pvalue: %s and failed SloP Pvalue: %s for cluster_id %s" % (corrected_gene_pval, corrected_SloP_pval, cluster_id))
+                    logging.info("Failed Gene Pvalue: %s and failed SloP Pvalue: %s for Gene %s %s" % (corrected_gene_pval, corrected_SloP_pval, cluster.gene_name, cluster.peak_number))
                     meets_cutoff = False
                 
                 if meets_cutoff:
-                    chrom, g_start, g_stop, peak_name, geneP, signstrand, thick_start, thick_stop = cluster_id.split("\t")
-                
+
                     #adds beadline to total peaks that worked
-                    allpeaks.add("%s\t%d\t%d\t%s\t%s\t%s\t%d\t%d" % (chrom, int(g_start), int(g_stop), peak_name, min_pval, signstrand, int(thick_start), int(thick_stop)))
+                    allpeaks.add("\t".join([str(x) for x in [cluster.chrom, 
+                                           cluster.genomic_start, 
+                                           cluster.genomic_stop, 
+                                           cluster.gene_name, 
+                                           min_pval, 
+                                           cluster.strand, 
+                                           cluster.thick_start, 
+                                           cluster.thick_stop,
+                                           cluster.peak_number,
+                                           cluster.number_reads_in_peak,
+                                           cluster.size]]))
         
             except NameError as error:
                 logging.error("parsing failed: %s" % (error))
@@ -380,8 +403,34 @@ def filter_results(results, poisson_cutoff, transcriptome_size, transcriptome_re
             
     return allpeaks
 
+def mapper(options, line):
+    bedtool = pybedtools.BedTool(line, from_string=True)
 
-
+    #loads in the last bedline, because bedtools doesn't have a .next()
+    for bedline in bedtool:
+        pass
+    
+    if options.premRNA:
+        length = bedline.stop - bedline.start
+    else:
+        length = sum([int(x) for x in bedline[10][:-1].strip().split(",")]) #Just gets the lengths of the exons (although no mention of cds or not... not important)
+    
+    print call_peaks([bedline.chrom, bedline.name, bedline.start, bedline.stop, bedline.strand], length, None, options.bam, int(options.margin), options.FDR_alpha, 
+        options.threshold, int(options.minreads), options.poisson_cutoff, 
+        options.plotit, 10, 1000, options.SloP, False)
+    
+def hadoop_mapper(options):
+    
+    """
+    
+    Expermental mapper to give call peaks (running call_peak function) from hadoop
+    
+    """
+    #being lazy for now will make this integrated eventually
+   
+    for line in sys.stdin:
+        mapper(options, line)
+        
 def main(options):
     
     check_for_index(options.bam)
@@ -485,24 +534,11 @@ def main(options):
                               options.use_global_cutoff)
     
     
-    allpeaks = set([])
-    for gene_result in results:
-        for cluster_id, cluster in gene_result['clusters'].items():
-            corrected_SloP_pval = gene_result['clusters'][cluster_id]['SloP']
-            corrected_gene_pval = gene_result['clusters'][cluster_id]['GeneP']
-            min_pval = min([corrected_SloP_pval, corrected_gene_pval])
-            chrom, g_start, g_stop, peak_name, geneP, signstrand, thick_start, thick_stop = cluster_id.split("\t")
-            n_reads_in_peak = gene_result['clusters'][cluster_id]['Nreads']
-            peak_length = gene_result['clusters'][cluster_id]['size']
-            #adds beadline to total peaks that worked
-            allpeaks.add("%s\t%d\t%d\t%s\t%s\t%s\t%d\t%d\t%s\t%d" % (chrom, int(g_start), int(g_stop), peak_name, min_pval, signstrand, int(thick_start), int(thick_stop), n_reads_in_peak, peak_length))
-
-   
-    
+    #need to include scaliable way to see ALL peaks, not just filtered one
+        
     outbed = options.outfile
     color = options.color
     pybedtools.BedTool("\n".join(filtered_peaks), from_string=True).sort(stream=True).saveas(outbed, trackline="track name=\"%s\" visibility=2 colorByStrand=\"%s %s\"" % (outbed, color, color))
-    pybedtools.BedTool("\n".join(allpeaks), from_string=True).sort(stream=True).saveas(outbed + "_all"  , trackline="track name=\"%s\" visibility=2 colorByStrand=\"%s %s\"" % (outbed, color, color))
 
     logging.info("wrote peaks to %s" % (options.outfile))
     
@@ -547,8 +583,10 @@ def call_main():
     parser.add_option("--save-pickle", dest="save_pickle", default=False, action="store_true", help="Save a pickle file containing the analysis")
     parser.add_option("--debug", dest="debug", default=False, action="store_true", help="disables multipcoressing in order to get proper error tracebacks")
     parser.add_option("--bedFile", dest="bedFile", help="use a bed file instead of the AS structure data")
+    parser.add_option("--hadoop", dest="hadoop",default=False, help="Run as hadoop job")
+
     (options, args) = parser.parse_args()
-    
+ 
     if options.plotit:
         options.debug=True
     
@@ -562,8 +600,12 @@ def call_main():
     if options.trim:
         options.bam = trim_reads(options.bam)
     
-    logging.info("Starting peak calling")        
-    main(options)
+    logging.info("Starting peak calling")
+    
+    if options.hadoop:
+        hadoop_mapper(options)
+    else:
+        main(options)
 
 
 if __name__ == "__main__":

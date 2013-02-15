@@ -9,7 +9,7 @@ import sys
 import pysam
 from clipper.src.peaks import readsToWiggle_pysam, shuffle, find_sections
 from scipy import optimize
-
+from collections import namedtuple
 #import pylab
 
 import matplotlib
@@ -30,7 +30,20 @@ import logging
 
 
 
-    
+class Peak(namedtuple('Peak', ['chrom', 
+                               'genomic_start', 
+                               'genomic_stop', 
+                               'gene_name', 
+                               'super_local_poisson_p', 
+                               'strand',
+                               'thick_start',
+                               'thick_stop',
+                               'peak_number',
+                               'number_reads_in_peak',
+                               'gene_poisson_p',
+                               'size',
+                               'p'])):
+    pass
     
 def get_FDR_cutoff_mode(readlengths, 
                         genelength, 
@@ -236,9 +249,8 @@ class SmoothingSpline(PeakGenerator):
         func = spline(self.xRange)
 
         turns = sum(abs(diff(sign(diff(func))))) / 2
-
-        #divide by 100 is probably arbitary but might be nessessary...     
-        err = sqrt((spline.get_residual()) * (turns ** 5)) / 100
+ 
+        err = sqrt((spline.get_residual()) * (turns ** 4))
 
         return err
     
@@ -344,13 +356,12 @@ class SmoothingSpline(PeakGenerator):
 
         if minimizeResult.success:
             optimizedSmoothingFactor = minimizeResult.x
-            logging.info("Minimization succeeded")
-
+        
         else:
             
             #if optimization fails then we revert back to the estimate, probably should log this
             optimizedSmoothingFactor = s_estimate
-            logging.info("Minimization failed")
+          
             #logging.error("Problem spline fitting. Here is the message:\n%s" % (minimizeResult.message))
             #raise Exception
         
@@ -531,7 +542,7 @@ class SmoothingSpline(PeakGenerator):
 
         #descretizes the data so it is easy to get regions above a given threshold
         spline_values = array([int(x) for x in optimizedSpline(self.xRange)])
-        print logging.info(spline_values)
+    
         if plotit is True:
 
             self.plot(title="A fit", threshold=threshold)       
@@ -704,8 +715,6 @@ def poissonP(reads_in_gene, reads_in_peak, gene_length, peak_length):
         #gets multipled by the peak 
         #length as an estimator of the mean
         
-        #TODO: check with boyko or someone else about this math.  
-        #I think its a strong over estimate of the mean
         lam = 1 + ((float(reads_in_gene) / (gene_length)) * (peak_length)) #expect at least one read.
 
         cum_p = 1 - stats.poisson.cdf(reads_in_peak, int(lam))
@@ -749,7 +758,7 @@ def call_peaks(loc, gene_length, bam_fileobj=None, bam_file=None,
         plt.rcParams['interactive']=True
         pass
     #setup
-    chrom, gene_name, tx_start, tx_end, signstrand = loc
+    chrom, gene_name, tx_start, tx_end, strand = loc
     logging.error("running on gene %s" % (loc))
     #logic reading bam files
     if bam_file is None and bam_fileobj is None:
@@ -766,9 +775,9 @@ def call_peaks(loc, gene_length, bam_fileobj=None, bam_file=None,
     subset_reads = bam_fileobj.fetch(reference=chrom, start=tx_start, end=tx_end)
 
     #need to document reads to wiggle
-    wiggle, jxns, pos_counts, lengths, allreads = readsToWiggle_pysam(subset_reads, tx_start, tx_end, signstrand, "center", False)
+    wiggle, jxns, pos_counts, lengths, allreads = readsToWiggle_pysam(subset_reads, tx_start, tx_end, strand, "center", False)
 
-    #wiggle, pos_counts, lengths = readsToWiggle_pysam(subset_reads, tx_start, tx_end, signstrand, "center", False)
+    #wiggle, pos_counts, lengths = readsToWiggle_pysam(subset_reads, tx_start, tx_end, strand, "center", False)
 
     #TODO have a check to kill this if there aren't any reads in a region
         
@@ -811,6 +820,9 @@ def peaks_from_info(wiggle, pos_counts, lengths, loc, gene_length,
 
     peak_dict = {}
     
+    #all the information nessessary to record a peak, used later, but declared outside of loops
+
+    
     #these are what is built in this dict, complicated enough that it might 
     #be worth turning into an object
     #peak_dict['clusters'] = {}
@@ -820,7 +832,7 @@ def peaks_from_info(wiggle, pos_counts, lengths, loc, gene_length,
     #peak_dict['loc'] = loc
     
     #data munging
-    chrom, gene_name, tx_start, tx_end, signstrand = loc
+    chrom, gene_name, tx_start, tx_end, strand = loc
     tx_start, tx_end = [int(x) for x in [tx_start, tx_end]]    
     
     #used for poisson calclulation? 
@@ -839,12 +851,12 @@ def peaks_from_info(wiggle, pos_counts, lengths, loc, gene_length,
     if not isinstance(gene_threshold, int):
         raise TypeError
         
-    peak_dict['clusters'] = {}
+    peak_dict['clusters'] = []
     peak_dict['sections'] = {}
     peak_dict['nreads'] = int(nreads_in_gene)
     peak_dict['threshold'] = gene_threshold
     peak_dict['loc'] = loc
-    peakn=1
+    peak_number=1
 
  
     sections = find_sections(wiggle, margin)
@@ -859,9 +871,6 @@ def peaks_from_info(wiggle, pos_counts, lengths, loc, gene_length,
         xvals = arange(0, sect_length)
         Nreads = sum(cts)
 
-        #gets random subset of lengths of reads for calculations on a section
-        #not exactly the right way to do this but it should be very close.
-        sect_read_lengths = rs(lengths, Nreads) 
         peak_dict['sections'][sect] = {}
         threshold = int()
         peak_dict['sections'][sect]['nreads'] = int(Nreads)
@@ -878,6 +887,11 @@ def peaks_from_info(wiggle, pos_counts, lengths, loc, gene_length,
             
         if user_threshold == None:
             if SloP:
+                
+                #gets random subset of lengths of reads for calculations on a section
+                #not exactly the right way to do this but it should be very close.
+                sect_read_lengths = rs(lengths, Nreads) 
+                
                 #use the minimum FDR cutoff between superlocal and gene-wide calculations
                 threshold = min(gene_threshold, get_FDR_cutoff_mean(sect_read_lengths, 
                                                 sect_length, 
@@ -902,7 +916,9 @@ def peaks_from_info(wiggle, pos_counts, lengths, loc, gene_length,
         fitType = "Spline"
         ###gauss mixture model
         if fitType == "Spline":
-            initial_smoothing_value = (sectstop - sectstart + 1)/4
+            
+            initial_smoothing_value = (sectstop - sectstart + 1)
+            print xvals, data, initial_smoothing_value
             fitter = SmoothingSpline(xvals, data, initial_smoothing_value,
                             lossFunction="get_norm_penalized_residuals")
         
@@ -914,7 +930,8 @@ def peaks_from_info(wiggle, pos_counts, lengths, loc, gene_length,
             (fit_values, starts_and_stops, starts, stops) = fitter.peaks(threshold, plotit)
         except Exception as error:
             print gene_name
-            print error
+            raise error
+            
          
         #walks along spline, and calls peaks along spline
         #for each start, take the next stop and find the peak 
@@ -941,18 +958,18 @@ def peaks_from_info(wiggle, pos_counts, lengths, loc, gene_length,
                 #TODO All this formatting logic doesn't belong here 
                 #should be simplifed
                 #gets reads in peak
-                n_reads_in_peak = sum(cts[p_start:(p_stop + 1)])
+                number_reads_in_peak = sum(cts[p_start:(p_stop + 1)])
                 logging.info("""Peak %d (%d - %d) has %d 
-                                 reads""" %(peakn,                                             
+                                 reads""" %(peak_number,                                             
                                              p_start,
                                              (p_stop + 1),
-                                             n_reads_in_peak))
+                                             number_reads_in_peak))
 
                 #makes sure there enough reads
-                if (n_reads_in_peak < minreads or 
+                if (number_reads_in_peak < minreads or 
                     max(data[p_start:(p_stop + 1)]) < threshold):
                     logging.info("""skipping peak, %d is not enough reads"""
-                                 %(n_reads_in_peak))
+                                 %(number_reads_in_peak))
                     continue
 
                 #formatting of bed track
@@ -978,7 +995,7 @@ def peaks_from_info(wiggle, pos_counts, lengths, loc, gene_length,
                 #skip really small peaks
                 if peak_length < width_cutoff:
                     continue
-                peak_name = gene_name + "_" + str(peakn) + "_" + str(int(n_reads_in_peak))
+              
 
                 #super local logic 
                 #best_error check to make sure area is in area of gene
@@ -1013,13 +1030,13 @@ def peaks_from_info(wiggle, pos_counts, lengths, loc, gene_length,
 
                 #calcluates poisson based of whole gene vs peak
                 gene_pois_p = poissonP(nreads_in_gene, 
-                                       n_reads_in_peak, 
+                                       number_reads_in_peak, 
                                        gene_length, 
                                        peak_length)
                 if SloP is True:
                     #same thing except for based on super local p-value
                     slop_pois_p = poissonP(area_reads, 
-                                          n_reads_in_peak, 
+                                          number_reads_in_peak, 
                                           area_size, 
                                           peak_length)
 
@@ -1033,131 +1050,37 @@ def peaks_from_info(wiggle, pos_counts, lengths, loc, gene_length,
                 if math.isnan(slop_pois_p):
                     slop_pois_p = 1
 
-                #remove later    
-                if slop_pois_p > poisson_cutoff:
-                    #continue
-                    pass
-
                 #defines the bedline of a peak for returning
                 #TODO This should be abstracted out for now... seperate model from view
-                bedline = "%s\t%d\t%d\t%s\t%s\t%s\t%d\t%d" %(chrom, g_start, g_stop, peak_name, slop_pois_p, signstrand, thick_start, thick_stop)
-
-                #metadata for the specific bedline
-                peak_dict['clusters'][bedline] = {}
-                peak_dict['clusters'][bedline]['GeneP'] = gene_pois_p
-                peak_dict['clusters'][bedline]['SloP'] = slop_pois_p                    
-                peak_dict['clusters'][bedline]['Nreads'] = n_reads_in_peak
-                peak_dict['clusters'][bedline]['size'] = peak_length
-                peakn += 1
+                
+                peak_dict['clusters'].append(Peak(chrom, 
+                                                  g_start, 
+                                                  g_stop, 
+                                                  gene_name, 
+                                                  slop_pois_p, 
+                                                  strand,
+                                                  thick_start,
+                                                  thick_stop,
+                                                  peak_number,
+                                                  number_reads_in_peak,
+                                                  gene_pois_p,
+                                                  peak_length,
+                                                  0
+                                                  )
+                                             )
+   
+                peak_number += 1
                 peak_dict['sections'][sect]['nPeaks'] +=1
-
-            #there are more than one peaks in this window
-            #NO LONGER NESSESSARY SHOULD REMOVE
-            else:  
-                #this handles peaks within peaks logic
-
-                #local minima in subsection, relative to section start
-                valleys = array(map(lambda x:x + p_start, xvals[diff(sign(diff(spline(xvals[p_start:p_stop + 1])))) > 0]))
-
-                for subpeak in peaks:
-                    subpeak_start = int()
-                    subpeak_stop = int()
-
-                    if any(valleys < subpeak):
-                        subpeak_start = valleys[valleys < subpeak][-1]
-                    else:
-                        subpeak_start = starts[starts < subpeak][-1]
-
-                    if any(valleys > subpeak):
-                        subpeak_stop = valleys[valleys > subpeak][0]
-                    else:
-                        subpeak_stop = stops[stops > subpeak][0]
-                    peak_length = subpeak_stop - subpeak_start + 1
-
-                    if peak_length < width_cutoff:#skip really small peaks
-                        continue
-                    n_reads_in_peak = sum(cts[subpeak_start:(subpeak_stop + 1)])
-
-                    if (n_reads_in_peak < minreads or 
-                        max(data[subpeak_start:(subpeak_stop + 1)]) < 
-                        threshold):
-                        continue
-
-                    g_start = tx_start + subpeak_start + sectstart
-                    g_stop = tx_start + subpeak_stop + sectstart
-                    peak = tx_start + subpeak + sectstart
-                    thick_start = peak - 2
-
-                    if thick_start < g_start:
-                        thick_start = g_start                        
-                    thick_stop = peak + 2
-
-                    if thick_stop > g_stop:
-                        thick_stop = g_stop                        
-                    peak_name = "%s_%s_%s" %(gene_name, peakn, int(n_reads_in_peak))
-
-                    #distance from gene start
-                    if peak - tx_start - windowsize < 0: 
-                        area_start = 0 
-                    else:
-                        area_start = peak - tx_start - windowsize
-
-                    if peak + windowsize > tx_end: #distance to gene stop
-                        area_stop = tx_start - tx_end + 1
-                    else:
-                        #area_stop = sectstop
-                        area_stop = peak - tx_start + windowsize
-
-                    area_reads = sum(pos_counts[area_start:area_stop])
-                    area_size = area_stop - area_start + 1
-
-                    gene_pois_p = poissonP(nreads_in_gene, 
-                                           n_reads_in_peak, 
-                                           gene_length, 
-                                           peak_length)
-
-                    if SloP is True:
-                        slop_pois_p = poissonP(area_reads, 
-                                               n_reads_in_peak, 
-                                               area_size, 
-                                               peak_length)
-                    else:
-                        slop_pois_p = gene_pois_p
-
-                    if math.isnan(slop_pois_p):
-                        slop_pois_p = 1
-
-                    #leave these in to allow for BH p-value correction
-                    if slop_pois_p > poisson_cutoff: 
-                        pass
-
-                    #output results again
-                    bedline = "%s\t%d\t%d\t%s\t%s\t%s\t%d\t%d" %(chrom, 
-                                                                  g_start, 
-                                                                  g_stop, 
-                                                                  peak_name, 
-                                                                  slop_pois_p, 
-                                                                  signstrand, 
-                                                                  thick_start, 
-                                                                  thick_stop
-                                                                  )
-
-                    peak_dict['clusters'][bedline] = {}                        
-                    peak_dict['clusters'][bedline]['SloP'] = slop_pois_p
-                    peak_dict['clusters'][bedline]['GeneP'] = gene_pois_p
-                    peak_dict['clusters'][bedline]['Nreads'] = n_reads_in_peak
-                    peak_dict['clusters'][bedline]['size'] = peak_length
-                    peakn += 1
-            
-            
+           
     #inflate p-values based on # of comparisons #bonferroni corrected
-    if correct_p is True:            
+    if correct_p is True:
+        #best I can tell this never executes...            
         for peak in peak_dict['clusters']:
-            peak_dict['clusters'][peak]['p'] = peak_dict['clusters'][peak]['p'] * peakn  #bonferroni correct p-value for MHT
+            peak.p = peak.p * peak_number  #bonferroni correct p-value for MHT
         
         
 
-    peak_dict['Nclusters'] = peakn
+    peak_dict['Nclusters'] = peak_number
     if plotit:
         import sys
         plt.show()

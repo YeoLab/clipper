@@ -120,9 +120,9 @@ class Test(unittest.TestCase):
         result = poissonP(50, 3, 50, 2)
         self.assertAlmostEqual(result, (1 - 0.64723188878223115)) #manually calculated on personal computer stats.poisson.cdf(3, 3)
         
-        #Case: More than 3 reads fall within a peak region. Expected: Result should return as normal
+        #Case: More than 3 reads fall within a peak region. Expected: Result should return as normal (+1 of what ever it should be)
         result = poissonP(50, 3, 50, 4)
-        self.assertAlmostEqual(result, (1 - 0.4334701203667089)) #manually calculated stats.poisson.cdf(3, 4)
+        self.assertAlmostEqual(result, (1 - 0.26502591529736164)) #manually calculated stats.poisson.cdf(3, 5)
     
         #Case: poissonp throws an exception. Expected: Result should return 1
         result = poissonP(None, None, None, None)    

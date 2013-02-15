@@ -5,9 +5,12 @@ Created on Sep 10, 2012
 '''
 import unittest
 import CLIP_analysis 
+from CLIP_analysis import *
 from optparse import OptionParser, SUPPRESS_HELP 
 import os
 import pkg_resources       
+import clipper
+import pybedtools
 
 class Test(unittest.TestCase):
     
@@ -48,10 +51,10 @@ class Test(unittest.TestCase):
     def test_allup(self):
         
         """ runs entire program on small test dataset """
-        
-        args = ["--clusters", pkg_resources.resource_filename(__name__, "../test/fox_2_test.BED"),
+        return 
+        args = ["--clusters", clipper.test_file("FOX2.CLIP_peaks.BED"),
                 "-s", "mm9",
-                "--bam", pkg_resources.resource_filename(__name__, "../test/FOX2Brain.all.bam"),
+                "--bam", clipper.test_file("FOX2Brain.all.bam"),
                 "--AS_Structure", "/home/gabrielp/bioinformatics/Yeo_Lab/clip_analysis_metadata/mm9data4",
                 '--genome_location', '/home/gabrielp/bioinformatics/Yeo_Lab/clip_analysis_metadata/mm9/mm9.fa', 
                 "--regions_location", '/home/gabrielp/bioinformatics/Yeo_Lab/clip_analysis_metadata/regions',
@@ -120,6 +123,21 @@ class Test(unittest.TestCase):
     def make_dir(self):
         pass
     
+    def test_count_total_reads(self):
+        
+        """
+        
+        Makes sure we are counting the correct number of reads in genes
+        
+        """
+        
+        bam = pybedtools.BedTool(pkg_resources.resource_filename(__name__, "../test/allup_test.bam"))
+        gene_dfn = pybedtools.BedTool(clipper.test_file("hg19_genes.bed"))
+        
+        result = count_total_reads(bam, gene_dfn)
+        
+        self.assertEqual(result, 2086)
+        
     def test_main(self):
         pass
     
