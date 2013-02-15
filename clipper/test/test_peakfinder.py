@@ -98,10 +98,11 @@ class Test(unittest.TestCase):
         for test, correct in zip(tested_tool, correct_tool):
             self.assertEqual(test, correct)
         
-        #cleanup
-        os.remove(os.getcwd() + "/allup_peak_results.bed")
+
         """
         
+        #cleanup
+        os.remove(os.getcwd() + "/allup_peak_results.bed")
     def test_allup_parrallel(self):
         
         """
@@ -142,9 +143,10 @@ class Test(unittest.TestCase):
         for test, correct in zip(tested_tool, correct_tool):
             self.assertEqual(test, correct)
         
+
+        """
         #cleanup
         os.remove(os.getcwd() + "/allup_peak_results.bed")
-        """
         
     def test_filter(self):
         

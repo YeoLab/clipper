@@ -517,7 +517,7 @@ def main(options):
         
       
         for job in tasks:
-            jobs.append(pool.apply_async(func_star, job))
+            jobs.append(pool.apply_async(call_peaks, job))
         
         for job in jobs:
             try:
