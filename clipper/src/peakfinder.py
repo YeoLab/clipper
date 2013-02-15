@@ -499,23 +499,37 @@ def main(options):
                options.plotit, 10, 1000, options.SloP, False)
               for gene, length in zip(running_list, length_list)]
     
+    jobs = []
     if options.debug:
-        jobs = []
+        
         for job in tasks:
             jobs.append(func_star(job))
+        
+        for job in jobs:
+            results.append(job)   
+    
     else:
         #sets chunk size to be a fair bit smaller, than total input, but not
         #to small
         chunk_size = len(tasks) // int(options.np) * 10
         if chunk_size < 1:
             chunk_size = 1
-            
-        jobs = pool.map(func_star, tasks, chunksize=chunk_size)
-
-    for job in jobs:
-        results.append(job)   
-    logging.info("finished with calling peaks")
+        
+      
+        for job in tasks:
+            jobs.append(pool.apply_async(func_star, job))
+        
+        for job in jobs:
+            try:
+                results.append(job.get(timeout=180))
+            except Exception as error:
+                logging.error(error)
+        #jobs = pool.map(func_star, tasks, chunksize=chunk_size)
+        
+    pool.close()
     
+
+    logging.info("finished with calling peaks")
     #if we are going to save and output as a pickle file we should 
     #output as a pickle file we should factor instead create a method 
     #or object to handle all file output

@@ -101,6 +101,51 @@ class Test(unittest.TestCase):
         #cleanup
         os.remove(os.getcwd() + "/allup_peak_results.bed")
         """
+        
+    def test_allup_parrallel(self):
+        
+        """
+    
+        Performs basic all up test on entire program (except for main), running in parrallel to 
+        try to detect crashes
+        
+        """
+        #self.assertTrue(False, "test is currently disabled output from logging causes it to crash")
+        args = ["-b", pkg_resources.resource_filename(__name__, "../test/allup_test.bam"),
+                 "-s", "hg19",
+                 "-g", "ENSG00000198901", 
+                 "--outfile=" + os.getcwd() + "/allup_peak_results.bed",
+                ]
+
+        (options, args) = self.parser.parse_args(args)
+        
+        
+        main(options)
+        
+        tested = open(os.getcwd() + "/allup_peak_results.bed")
+        correct = open(pkg_resources.resource_filename(__name__, "../test/peak_results_no_overlap.BED"))
+        
+        
+        #problem with tracks being different
+        tested_tool = pybedtools.BedTool(tested)
+        correct_tool = pybedtools.BedTool(correct)
+        
+        #checks to make sure files are equal and there are not exact dups
+        print len(tested_tool)
+        print len(correct_tool)
+        
+        self.assertAlmostEqual(len(tested_tool), len(correct_tool), delta=3)
+        print len(tested_tool)
+        print len(correct_tool)
+        #assert False
+        """
+        for test, correct in zip(tested_tool, correct_tool):
+            self.assertEqual(test, correct)
+        
+        #cleanup
+        os.remove(os.getcwd() + "/allup_peak_results.bed")
+        """
+        
     def test_filter(self):
         
         """
@@ -164,7 +209,7 @@ class Test(unittest.TestCase):
         self.assertEqual(len(tested_tool), 2)
                 
         #cleanup
-        #os.remove(os.getcwd() + "/no_cut_off.bed")
+        os.remove(os.getcwd() + "/no_cut_off.bed")
         
     def test_check_overlaps(self):
         
@@ -194,8 +239,8 @@ class Test(unittest.TestCase):
                          "there are overlaps in the output file") 
         
         #cleanup
-        #os.remove(os.getcwd() + "/overlap_peak_results.bed")
-        #os.remove(os.getcwd() + "/foo.bed")
+        os.remove(os.getcwd() + "/overlap_peak_results.bed")
+        os.remove(os.getcwd() + "/foo.bed")
        
 
     

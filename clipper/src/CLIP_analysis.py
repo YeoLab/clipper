@@ -20,7 +20,7 @@ import pysam
 import clipper.src.CLIP_Analysis_Display
 import pylab
 from clipper.src.kmerdiff import kmer_diff
-
+from collections import Counter
 def intersection(A, B=None):
     
     """
@@ -172,7 +172,7 @@ def build_AS_STRUCTURE_dict(species, working_dir):
             info[gene]['tx_stop'] = tx_stop
     return info, Gtypes
 
-def assign_to_regions(tool, speciesFA, regions_dir, species="hg19", nrand = 3, getseq=False):
+def assign_to_regions(tool, speciesFA, regions_dir, regions, species="hg19", nrand = 3, getseq=False):
     
     """
     
@@ -207,7 +207,7 @@ def assign_to_regions(tool, speciesFA, regions_dir, species="hg19", nrand = 3, g
     distintron = pybedtools.BedTool(distintronFile)
     G_distintron_size = distintron.total_coverage()    
     
-    all_regions = (["exon", "UTR3", "UTR5", "proxintron", "distintron"])
+    
     all_bedtracks = ([exon, UTR3, UTR5, proxintron, distintron])
     all_regionfiles = ([exonFile, UTR3File, UTR5File, proxintronFile, distintronFile])
     
@@ -221,7 +221,7 @@ def assign_to_regions(tool, speciesFA, regions_dir, species="hg19", nrand = 3, g
 
     print "There are a total offsets %d clusters I'll examine" %(len(tool))
 
-    for j, region in enumerate(all_regions):
+    for j, region in enumerate(regions):
         try:
             #portions offsets the regions that overlap with a genic region
             no_overlapping, only_overlapping = intersection(tool, B = all_bedtracks[j])  
@@ -356,23 +356,25 @@ def get_offsets_bed12(tool):
     
     """
     
-    gets offsets for each location in a bed12 file
-    
+    Gets offsets for each cluster in a bed12 file (CLIPper formatted bed file)
+    Offsets are the difference between the wide peak and the narrow (predicted binding site)
+    This will break if we analize different types of data
     tool - bedtool
     
-    returns offset for each location
+    returns offset for each cluster
     
     """
     
     offset_dict = {}
     for line in tool:
-        chrom, start, stop, name, score, strand, tstart, tstop = str(line).split("\t")
-        start, stop, tstart, tstop = [int(x) for x in (start, stop, tstart, tstop)]
-        if strand == "+":
-            offset = tstart -start 
+        if line.strand == "+":
+            #get difference between thick start and start
+            offset = int(line[6]) - int(line[1]) 
         else:
-            offset = stop - tstop
-        offset_dict[name] = offset
+            #get difference between thick start and start
+            offset = int(line[2]) - int(line[7])
+        #need a primary key...
+        offset_dict[line.name + line[8]] = offset
     return offset_dict
 
 
@@ -393,7 +395,7 @@ def RNA_position(bedline, GI):
     pre_pos = 0
     exon_frac = None
     intron_frac = None
-    nearest_type=None
+    nearest_type= None
     chrom, start, stop, name, score, strand, thickstart, thickstop = str(bedline).strip().split("\t")
     thickstart, thickstop = map(int, (thickstart, thickstop))
     position = int((thickstart + thickstop)/2)
@@ -604,25 +606,25 @@ def get_phastcons(bedtool, phastcons_location, species=None, index=None, ):
     return data
 
 
-def fa_file(filename, region = None, fd=None, type= "real"):
+def fa_file(filename, region = None, directory=None, type= "real"):
     
     """
     
-    Way of organizing fasta file names  
+    Formats fasta file, and returns fully qualified name
     Checks if a fasta file exists returns the file attaced to a region
     or something 
     
     """
     
-    if not os.path.exists(fd):
+    if not os.path.exists(directory):
         raise Exception
     
     if region is not None:
-        x =filename+"."+  region+ "."+ type+ ".fa"
-        return os.path.join(fd, x)
+        full_name = filename + "." +  region + "." + type + ".fa"
+        return os.path.join(directory, full_name)
     else:
-        x = filename+ "."+ type + ".fa"
-        return os.path.join(fd, x)
+        full_name = filename + "." + type + ".fa"
+        return os.path.join(directory, full_name)
 
 def make_dir(dir_name):
     
@@ -646,37 +648,80 @@ def count_total_reads(bam, gene_definition):
     return len(bam.bam_to_bed(stream=True).intersect(gene_definition, u=True))
 
 
-def count_reads_per_cluster(cluster_regions):
+def count_reads_per_cluster(bedtool):
     
     """
     
     Counts the number of reads in each cluster
     
-    cluster_regions: dict containing all real clusters (need to learn data structure beter)
+    bedtool: bedtool containing the specially formatted CLIPper bedlines
     
     returns list(int) each index being a read in the cluster
     
     """
     #generates data for figure 1 and 2
-#gets reads in clusters (figure 1)
-#gets reads per cluster (figure 2)
-    reads_in_clusters = 0
-    reads_per_cluster = list()
-    for cluster in cluster_regions['all']['real']:
-        chr, start, stop, name, score, strand, tstart, tstop = str(cluster).strip().split("\t")
-        try:
-            gene, n, reads = name.split("_")
-        except:
-            try:
-                gene, n, reads = name.split(";")[0].split("_")
-            except:
-                print "foo"
-        if int(reads) > 1:
-            reads_per_cluster.append(int(reads))
-        reads_in_clusters += int(reads)
-    
-    print "done"
+    #gets reads in clusters (figure 1)
+    #gets reads per cluster (figure 2)
+
+    reads_per_cluster = []
+    for cluster in bedtool:
+        chr, start, stop, name, score, strand, tstart, tstop, peak_number, number_reads_in_peak, size = str(cluster).strip().split("\t")
+        reads_per_cluster.append(int(number_reads_in_peak))
+ 
+    reads_in_clusters = sum(reads_per_cluster)
     return reads_in_clusters, reads_per_cluster
+
+
+def save_clusters(options, clusters, assigned_dir, fasta_dir, regions, cluster_regions):
+   
+    """
+   
+    Saves all things catagorized by assign to regions into files so recomputation later is light 
+    
+    options - options object passed in from main
+    
+    clusters - name to save files under
+    
+    assigned_dir - str, directory name to save assigned clusters in
+    
+    fasta_dir - str, directory name to save fasta files in
+    
+    regions - list[str] names of regions that are being saved
+    
+    cluster regions - dict, all bed files to save 
+   
+    """
+    print "Saving BED and Fasta Files..."
+#this is where all saving happens for assign to regions
+    for region in regions:
+        output_file = clusters + "." + region + ".real.BED"
+        try:
+            cluster_regions[region]['real'].saveas(os.path.join(assigned_dir, output_file))
+        except:
+            continue
+        for n in range(options.nrand):
+            output_file = clusters + "." + region + ".rand." + str(n) + ".BED"
+            try:
+                cluster_regions[region]['rand'][n].saveas(os.path.join(assigned_dir, output_file))
+            except:
+                continue
+    
+    print "done saving genic region clasifications"
+#creates pretty file names for all regions
+    for region in regions:
+        try:
+            real_fa = fa_file(clusters, region=region, directory=fasta_dir, type="real")
+            rand_fa = fa_file(clusters, region=region, directory=fasta_dir, type="random")
+            cluster_regions[region]['real'].save_seqs(real_fa)
+            output_list = []
+            for n in cluster_regions[region]['rand'].keys():
+                output_list.append(cluster_regions[region]['rand'][n])
+            
+            write_seqs(rand_fa, output_list)
+        except:
+            continue
+    
+
 
 def main(options):
     
@@ -687,9 +732,6 @@ def main(options):
     one thing to do is make graphs fail gracefully 
     
     """
-    
-    #from subprocess import Popen, PIPE
-    #host = Popen(["hostname"], stdout=PIPE).communicate()[0].strip()
     
     #gets clusters in a bed tools + names species 
     clusters = options.clusters
@@ -718,7 +760,7 @@ def main(options):
     make_dir(homerout)
     make_dir(kmerout)
 
-    all_regions = (["all", "exon", "UTR3", "UTR5", "proxintron", "distintron"])    
+    regions = (["all", "exon", "UTR3", "UTR5", "proxintron", "distintron"])    
 
     #Not quite sure whats going on here, but its one logical block
     #either reassigns clusters to genic regions or reads from already
@@ -726,66 +768,29 @@ def main(options):
 
     if options.assign is False:
         try:
-            cluster_regions, sizes, genic_region_sizes = build_assigned_from_existing(assigned_dir, clusters, all_regions, options.nrand)
+            cluster_regions, sizes, genic_region_sizes = build_assigned_from_existing(assigned_dir, clusters, regions, options.nrand)
             print "I used a pre-assigned set output_file BED files... score!"
         except:
             print "I had problems retreiving region-assigned BED files from %s, i'll rebuild" % (assigned_dir)
             options.assign = True
-            
+    
+    #This is what I'm working on tomorrow
+    #assign to reions / this big chunk that should get factoed out of main...
     if options.assign is True:
         print "Assigning Clusters to Genic Regions"
         cluster_regions, sizes, genic_region_sizes = assign_to_regions(clusters_bed,
                                                                        options.genome_location, 
                                                                        options.regions_location, 
+                                                                       regions,
                                                                        species=species, 
                                                                        getseq=True, 
                                                                        nrand=options.nrand)
-        print "Done Assigning"
         
-        print "Saving BED and Fasta Files...",
-
-        #outputs little files (maybe move inside output_file assign to regions)
-        sizes_out = open(os.path.join(assigned_dir, "%s.sizes.pickle" %(clusters)), 'w')
-        pickle.dump(sizes, file=sizes_out)
-        sizes_out.close()    
-        Gsizes_out = open(os.path.join(assigned_dir, "genic_region_sizes.pickle"), 'w')
-        pickle.dump(genic_region_sizes, file=Gsizes_out)
-        Gsizes_out.close()
-        
-        #this is where all saving happens for assign to regions
-        for region in all_regions:
-            output_file = clusters + "." + region+ ".real.BED"
-            try:
-                cluster_regions[region]['real'].saveas(os.path.join(assigned_dir, output_file))
-            except:
-                continue
-            for n in range(options.nrand):
-                output_file = clusters + "." + region+ ".rand." + str(n) + ".BED"
-                try:
-                    cluster_regions[region]['rand'][n].saveas(os.path.join(assigned_dir, output_file))
-                except:
-                    continue
-                
-        print "done saving genic region clasifications"
-
-        #creates pretty file names for all regions
-        for region in all_regions:
-            try:
-                real_fa = fa_file(clusters, region=region, fd = fastadir, type="real")
-                rand_fa = fa_file(clusters, region=region, fd = fastadir, type="random")
-                cluster_regions[region]['real'].save_seqs(real_fa)
-
-                l = [] #list output_file randoms
-                for n in cluster_regions[region]['rand'].keys():
-                    l.append(cluster_regions[region]['rand'][n])
-                write_seqs(rand_fa, l)        
-            except:
-                continue            
+        save_clusters(options, clusters, assigned_dir, fastadir, regions, cluster_regions)            
                                    
     print "Counting reads in clusters...",
     
-    reads_in_clusters, reads_per_cluster = count_reads_per_cluster(cluster_regions)
-    
+    reads_in_clusters, reads_per_cluster = count_reads_per_cluster(cluster_regions['all']['real'])
     total_reads = count_total_reads(pybedtools.BedTool(options.bam), clusters)
     
     #one stat is just generated here
@@ -802,11 +807,8 @@ def main(options):
     
     #also builds figure 10 (exon distances)
     GENES, Gtypes = build_AS_STRUCTURE_dict(species, options.as_structure)
-    types = {}
+    types = Counter()
     
-    #default dict...
-    for type in ["CE:", "SE:", "MXE:", "A5E:", "A3E:"]:
-        types[type]=0
     print "locating clusters within genes",
     
     
@@ -823,11 +825,9 @@ def main(options):
                 premRNA_positions.append(premRNA_frac)
             if intron_frac is not None:
                 intron_positions.append(intron_frac)
-            if nearest_type is not None:
-                try:
-                    types[nearest_type] += 1
-                except:
-                    types[nearest_type] =1
+            if nearest_type is not None:               
+                types[nearest_type] += 1
+ 
     except:
         print "there were errors, skipping"
     print "done"
@@ -843,11 +843,11 @@ def main(options):
     
     kmer_results = {} 
     if options.reMotif is True:
-        for region in all_regions:
+        for region in regions:
 
             #reads nicely named files 
-            real_fa = fa_file(clusters, region=region, fd =  fastadir, type="real")
-            rand_fa = fa_file(clusters, region=region, fd =  fastadir, type="random")
+            real_fa = fa_file(clusters, region=region, directory =  fastadir, type="real")
+            rand_fa = fa_file(clusters, region=region, directory =  fastadir, type="random")
             if options.k is not None:
                 if options.homer is True:
                     region_homer_out = os.path.join(homerout, region)
@@ -880,7 +880,7 @@ def main(options):
         print "Fetching Phastcons Scores...",
         
         #phastcons values for all regions except "all"
-        for region in all_regions[1:]: #skip "all" combine them later
+        for region in regions[1:]: #skip "all" combine them later
             print ("%s..." %(region)),
             try:
                 samplesize=1000
@@ -932,6 +932,15 @@ def main(options):
     
     Zscores = None  #old. remove
     
+    #TODO create one master pickle file
+    #outputs little files (maybe move inside output_file assign to regions)
+    sizes_out = open(os.path.join(assigned_dir, "%s.sizes.pickle" %(clusters)), 'w')
+    pickle.dump(sizes, file=sizes_out)
+    sizes_out.close()    
+    Gsizes_out = open(os.path.join(assigned_dir, "genic_region_sizes.pickle"), 'w')
+    pickle.dump(genic_region_sizes, file=Gsizes_out)
+    Gsizes_out.close()
+
     #build qc figure
     QCfig_params = [reads_in_clusters, (total_reads - reads_in_clusters), cluster_lengths, reads_per_cluster, premRNA_positions, mRNA_positions, exon_positions, intron_positions, genic_region_sizes, sizes, Gtype_count, type_count, Zscores, homerout, kmer_box_params, phast_values]
 

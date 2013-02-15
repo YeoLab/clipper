@@ -51,8 +51,8 @@ class Test(unittest.TestCase):
     def test_allup(self):
         
         """ runs entire program on small test dataset """
-        return 
-        args = ["--clusters", clipper.test_file("FOX2.CLIP_peaks.BED"),
+
+        args = ["--clusters", clipper.test_file("fitted_clusters"),
                 "-s", "mm9",
                 "--bam", clipper.test_file("FOX2Brain.all.bam"),
                 "--AS_Structure", "/home/gabrielp/bioinformatics/Yeo_Lab/clip_analysis_metadata/mm9data4",
@@ -137,7 +137,22 @@ class Test(unittest.TestCase):
         result = count_total_reads(bam, gene_dfn)
         
         self.assertEqual(result, 2086)
+    
+    def test_count_reads_per_cluster(self):
         
+        """
+        
+        Tests count reads per cluster
+        
+        """
+        
+        bedtool = pybedtools.BedTool(clipper.test_file("CLIP_Analysis_test.bed"))
+        
+        total_reads, reads_per_cluster = count_reads_per_cluster(bedtool)
+        
+        self.assertListEqual([147,52, 239, 85, 47, 119, 58, 588, 92, 59, 196, 36], reads_per_cluster)
+        self.assertEqual(sum([147,52, 239, 85, 47, 119, 58, 588, 92, 59, 196, 36]), total_reads)
+
     def test_main(self):
         pass
     

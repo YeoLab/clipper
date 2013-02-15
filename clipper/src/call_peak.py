@@ -722,7 +722,7 @@ def poissonP(reads_in_gene, reads_in_peak, gene_length, peak_length):
         return cum_p
     
     except Exception as error:
-        print error
+        logging.error(error)
         return 1
 
 def call_peaks(loc, gene_length, bam_fileobj=None, bam_file=None, 
@@ -918,18 +918,18 @@ def peaks_from_info(wiggle, pos_counts, lengths, loc, gene_length,
         if fitType == "Spline":
             
             initial_smoothing_value = (sectstop - sectstart + 1)
-            print xvals, data, initial_smoothing_value
             fitter = SmoothingSpline(xvals, data, initial_smoothing_value,
                             lossFunction="get_norm_penalized_residuals")
-        
+            
         elif fitType == "Gaussian":
             fitter = GaussMix(xvals, data)
             
 
         try:
             (fit_values, starts_and_stops, starts, stops) = fitter.peaks(threshold, plotit)
+
         except Exception as error:
-            print gene_name
+            logging.error(gene_name)
             raise error
             
          

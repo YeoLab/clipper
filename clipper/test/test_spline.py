@@ -157,6 +157,8 @@ class Test(unittest.TestCase):
         
         Tests peaks
         
+        regression test
+        
         need to test: 
         
         really the only thing I need to test is the spline values 
@@ -166,8 +168,19 @@ class Test(unittest.TestCase):
         Not testing main function...
         """
 
-        pass
+        xvals = arange(0, 162)
+        data = [16, 16, 31, 31, 31, 31, 31, 31, 31, 31, 31, 31, 31, 31, 31, 31, 31, 31, 31, 31, 31, 31, 31, 31, 31, 31, 31, 31, 31, 31, 31, 31, 31, 15, 17, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 6, 6, 6, 6, 6, 6, 6, 6, 6, 7, 7, 7, 7, 17, 32, 32, 84, 85, 85, 85, 85, 85, 85, 85, 85, 85, 95, 109, 111, 112, 112, 112, 112, 112, 112, 117, 117, 117, 117, 117, 117, 117, 116, 116, 116, 116, 100, 85, 85, 33, 32, 32, 32, 32, 32, 32, 32, 32, 34, 24, 26, 36, 35, 35, 35, 35, 35, 35, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 28, 28, 12, 0] 
+        initial_smoothing_value = 162
+
+        fitter = SmoothingSpline(xvals, data, initial_smoothing_value,
+                            lossFunction="get_norm_penalized_residuals")
         
+        (fit_values, starts_and_stops, starts, stops) = fitter.peaks(32, False)
+
+        self.assertListEqual([(0, 8), (67, 148)], starts_and_stops) 
+        assert_array_equal(array([ 0, 67]), starts) 
+        assert_array_equal(array([ 8,148]), stops)
+         
     def test_get_norm_penalized_residuals(self):
         
         """
