@@ -1,10 +1,11 @@
 import unittest 
 from clipper.src.peakfinder import *
+from clipper.src.call_peak import Peak
 import pkg_resources           
 import pysam
 import filecmp
 import pybedtools
-
+from collections import namedtuple
 class Test(unittest.TestCase):
     
     parser = None
@@ -69,6 +70,7 @@ class Test(unittest.TestCase):
                  "-s", "hg19",
                  "-g", "ENSG00000198901", 
                  "--outfile=" + os.getcwd() + "/allup_peak_results.bed",
+                 "--debug",
                 ]
 
         (options, args) = self.parser.parse_args(args)
@@ -115,7 +117,8 @@ class Test(unittest.TestCase):
                   "-g", "ENSG00000198901", 
                   '-g', "ENSG00000226167",
                    "--outfile=" + os.getcwd() + "/cut_off_included.bed",
-                   "-q"
+                   "-q",
+                   "--debug"
                 ]    
         (options, args) = self.parser.parse_args(args)
         main(options)
@@ -177,7 +180,8 @@ class Test(unittest.TestCase):
                   "--serial", 
                   "--job_name=peak_test",
                    "--outfile=" + os.getcwd() + "/overlap_peak_results.bed",
-                   "-q"
+                   "-q",
+                   "--debug"
                 ]    
         (options, args) = self.parser.parse_args(args)
         main(options)
@@ -423,13 +427,17 @@ class Test(unittest.TestCase):
         build_transcript_data(None, clipper.data_file("test.AS.STRUCTURE_genes.BED.gz"), None, clipper.data_file("test.AS.STRUCTURE_mRNA.lengths"), True)
     
     def test_transcriptome_filter(self):
+        
         """
         
         Tests transcriptome filter
         not great tests, but good enough to make sure we don't have regressions
         
         """
-        cluster = {'Nreads' : 5, "size" : 10}
+        
+       
+        cluster = Peak(0,0,0,0,0,0,0,0,0,5,0,10,0)
+        #cluster = {'Nreads' : 5, "size" : 10}
         transcriptome_size = 1000
         transcriptome_reads = 10000
         poisson_cutoff = .05
@@ -438,7 +446,9 @@ class Test(unittest.TestCase):
         
         self.assertFalse(result) 
         
-        cluster = {'Nreads' : 10000, "size" : 100}
+        #cluster = {'Nreads' : 10000, "size" : 100}
+        cluster = Peak(0,0,0,0,0,0,0,0,0,10000,0,100,0)
+        
         transcriptome_size = 1000
         transcriptome_reads = 10000
         poisson_cutoff = .05
@@ -446,7 +456,8 @@ class Test(unittest.TestCase):
         result = transcriptome_filter(poisson_cutoff, transcriptome_size, transcriptome_reads, cluster)
         self.assertTrue(result)
         
-        cluster = {'Nreads' : 0, "size" : 0}
+        #cluster = {'Nreads' : 0, "size" : 0}
+        cluster = Peak(0,0,0,0,0,0,0,0,0,0,0,0,0)
         transcriptome_size = 0
         transcriptome_reads = 10000
         poisson_cutoff = .05
@@ -458,28 +469,30 @@ class Test(unittest.TestCase):
         
         """
         
-        tests filter results
+        Tests filter results
         
         good for regression tests, need to do better verification...
         
         """
+        
+        peak1 = Peak("chr15", 1, 10, "ENSG1", .04 , "-", 50, 60, 1, 52, .04, 32, 0)
+        peak2 = Peak("chr15", 200, 300, "ENSG2", .06 , "-", 140, 160, 2, 239, .06, 45, 0)
         results = [{'loc': ['chr15', 'ENSG00000198901', 91509274, 91537804, '-'], 
           'Nclusters': 24, 
           'nreads': 2086, 
           'threshold': 32, 
-          'clusters': {'chr15\t1\t10\tENSG1\t3.44651351902e-09\t-\t50\t60': {'GeneP': .04, 'Nreads': 52, 'SloP': .04, 'size': 32}, 
-                       'chr15\t200\t300\tENSG2\t0.0\t-\t140\t160': {'GeneP': .06, 'Nreads': 239, 'SloP': .06, 'size': 45}}}]
+          'clusters': [peak1, peak2]}]
         
 
         transcriptome_size = 10000
         transcriptome_reads = 100000
         
         result = filter_results(results, .07, transcriptome_size, transcriptome_reads, False)
-        self.assertSetEqual(set(['chr15\t1\t10\tENSG1\t0.04\t-\t50\t60', 'chr15\t200\t300\tENSG2\t0.06\t-\t140\t160']), result)
+        self.assertSetEqual(set(['chr15\t1\t10\tENSG1\t0.04\t-\t50\t60\t1\t52\t32', 'chr15\t200\t300\tENSG2\t0.06\t-\t140\t160\t2\t239\t45']), result)
         #assert False
         
         result = filter_results(results, .05, transcriptome_size, transcriptome_reads, False)
-        self.assertSetEqual(set(['chr15\t1\t10\tENSG1\t0.04\t-\t50\t60']), result)
+        self.assertSetEqual(set(['chr15\t1\t10\tENSG1\t0.04\t-\t50\t60\t1\t52\t32']), result)
 
         result = filter_results(results, .07, transcriptome_size, transcriptome_reads, True)
         self.assertSetEqual(set([]), result)

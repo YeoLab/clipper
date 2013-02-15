@@ -631,6 +631,53 @@ def make_dir(dir_name):
     if not os.path.exists(dir_name):
         os.mkdir(dir_name)
             
+
+def count_total_reads(bam, gene_definition):
+    
+    """
+    
+    Counts total reads in genes 
+    
+    bam: bedtool (reading in a bam file) all the reads in the original clip-seq experiment
+    gene_definition: bedtool, defines locations of all genes to analize
+    
+    """
+    
+    return len(bam.bam_to_bed(stream=True).intersect(gene_definition, u=True))
+
+
+def count_reads_per_cluster(cluster_regions):
+    
+    """
+    
+    Counts the number of reads in each cluster
+    
+    cluster_regions: dict containing all real clusters (need to learn data structure beter)
+    
+    returns list(int) each index being a read in the cluster
+    
+    """
+    #generates data for figure 1 and 2
+#gets reads in clusters (figure 1)
+#gets reads per cluster (figure 2)
+    reads_in_clusters = 0
+    reads_per_cluster = list()
+    for cluster in cluster_regions['all']['real']:
+        chr, start, stop, name, score, strand, tstart, tstop = str(cluster).strip().split("\t")
+        try:
+            gene, n, reads = name.split("_")
+        except:
+            try:
+                gene, n, reads = name.split(";")[0].split("_")
+            except:
+                print "foo"
+        if int(reads) > 1:
+            reads_per_cluster.append(int(reads))
+        reads_in_clusters += int(reads)
+    
+    print "done"
+    return reads_in_clusters, reads_per_cluster
+
 def main(options):
     
     """
@@ -687,7 +734,12 @@ def main(options):
             
     if options.assign is True:
         print "Assigning Clusters to Genic Regions"
-        cluster_regions, sizes, genic_region_sizes = assign_to_regions(clusters_bed,options.genome_location, options.regions_location, species=species, getseq=True, nrand=options.nrand)
+        cluster_regions, sizes, genic_region_sizes = assign_to_regions(clusters_bed,
+                                                                       options.genome_location, 
+                                                                       options.regions_location, 
+                                                                       species=species, 
+                                                                       getseq=True, 
+                                                                       nrand=options.nrand)
         print "Done Assigning"
         
         print "Saving BED and Fasta Files...",
@@ -723,7 +775,7 @@ def main(options):
                 rand_fa = fa_file(clusters, region=region, fd = fastadir, type="random")
                 cluster_regions[region]['real'].save_seqs(real_fa)
 
-                l = list()#list output_file randoms
+                l = [] #list output_file randoms
                 for n in cluster_regions[region]['rand'].keys():
                     l.append(cluster_regions[region]['rand'][n])
                 write_seqs(rand_fa, l)        
@@ -732,49 +784,9 @@ def main(options):
                                    
     print "Counting reads in clusters...",
     
-    #generates data for figure 1 and 2
-    #gets reads in clusters (figure 1)
-    #gets reads per cluster (figure 2)
-    reads_in_clusters = 0
-    reads_per_cluster = list()
-    for cluster in cluster_regions['all']['real']:
-        chr, start, stop, name, score, strand, tstart, tstop = str(cluster).strip().split("\t")
-        try:
-            gene, n, reads = name.split("_")
-        except:
-            try:
-                gene, n, reads = name.split(";")[0].split("_")
-            except:
-                pass
-        if int(reads)> 1:
-            reads_per_cluster.append(int(reads))
-        reads_in_clusters += int(reads)
-    print "done"
+    reads_in_clusters, reads_per_cluster = count_reads_per_cluster(cluster_regions)
     
-    #need to get rid output_file this pickleing busniess, its a waste output_file space and doesn't work with other methods
-    #gets total number output_file reads (figure 1)
-    #gets total number output_file reads from clipper analysis (Need to make clipper automatically output
-    #pickle file
-    print "Getting total number output_file reads...",
-    total_reads = 0;
-    try:
-        pickle_file = clusters + ".pickle"
-        if os.path.exists(pickle_file):
-            pf = pickle.load(open(pickle_file, 'rb'))
-        else:
-            print "Couldn't find %s" %(pickle_file)
-        print "Found %s" %(pickle_file)
-        for gene in pf:
-            total_reads += gene['nreads']
-    
-    #if clipper didn't output gets it from flagstat
-    except:
-        print "Couldn't find a pickled file, resorting to flagstat for total reads. (this includes intergenic reads)"
-        flagstats = pysam.flagstat(options.bam)
-        total_reads =int(flagstats[2].split(" ")[0])
-        
-    print "done, there were %d" %(total_reads)
-    print "Gathering bed lengths...",
+    total_reads = count_total_reads(pybedtools.BedTool(options.bam), clusters)
     
     #one stat is just generated here
     #generates cluster lengths (figure 3)
@@ -966,7 +978,7 @@ if __name__== "__main__":
     parser = OptionParser()
     
     parser.add_option("--clusters", dest="clusters", help="BED file of clusters", metavar="BED")
-    parser.add_option("--bam", dest="bam")
+    parser.add_option("--bam", dest="bam", help="The bam file from the CLIP analysis")
     parser.add_option("--species", "-s", dest="species", help = "genome version")
     ##to-do. this should be auto-set if the creation date of "clusters" is after creation date fo assigned files
     parser.add_option("--reAssign", dest="assign", action="store_true", default=False, help="re-assign clusters, if not set it will re-use existing assigned clusters") 

@@ -284,20 +284,33 @@ def transcriptome_filter(poisson_cutoff, transcriptome_size, transcriptome_reads
     poisson_cutoff - float,user set cutoff 
     transcriptome_size - int number of genes in transcriptome
     transcritpmoe_reads - int total number of reads analized
-    cluster - dict, stats about the cluster we are analizing {'Nreads' : int, 'size' : int}
+    cluster - named tuple , namedtuple('Peak', ['chrom', 
+                                      'genomic_start', 
+                                      'genomic_stop', 
+                                      'gene_name', 
+                                      'super_local_poisson_p', 
+                                      'strand',
+                                      'thick_start',
+                                      'thick_stop',
+                                      'peak_number',
+                                      'number_reads_in_peak',
+                                      'gene_poisson_p',
+                                      'size'
+                                      'p'
+                                      ])
     """
     
     transcriptome_p = poissonP(transcriptome_reads, 
-                               cluster['Nreads'], 
+                               cluster.number_reads_in_peak, 
                                transcriptome_size, 
-                               cluster['size'])
+                               cluster.size)
     
     if math.isnan(transcriptome_p):
-        logging.info("""Transcriptome P is NaN, transcriptome_reads = %d, cluster reads = %d, transcriptome_size = %d, cluster_size = %d""" % (transcriptome_reads, cluster['Nreads'], transcriptome_size, cluster['size']))
+        logging.info("""Transcriptome P is NaN, transcriptome_reads = %d, cluster reads = %d, transcriptome_size = %d, cluster_size = %d""" % (transcriptome_reads, cluster.number_reads_in_peak, transcriptome_size, cluster.size))
         return False
     
     if transcriptome_p > poisson_cutoff:
-        logging.info("%s\n Failed Transcriptome cutoff with %s reads, pval: %s" % (cluster, cluster['Nreads'], transcriptome_p))
+        logging.info("%s\n Failed Transcriptome cutoff with %s reads, pval: %s" % (cluster, cluster.number_reads_in_peak, transcriptome_p))
 
         return False
     
@@ -346,10 +359,10 @@ def filter_results(results, poisson_cutoff, transcriptome_size, transcriptome_re
 
         #alert user that there aren't any clusters for specific gene
         if gene_result['clusters'] is None:
-            loging.info("%s no clusters" % (gene_result))
+            logging.info("%s no clusters" % (gene_result))
 
         
-        for cluster_id, cluster in gene_result['clusters'].items():
+        for cluster in gene_result['clusters']:
             meets_cutoff = True
             try:
                 
@@ -361,19 +374,28 @@ def filter_results(results, poisson_cutoff, transcriptome_size, transcriptome_re
                 
                 #should factor out this as well, but I'll leave it be until nessessary            
                 #does SlOP always get used?  it looks like it does
-                corrected_SloP_pval = gene_result['clusters'][cluster_id]['SloP']
-                corrected_gene_pval = gene_result['clusters'][cluster_id]['GeneP']
+                corrected_SloP_pval = cluster.super_local_poisson_p
+                corrected_gene_pval = cluster.gene_poisson_p
                 min_pval = min([corrected_SloP_pval, corrected_gene_pval])
                 
                 if not (min_pval < poisson_cutoff):
-                    logging.info("Failed Gene Pvalue: %s and failed SloP Pvalue: %s for cluster_id %s" % (corrected_gene_pval, corrected_SloP_pval, cluster_id))
+                    logging.info("Failed Gene Pvalue: %s and failed SloP Pvalue: %s for Gene %s %s" % (corrected_gene_pval, corrected_SloP_pval, cluster.gene_name, cluster.peak_number))
                     meets_cutoff = False
                 
                 if meets_cutoff:
-                    chrom, g_start, g_stop, peak_name, geneP, signstrand, thick_start, thick_stop = cluster_id.split("\t")
-                
+
                     #adds beadline to total peaks that worked
-                    allpeaks.add("%s\t%d\t%d\t%s\t%s\t%s\t%d\t%d" % (chrom, int(g_start), int(g_stop), peak_name, min_pval, signstrand, int(thick_start), int(thick_stop)))
+                    allpeaks.add("\t".join([str(x) for x in [cluster.chrom, 
+                                           cluster.genomic_start, 
+                                           cluster.genomic_stop, 
+                                           cluster.gene_name, 
+                                           min_pval, 
+                                           cluster.strand, 
+                                           cluster.thick_start, 
+                                           cluster.thick_stop,
+                                           cluster.peak_number,
+                                           cluster.number_reads_in_peak,
+                                           cluster.size]]))
         
             except NameError as error:
                 logging.error("parsing failed: %s" % (error))
@@ -512,24 +534,11 @@ def main(options):
                               options.use_global_cutoff)
     
     
-    allpeaks = set([])
-    for gene_result in results:
-        for cluster_id, cluster in gene_result['clusters'].items():
-            corrected_SloP_pval = gene_result['clusters'][cluster_id]['SloP']
-            corrected_gene_pval = gene_result['clusters'][cluster_id]['GeneP']
-            min_pval = min([corrected_SloP_pval, corrected_gene_pval])
-            chrom, g_start, g_stop, peak_name, geneP, signstrand, thick_start, thick_stop = cluster_id.split("\t")
-            n_reads_in_peak = gene_result['clusters'][cluster_id]['Nreads']
-            peak_length = gene_result['clusters'][cluster_id]['size']
-            #adds beadline to total peaks that worked
-            allpeaks.add("%s\t%d\t%d\t%s\t%s\t%s\t%d\t%d\t%s\t%d" % (chrom, int(g_start), int(g_stop), peak_name, min_pval, signstrand, int(thick_start), int(thick_stop), n_reads_in_peak, peak_length))
-
-   
-    
+    #need to include scaliable way to see ALL peaks, not just filtered one
+        
     outbed = options.outfile
     color = options.color
     pybedtools.BedTool("\n".join(filtered_peaks), from_string=True).sort(stream=True).saveas(outbed, trackline="track name=\"%s\" visibility=2 colorByStrand=\"%s %s\"" % (outbed, color, color))
-    pybedtools.BedTool("\n".join(allpeaks), from_string=True).sort(stream=True).saveas(outbed + "_all"  , trackline="track name=\"%s\" visibility=2 colorByStrand=\"%s %s\"" % (outbed, color, color))
 
     logging.info("wrote peaks to %s" % (options.outfile))
     
