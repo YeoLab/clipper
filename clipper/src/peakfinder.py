@@ -385,17 +385,18 @@ def filter_results(results, poisson_cutoff, transcriptome_size, transcriptome_re
                 if meets_cutoff:
 
                     #adds beadline to total peaks that worked
-                    allpeaks.add("\t".join([str(x) for x in [cluster.chrom, 
+                    #the name column is hacky because the ucsc genome browser doesn't like
+                    #random columns, will need to do some parsing later to fix (awk it)
+                    allpeaks.add("\t".join([str(x) for x in [
+                                           cluster.chrom, 
                                            cluster.genomic_start, 
                                            cluster.genomic_stop, 
-                                           cluster.gene_name, 
+                                           cluster.gene_name  + "_" + str(cluster.peak_number) + "_" + str(cluster.number_reads_in_peak), 
                                            min_pval, 
                                            cluster.strand, 
                                            cluster.thick_start, 
                                            cluster.thick_stop,
-                                           cluster.peak_number,
-                                           cluster.number_reads_in_peak,
-                                           cluster.size]]))
+                                           ]]))
         
             except NameError as error:
                 logging.error("parsing failed: %s" % (error))
@@ -524,6 +525,7 @@ def main(options):
                 results.append(job.get(timeout=180))
             except Exception as error:
                 logging.error(error)
+                raise
         #jobs = pool.map(func_star, tasks, chunksize=chunk_size)
         
     pool.close()

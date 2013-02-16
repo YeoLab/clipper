@@ -1056,7 +1056,7 @@ def peaks_from_info(wiggle, pos_counts, lengths, loc, gene_length,
                 peak_dict['clusters'].append(Peak(chrom, 
                                                   g_start, 
                                                   g_stop, 
-                                                  gene_name, 
+                                                  gene_name, #need this is a unique id for later analysis
                                                   slop_pois_p, 
                                                   strand,
                                                   thick_start,
