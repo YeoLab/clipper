@@ -39,6 +39,14 @@ import subprocess
 from collections import namedtuple
 from math import sqrt
 
+class Motif(namedtuple('Motif', ['freq1', 'freq2', 'delta'])):
+    
+    """
+    
+    Class to encapsulate motifs 
+    
+    """
+
 def kmer_diff(file1, file2, k):
     
     """
@@ -52,7 +60,12 @@ def kmer_diff(file1, file2, k):
     
     """
     
-    Motif = namedtuple('Motif', ['freq1', 'freq2', 'delta'])
+    
+    
+    if not os.path.exists(file1):
+        raise IOError(file1 + " does not exist")
+    if not os.path.exists(file2):
+        raise IOError(file2 + " does not exist")
     
     #call compseq
     subprocess.call(['compseq', 
