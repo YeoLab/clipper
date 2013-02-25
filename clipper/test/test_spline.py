@@ -175,11 +175,9 @@ class Test(unittest.TestCase):
         fitter = SmoothingSpline(xvals, data, initial_smoothing_value,
                             lossFunction="get_norm_penalized_residuals")
         
-        (fit_values, starts_and_stops, starts, stops) = fitter.peaks(32, False)
-
-        self.assertListEqual([(0, 8), (67, 148)], starts_and_stops) 
-        assert_array_equal(array([ 0, 67]), starts) 
-        assert_array_equal(array([ 8,148]), stops)
+        starts_and_stops = fitter.peaks(32, False)
+        print starts_and_stops
+        self.assertListEqual([(0, 8, 0), (67, 148, 114)], starts_and_stops) 
          
     def test_get_norm_penalized_residuals(self):
         
@@ -466,7 +464,81 @@ class Test(unittest.TestCase):
         spline = smoothing_spline.fit_univariate_spline(smoothingFactor = cutoff)
         
         starts_and_stops, starts, stops = smoothing_spline.get_regions_above_threshold(threshold, spline(xvals))
+
+    
+
         
+    def test_find_local_maxima(self):
+        
+        """
+        
+        Tests find local maxima function
+        
+        Need to think of better tests for this, but I'm lazy right now...
+        
+        """
+        
+        x1 = range(10)
+        x2 = range(10)
+        x2.reverse()
+        xvals = range(20)
+        data = x1 + x2
+
+        #test
+        smoothing_spline = SmoothingSpline(xvals, data)
+
+        #Test local minima 
+        values = array([1,2,3,4,5,5,4,5,5,3])
+        result = smoothing_spline.find_local_maxima(values)
+        true = array([False,False,False,False,True,False,False,True,False,False])
+        assert_array_equal(true, result)
+        
+        #test two peaks with one local minima
+        values = array([5,5,5,4,5,5,2,2,5,4,4,3])
+        result = smoothing_spline.find_local_maxima(values)
+        true = array([False,True,False,False,True,False, False ,False,True, False, False, False])
+        assert_array_equal(true, result)
+
+        #test two peaks with two local minima
+        values = array([1,2,3,4,5,5,2,2,5,4,5,5])
+        result = smoothing_spline.find_local_maxima(values)
+        true = array([False,False,False,False,True,False,False, False, True, False, True, False])
+        assert_array_equal(true, result)
+        
+        #Test long array
+        values = array([10,10,9,9,9,9,9,9,9,9,10,10])
+        result = smoothing_spline.find_local_maxima(values)
+        true = array([True,False,False,False,False,False,False, False, False,False, True, False])
+        assert_array_equal(true, result)
+        
+        #test something that is breaking in reality 
+        values = array([ 32,  84,  85,  85,])
+        result = smoothing_spline.find_local_maxima(values)
+        true = array([False, False, True, False])
+        assert_array_equal(true, result)
+        
+        #more failing stuff
+        values = array([32,  32,  32,  28,  28,  28,  28,  28,  45,  45,  57,  80,  80])
+        result = smoothing_spline.find_local_maxima(values)
+        true = array([False,True,False,False,False,False,False, False, False, False, False, True, False])
+        assert_array_equal(true, result)
+        
+    def test_get_maxima_real(self):
+        
+        x1 = range(10)
+        x2 = range(10)
+        x2.reverse()
+        xvals = range(20)
+        data = x1 + x2
+
+        #test
+        smoothing_spline = SmoothingSpline(xvals, data)
+        #more real tests
+        values = array([ 201,  201,  201,  201,  201,  201,  201,  201,  201,  201,  201,  201,
+          201,  201,  201,  201,  205,  196,   82,   -1])
+        result = smoothing_spline.find_local_maxima(values)
+        true = array([False,False,False,False,False,False,False, False, False, False, False, False, False, False, False, False, True, False, False, False])
+        assert_array_equal(true, result)
 if __name__ == "__main__":
     #import sys;sys.argv = ['', 'Test.testName']
     unittest.main()

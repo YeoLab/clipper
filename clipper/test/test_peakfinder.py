@@ -55,6 +55,10 @@ class Test(unittest.TestCase):
         self.parser.add_option("--debug", dest="debug", default=False, action="store_true", help="disables multipcoressing in order to get proper error tracebacks")
         self.parser.add_option("--disable_global_cutoff", dest="use_global_cutoff", action="store_false", help="disables global transcriptome level cutoff to CLIP-seq peaks, Default:On", default=True, metavar="P")
         self.parser.add_option("--bedFile", dest="bedFile", help="use a bed file instead of the AS structure data")
+        self.parser.add_option("--max_width", dest="max_width", type="int", default=75, help="Defines max width for classic algorithm")
+        self.parser.add_option("--min_width", dest="min_width", type="int", default=50, help="Defines min width for classic algorithm")
+        self.parser.add_option("--max_gap", dest="max_gap",type="int", default=10, help="defines min gap for classic algorithm")
+        self.parser.add_option("--algorithm", dest="algorithm",default="spline", help="Defines algorithm to run, currently Spline, or Classic")
 
 
     
@@ -66,7 +70,6 @@ class Test(unittest.TestCase):
         
         """
         
-        return
         #self.assertTrue(False, "test is currently disabled output from logging causes it to crash")
         args = ["-b", pkg_resources.resource_filename(__name__, "../test/allup_test.bam"),
                  "-s", "hg19",
@@ -104,8 +107,55 @@ class Test(unittest.TestCase):
         """
         
         #cleanup
-        #os.remove(os.getcwd() + "/allup_peak_results.bed")
+        os.remove(os.getcwd() + "/allup_peak_results.bed")
+    
+    def test_classic_allup(self):
         
+        """
+    
+        Performs basic all up test on entire program (using classic algorithm) (except for main)
+        
+        """
+        
+        #self.assertTrue(False, "test is currently disabled output from logging causes it to crash")
+        args = ["-b", pkg_resources.resource_filename(__name__, "../test/allup_test.bam"),
+                 "-s", "hg19",
+                 "-g", "ENSG00000198901", 
+                 "--outfile=" + os.getcwd() + "/allup_peak_results_classic.bed",
+                 "--debug",
+                 "--algorithm=classic"
+                ]
+
+        (options, args) = self.parser.parse_args(args)
+        
+        
+        main(options)
+        
+        #tested = open(os.getcwd() + "/allup_peak_results.bed")
+        #correct = open(pkg_resources.resource_filename(__name__, "../test/peak_results_no_overlap.BED"))
+        
+        
+        #problem with tracks being different
+        #tested_tool = pybedtools.BedTool(tested)
+        #correct_tool = pybedtools.BedTool(correct)
+        
+        #checks to make sure files are equal and there are not exact dups
+        #print len(tested_tool)
+        #print len(correct_tool)
+        
+        #self.assertAlmostEqual(len(tested_tool), len(correct_tool), delta=3)
+        #print len(tested_tool)
+        #print len(correct_tool)
+        #assert False
+        """
+        for test, correct in zip(tested_tool, correct_tool):
+            self.assertEqual(test, correct)
+        
+
+        """
+        
+        #cleanup
+        os.remove(os.getcwd() + "/allup_peak_results_classic.bed")
     def test_allup_parrallel(self):
         
         """
@@ -150,7 +200,7 @@ class Test(unittest.TestCase):
 
         """
         #cleanup
-        #os.remove(os.getcwd() + "/allup_peak_results.bed")
+        os.remove(os.getcwd() + "/allup_peak_results.bed")
         
     def test_filter(self):
         

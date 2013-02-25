@@ -497,7 +497,9 @@ def main(options):
     #do the parralization
     tasks =  [(gene, length, None, bamfile, margin, options.FDR_alpha, 
                options.threshold, minreads, poisson_cutoff, 
-               options.plotit, 10, 1000, options.SloP, False)
+               options.plotit, 10, 1000, options.SloP, False,
+               options.max_width, options.min_width, options.max_gap,
+               options.algorithm)
               for gene, length in zip(running_list, length_list)]
     
     jobs = []
@@ -522,10 +524,9 @@ def main(options):
         
         for job in jobs:
             try:
-                results.append(job.get(timeout=180))
+                results.append(job.get(timeout=360))
             except Exception as error:
                 logging.error(error)
-                raise
         #jobs = pool.map(func_star, tasks, chunksize=chunk_size)
         
     pool.close()
@@ -599,8 +600,11 @@ def call_main():
     parser.add_option("--save-pickle", dest="save_pickle", default=False, action="store_true", help="Save a pickle file containing the analysis")
     parser.add_option("--debug", dest="debug", default=False, action="store_true", help="disables multipcoressing in order to get proper error tracebacks")
     parser.add_option("--bedFile", dest="bedFile", help="use a bed file instead of the AS structure data")
-    parser.add_option("--hadoop", dest="hadoop",default=False, help="Run as hadoop job")
-
+    parser.add_option("--max_width", dest="max_width", type="int", default=75, help="Defines max width for classic algorithm")
+    parser.add_option("--min_width", dest="min_width", type="int", default=50, help="Defines min width for classic algorithm")
+    parser.add_option("--max_gap", dest="max_gap",type="int", default=10, help="defines min gap for classic algorithm")
+    parser.add_option("--algorithm", dest="algorithm",default="spline", help="Defines algorithm to run, currently Spline, or Classic")
+    
     (options, args) = parser.parse_args()
  
     if options.plotit:

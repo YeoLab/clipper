@@ -168,65 +168,6 @@ class Test(unittest.TestCase):
         """
         
         pass
-
-
-
-    
-
-        
-    def test_find_local_maxima(self):
-        
-        """
-        
-        Tests find local maxima function
-        
-        Need to think of better tests for this, but I'm lazy right now...
-        
-        """
-        
-        #Test local minima 
-        values = array([1,2,3,4,5,5,4,5,5,3])
-        result = find_local_maxima(values)
-        true = array([False,False,False,False,True,False,False,True,False,False])
-        assert_array_equal(true, result)
-        
-        #test two peaks with one local minima
-        values = array([5,5,5,4,5,5,2,2,5,4,4,3])
-        result = find_local_maxima(values)
-        true = array([False,True,False,False,True,False, False ,False,True, False, False, False])
-        assert_array_equal(true, result)
-
-        #test two peaks with two local minima
-        values = array([1,2,3,4,5,5,2,2,5,4,5,5])
-        result = find_local_maxima(values)
-        true = array([False,False,False,False,True,False,False, False, True, False, True, False])
-        assert_array_equal(true, result)
-        
-        #Test long array
-        values = array([10,10,9,9,9,9,9,9,9,9,10,10])
-        result = find_local_maxima(values)
-        true = array([True,False,False,False,False,False,False, False, False,False, True, False])
-        assert_array_equal(true, result)
-        
-        #test something that is breaking in reality 
-        values = array([ 32,  84,  85,  85,])
-        result = find_local_maxima(values)
-        true = array([False, False, True, False])
-        assert_array_equal(true, result)
-        
-        #more failing stuff
-        values = array([32,  32,  32,  28,  28,  28,  28,  28,  45,  45,  57,  80,  80])
-        result = find_local_maxima(values)
-        true = array([False,True,False,False,False,False,False, False, False, False, False, True, False])
-        assert_array_equal(true, result)
-        
-    def test_get_maxima_real(self):
-        #more real tests
-        values = array([ 201,  201,  201,  201,  201,  201,  201,  201,  201,  201,  201,  201,
-          201,  201,  201,  201,  205,  196,   82,   -1])
-        result = find_local_maxima(values)
-        true = array([False,False,False,False,False,False,False, False, False, False, False, False, False, False, False, False, True, False, False, False])
-        assert_array_equal(true, result)
         
     def test_peaks_from_info(self):
         """
