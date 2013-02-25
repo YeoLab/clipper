@@ -781,11 +781,11 @@ def call_peaks(loc, gene_length, bam_fileobj=None, bam_file=None,
 
     #TODO have a check to kill this if there aren't any reads in a region
         
-    result = peaks_from_info(list(wiggle), pos_counts, lengths, loc, gene_length, margin, fdr_alpha, user_threshold, minreads, poisson_cutoff, plotit, w_cutoff, windowsize, SloP, correct_p)
+    result = peaks_from_info(bam_fileobj, list(wiggle), pos_counts, lengths, loc, gene_length, margin, fdr_alpha, user_threshold, minreads, poisson_cutoff, plotit, w_cutoff, windowsize, SloP, correct_p)
     
     return result
 
-def peaks_from_info(wiggle, pos_counts, lengths, loc, gene_length, 
+def peaks_from_info(bam_fileobj, wiggle, pos_counts, lengths, loc, gene_length, 
                     margin=25, fdr_alpha=0.05, user_threshold=None,
                     minreads=20, poisson_cutoff=0.05, plotit=False, 
                     width_cutoff=10, windowsize=1000, SloP=False, 
@@ -867,6 +867,8 @@ def peaks_from_info(wiggle, pos_counts, lengths, loc, gene_length,
         sectstart, sectstop = sect
         sect_length = sectstop - sectstart + 1
         data = wiggle[sectstart:(sectstop + 1)]
+        
+        #this cts is alright because we know the reads are bounded
         cts = pos_counts[sectstart:(sectstop + 1)]
         xvals = arange(0, sect_length)
         Nreads = sum(cts)
@@ -957,8 +959,11 @@ def peaks_from_info(wiggle, pos_counts, lengths, loc, gene_length,
             if len(peaks) is 1:
                 #TODO All this formatting logic doesn't belong here 
                 #should be simplifed
-                #gets reads in peak
-                number_reads_in_peak = sum(cts[p_start:(p_stop + 1)])
+                genomic_start = tx_start + sectstart + p_start
+                genomic_stop = tx_start + sectstart + p_stop
+                
+                number_reads_in_peak = bam_fileobj.count(chrom, start= genomic_start, end=genomic_stop)
+                #sum(cts[p_start:(p_stop + 1)])
                 logging.info("""Peak %d (%d - %d) has %d 
                                  reads""" %(peak_number,                                             
                                              p_start,
@@ -972,11 +977,7 @@ def peaks_from_info(wiggle, pos_counts, lengths, loc, gene_length,
                                  %(number_reads_in_peak))
                     continue
 
-                #formatting of bed track
-                #start and stop for bed track to be created
-                g_start = tx_start + sectstart + p_start
-                g_stop = tx_start + sectstart + p_stop
-
+     
                 #highest point in start stop
                 peak = tx_start + sectstart + peaks[0]
 
@@ -985,12 +986,12 @@ def peaks_from_info(wiggle, pos_counts, lengths, loc, gene_length,
                 thick_stop = peak + 2
 
                 #best_error checking logic to keep bed files from breaking
-                if thick_start < g_start:
-                    thick_start = g_start
-                if thick_stop > g_stop:
-                    thick_stop = g_stop
+                if thick_start < genomic_start:
+                    thick_start = genomic_start
+                if thick_stop > genomic_stop:
+                    thick_stop = genomic_stop
 
-                peak_length = g_stop - g_start + 1
+                peak_length = genomic_stop - genomic_start + 1
 
                 #skip really small peaks
                 if peak_length < width_cutoff:
@@ -1054,8 +1055,8 @@ def peaks_from_info(wiggle, pos_counts, lengths, loc, gene_length,
                 #TODO This should be abstracted out for now... seperate model from view
                 
                 peak_dict['clusters'].append(Peak(chrom, 
-                                                  g_start, 
-                                                  g_stop, 
+                                                  genomic_start, 
+                                                  genomic_stop, 
                                                   gene_name, #need this is a unique id for later analysis
                                                   slop_pois_p, 
                                                   strand,
