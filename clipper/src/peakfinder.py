@@ -604,6 +604,7 @@ def call_main():
     parser.add_option("--min_width", dest="min_width", type="int", default=50, help="Defines min width for classic algorithm")
     parser.add_option("--max_gap", dest="max_gap",type="int", default=10, help="defines min gap for classic algorithm")
     parser.add_option("--algorithm", dest="algorithm",default="spline", help="Defines algorithm to run, currently Spline, or Classic")
+    parser.add_option("--hadoop", dest="hadoop",default=False, action="store_true", help="Run in hadoop mode")
     
     (options, args) = parser.parse_args()
  

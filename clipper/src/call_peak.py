@@ -632,14 +632,19 @@ class Classic(PeakGenerator):
             #if the gap has been reached
             if in_peak and x - peak_stop >= self.max_gap:
                 if peak_stop - peak_start < self.min_width:
-                    peak_stop = peak_start + self.min_width
-                    
-                peak_definitions.append((peak_start, peak_stop, (peak_start + peak_stop) / 2))
+                    #peak_stop = peak_start + self.min_width
+                    pass
+                #Change peak calculation and p-value min width calculation
+                #also visuzlzation min width should be ~10
+                peak_center = peak_start + self.yData[peak_start:peak_stop].index(max(self.yData[peak_start:peak_stop]))
+                peak_definitions.append((peak_start, peak_stop, peak_center))
                 in_peak = False
             
             #if the max width has been reached
             if in_peak and peak_stop - peak_start >= self.max_width:
-                peak_definitions.append((peak_start, peak_stop, (peak_start + peak_stop) / 2))
+                peak_center = peak_start + self.yData[peak_start:peak_stop].index(max(self.yData[peak_start:peak_stop]))
+
+                peak_definitions.append((peak_start, peak_stop, peak_center))
                 in_peak = False
         
         #catch last case
@@ -647,7 +652,8 @@ class Classic(PeakGenerator):
             if peak_stop - peak_start < self.min_width:
                 peak_stop = peak_start + self.min_width
             
-            peak_definitions.append((peak_start, peak_stop, (peak_start + peak_stop) / 2))
+            peak_center = peak_start + self.yData[peak_start:peak_stop].index(max(self.yData[peak_start:peak_stop]))
+            peak_definitions.append((peak_start, peak_stop, peak_center))
         
         return peak_definitions
     
@@ -1077,6 +1083,9 @@ def peaks_from_info(bam_fileobj, wiggle, pos_counts, lengths, loc, gene_length,
              #area_size = sect_length
 
              #calcluates poisson based of whole gene vs genomic_center
+             if algorithm == "classic" and peak_length < min_width:
+                 peak_length = min_width
+                 
              gene_pois_p = poissonP(nreads_in_gene, 
                                     number_reads_in_peak, 
                                     gene_length, 

@@ -95,7 +95,6 @@ def kmer_diff(file1, file2, k):
         if g == 0:
             delta = 0
         else:
-            
             delta = ((freq1[key] / n1) - (freq2[key] / n2)) / sqrt((1/n1 + 1/n2) * g * (1-g))
         
         results[key] = Motif(freq1[key], freq2[key], delta)

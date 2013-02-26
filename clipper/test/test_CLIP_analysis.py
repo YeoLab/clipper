@@ -44,7 +44,9 @@ class Test(unittest.TestCase):
         self.parser.add_option("--phastcons_location", dest="phastcons_location", help="location of phastcons file", default=None)
         self.parser.add_option("--regions_location", dest="regions_location" , help="directory of genomic regions for a species", default=None)
         self.parser.add_option("--motif_location", dest="motif_location", help="directory of pre-computed motifs for analysis", default=os.getcwd())
-       
+        self.parser.add_option("--runPhast", dest="runPhast", action="store_true", default=False, help="Run Phastcons ") 
+
+
      
     def testName(self):
         pass
@@ -62,7 +64,8 @@ class Test(unittest.TestCase):
                 '--phastcons_location', '/home/gabrielp/bioinformatics/Yeo_Lab/clip_analysis_metadata/phastcons/mm9_phastcons.bw',
                 '--motif', 'AAAAAA',
                 '--nrand', '1',
-                '--rePhast'
+                '--rePhast',
+                '--runPhast'
                 ]    
         (options, args) = self.parser.parse_args(args)
         CLIP_analysis.main(options)
@@ -137,7 +140,7 @@ class Test(unittest.TestCase):
         
         """
         
-        result = parse_AS_STRUCTURE_dict("test", clipper.test_dir())
+        result, bed_result = parse_AS_STRUCTURE_dict("test", clipper.test_dir())
         result = count_genomic_types(result)
         
         self.assertDictEqual(result, {"CE:" : 14})
@@ -150,8 +153,11 @@ class Test(unittest.TestCase):
         
         """
         
-        result = parse_AS_STRUCTURE_dict("test", clipper.test_dir())
-
+        true_tool = pybedtools.BedTool("chr10\t127496045\t127555714\tENSMUSG00000040054\t0\t+\n", from_string=True)
+        
+        result, result_bed = parse_AS_STRUCTURE_dict("test", clipper.test_dir())
+        print str(result_bed)
+        self.assertEqual(len(true_tool.intersect(result_bed)), 1)
         test_result = result["ENSMUSG00000040054"]
         
         true_exons = {0:'127496045-127496082', 
@@ -318,6 +324,18 @@ class Test(unittest.TestCase):
         self.assertListEqual([147,52, 239, 85, 47, 119, 58, 588, 92, 59, 196, 36], reads_per_cluster)
         self.assertEqual(sum([147,52, 239, 85, 47, 119, 58, 588, 92, 59, 196, 36]), total_reads)
     
+    def test_count_reads_per_cluster_merged(self):
+        
+        """
+        
+        Tries to count a read in a cluster that has been merged
+        
+        """
+        
+        tool = pybedtools.BedTool("chr15    91512755    91512836    ENSMUSG00000025736_1_83;ENSMUSG00000091321_6_83    0    -", from_string=True)
+        total_reads, reads_per_cluster = count_reads_per_cluster(tool)
+        
+        self.assertListEqual([83], reads_per_cluster)
     def test_calculate_kmer_diff(self):
         
         """
