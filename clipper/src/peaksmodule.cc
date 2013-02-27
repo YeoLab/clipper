@@ -497,7 +497,7 @@ static PyMethodDef peaks_methods[] = {
     {"find_sections", peaks_find_sections, METH_VARARGS,
     "finds sections given a list and a margin"},
     {"readsToWiggle_pysam", peaks_readsToWiggle_pysam, METH_VARARGS,
-    "converts pysam to a wiggle vector and some other stuff"},
+    "converts pysam to a wiggle vector and some other stuff.\ninput: ((bamfile.fetch obj), tx_start, tx_end, strand, readPos, trim\n      bamfile.fetch obj is from pyasm.Samfile().fetch\n      tx_start is the genome coordinate of the start position of the window you care about\n      tx_stop is genome stop\n      strand is \"+\" or \"-\" to indicate which strand to create a wiggle from\n      readPos is the position you'll be calling the read cover from one of: [\"center\", \"start\", \"end\"]\noutput: wiggle array, jxns, positional counts (cover), read lengths, read locations\n"},
 
     {NULL, NULL, 0, NULL}           /* sentinel */
 };
