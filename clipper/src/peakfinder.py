@@ -514,7 +514,7 @@ def main(options):
     else:
         #sets chunk size to be a fair bit smaller, than total input, but not
         #to small
-        chunk_size = len(tasks) // int(options.np) * 10
+        chunk_size = int(len(tasks) / float(options.np))
         if chunk_size < 1:
             chunk_size = 1
         
