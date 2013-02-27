@@ -748,7 +748,8 @@ def calculate_kmer_diff(kmer_list, regions, clusters, fasta_dir):
         for k in kmer_list:
             try:
                 kmer_results[region][k] = kmer_diff(real_fa, rand_fa, k)
-            except IOError:
+            except IOError as e:
+                print e
                 print "Ignoring: %s" % (region)
                 
     return kmer_results
@@ -941,7 +942,7 @@ def main(options):
     one thing to do is make graphs fail gracefully 
     
     """
-    
+    print "starting"
     #gets clusters in a bed tools + names species 
     clusters = options.clusters
     species = options.species
@@ -1062,10 +1063,13 @@ def main(options):
     QCfig.savefig(outFig)
         
     #prints distance of clusters from various motifs in a different figure
-    if motifs is not None:
-        motif_distances = generate_motif_distances(cluster_regions, region_sizes, motifs, options.motif_location, options.species)
-        motif_fig = CLIP_Analysis_Display.plot_motifs(motif_distances)
-        motif_fig.savefig(clusters + ".motif_distribution.pdf")
+    try:
+        if motifs is not None:
+            motif_distances = generate_motif_distances(cluster_regions, region_sizes, motifs, options.motif_location, options.species)
+            motif_fig = CLIP_Analysis_Display.plot_motifs(motif_distances)
+            motif_fig.savefig(clusters + ".motif_distribution.pdf")
+    except:
+        pass
     
     #save all analysies in a pickle dict
     out_dict = {}

@@ -481,8 +481,10 @@ def CLIP_QC_figure(reads_in_clusters, reads_out_clusters, cluster_lengths,
     build_reads_in_clusters(ax_pie_inout, reads_in_clusters, reads_out_clusters)
     build_reads_per_cluster(ax_nreads, reads_per_cluster)
     build_cluster_lengths(ax_lengths, cluster_lengths)
-    build_phastcons_values(ax_cons, phastcons_values)
-
+    try:
+        build_phastcons_values(ax_cons, phastcons_values)
+    except Exception as e:
+        print e
     build_gene_distribution(ax_genedist, premRNA, mRNA)
     build_exon_exon_distribution(ax_exondist, exondist, introndist)
     build_genomic_content(ax_pie_genomic, genomic_locs)
