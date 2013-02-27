@@ -55,6 +55,18 @@ class Test(unittest.TestCase):
             self.assertEqual(true[key].freq2, result[key].freq2, "failed at %s" % (key))
             self.assertAlmostEqual(true[key].delta, result[key].delta, delta=3)
             
+    def test_file_not_found(self):
+        
+        """
+        
+        Makes sure kmer diff fails gracefully when a file isn't found
+        
+        """
+        
+        file1 = "foo"
+        file2 = "bizbuz"
+        
+        self.assertRaises(IOError, kmer_diff, file1, file2, 10)
         
     def test_parse_compseq(self):
         

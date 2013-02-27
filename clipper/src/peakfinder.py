@@ -385,17 +385,18 @@ def filter_results(results, poisson_cutoff, transcriptome_size, transcriptome_re
                 if meets_cutoff:
 
                     #adds beadline to total peaks that worked
-                    allpeaks.add("\t".join([str(x) for x in [cluster.chrom, 
+                    #the name column is hacky because the ucsc genome browser doesn't like
+                    #random columns, will need to do some parsing later to fix (awk it)
+                    allpeaks.add("\t".join([str(x) for x in [
+                                           cluster.chrom, 
                                            cluster.genomic_start, 
                                            cluster.genomic_stop, 
-                                           cluster.gene_name, 
+                                           cluster.gene_name  + "_" + str(cluster.peak_number) + "_" + str(cluster.number_reads_in_peak), 
                                            min_pval, 
                                            cluster.strand, 
                                            cluster.thick_start, 
                                            cluster.thick_stop,
-                                           cluster.peak_number,
-                                           cluster.number_reads_in_peak,
-                                           cluster.size]]))
+                                           ]]))
         
             except NameError as error:
                 logging.error("parsing failed: %s" % (error))
@@ -496,26 +497,42 @@ def main(options):
     #do the parralization
     tasks =  [(gene, length, None, bamfile, margin, options.FDR_alpha, 
                options.threshold, minreads, poisson_cutoff, 
-               options.plotit, 10, 1000, options.SloP, False)
+               options.plotit, 10, 1000, options.SloP, False,
+               options.max_width, options.min_width, options.max_gap,
+               options.algorithm)
               for gene, length in zip(running_list, length_list)]
     
+    jobs = []
     if options.debug:
-        jobs = []
+        
         for job in tasks:
             jobs.append(func_star(job))
+        
+        for job in jobs:
+            results.append(job)   
+    
     else:
         #sets chunk size to be a fair bit smaller, than total input, but not
         #to small
         chunk_size = int(len(tasks) / float(options.np))
         if chunk_size < 1:
             chunk_size = 1
-            
-        jobs = pool.map(func_star, tasks, chunksize=chunk_size)
-
-    for job in jobs:
-        results.append(job)   
-    logging.info("finished with calling peaks")
+        
+      
+        for job in tasks:
+            jobs.append(pool.apply_async(call_peaks, job))
+        
+        for job in jobs:
+            try:
+                results.append(job.get(timeout=360))
+            except Exception as error:
+                logging.error(error)
+        #jobs = pool.map(func_star, tasks, chunksize=chunk_size)
+        
+    pool.close()
     
+
+    logging.info("finished with calling peaks")
     #if we are going to save and output as a pickle file we should 
     #output as a pickle file we should factor instead create a method 
     #or object to handle all file output
@@ -583,8 +600,12 @@ def call_main():
     parser.add_option("--save-pickle", dest="save_pickle", default=False, action="store_true", help="Save a pickle file containing the analysis")
     parser.add_option("--debug", dest="debug", default=False, action="store_true", help="disables multipcoressing in order to get proper error tracebacks")
     parser.add_option("--bedFile", dest="bedFile", help="use a bed file instead of the AS structure data")
-    parser.add_option("--hadoop", dest="hadoop",default=False, help="Run as hadoop job")
-
+    parser.add_option("--max_width", dest="max_width", type="int", default=75, help="Defines max width for classic algorithm")
+    parser.add_option("--min_width", dest="min_width", type="int", default=50, help="Defines min width for classic algorithm")
+    parser.add_option("--max_gap", dest="max_gap",type="int", default=10, help="defines min gap for classic algorithm")
+    parser.add_option("--algorithm", dest="algorithm",default="spline", help="Defines algorithm to run, currently Spline, or Classic")
+    parser.add_option("--hadoop", dest="hadoop",default=False, action="store_true", help="Run in hadoop mode")
+    
     (options, args) = parser.parse_args()
  
     if options.plotit:

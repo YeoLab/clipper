@@ -132,27 +132,32 @@ def build_distribution(ax, dist1, dist2):
     dist2 - the second distribution to plot
     
     """
-    
+    #print dist1
+    #print dist2
 
     alt_ax = ax.twinx()
-    ax.hist(dist1, range=(0, 1.0), 
+    
+    #error checking in case there is a null distribution for some reasion...
+    if len(dist1) > 0:
+        ax.hist(dist1, range=(0, 1.0), 
             histtype="step", 
             color="red", 
             bins=100, 
             normed=True)
-    
-    alt_ax.hist(dist2, 
+        for tick in ax.get_yticklabels():
+            tick.set_color('blue')
+
+        
+    if len(dist2) > 0:
+        alt_ax.hist(dist2, 
                 range=(0, 1.0), 
                 histtype="step", 
                 color="blue", 
                 bins=100, 
                 normed=True)
+        for tick in alt_ax.get_yticklabels():
+            tick.set_color('red')
 
-    for tick in alt_ax.get_yticklabels():
-        tick.set_color('red')
-    
-    for tick in ax.get_yticklabels():
-        tick.set_color('blue')
         
     return alt_ax
 
@@ -192,17 +197,17 @@ def build_pie_chart_content(ax, regions):
     builds pie chart describing the total size of things falling inside regions
     
     ax - the axis to draw on
-    clusters_locs - list of ints 5 with the total size of each regions in 
+    regions - dict of {region : count} of all the regions counted
     clusters stored inside order is Exon, 3'UTR, 5'UTR, Proximal Intron, 
     Distal Intron
     
     """
 
     #red, tan, blue, green, purple
-    colors = ["#E52C27", "#C3996B", "#3C54A4", "#48843D", "#852882"] 
+    colors = ["#E52C27", "#C3996B", "#3C54A4", "#48843D", "#852882"][:len(regions)]
     labels = ["Exon", "3'UTR", "5'UTR", "Proximal\nIntron", "Distal\nIntron"]
     
-    ax.pie(regions, colors=colors, labels=labels)
+    ax.pie(regions.values(), colors=colors, labels=regions.keys())
     
 
 def build_nearest_exon(ax, genomic_types, clusters_types):
@@ -302,8 +307,6 @@ def build_phastcons_values(ax, phastcons_values):
     phastcons_values - clusterfuck of a list that stores CDF for real
     and random values
     
-    TODO: Fix bad data structures and get working
-    
     """
     
     formal_labels = ["All", 
@@ -314,19 +317,26 @@ def build_phastcons_values(ax, phastcons_values):
                      "Distal\nIntron",
                      ]
     
-    phastcons_values = [[value for value in lst if not math.isnan(value)] for lst in phastcons_values]
+    #filters out bad values
+    #should convert to pandas data frame
+    intersecting_regions = set(phastcons_values['real'].keys()).intersection(set(phastcons_values['rand'].keys()))
+
+    for region in intersecting_regions:
+        phastcons_values['real'][region] = [value for value in phastcons_values['real'][region] if not math.isnan(value)]
+        phastcons_values['rand'][region] = [value for value in phastcons_values['rand'][region] if not math.isnan(value)]
     
-    print len(phastcons_values)
-    for value in phastcons_values:
-        print len(value)
-            
-    positions = np.arange(5) - .1
+    box_values = []
+    #need to mix the real and random values, one after another
+    for region in intersecting_regions:
+        box_values.append(phastcons_values['real'][region])
+        box_values.append(phastcons_values['rand'][region])
+
+    positions = np.arange(len(intersecting_regions)) - .1
     width = .1
     
-  
     #make boxplots of phastcons values for all regions
-    bp = ax.boxplot([range(10)], 
-                    positions = positions, 
+    bp = ax.boxplot(box_values, 
+                    #positions = positions, 
                     widths = width, 
                     sym = 'k.')
     
@@ -347,20 +357,22 @@ def build_phastcons_values(ax, phastcons_values):
     for line in medians[:2]:
         line.set_color('blue')
     
-    #sets randomized medians to false
+    #sets randomized medians to red
     for line in medians[1::2]:
         line.set_color('red')
-    
+        
     start, stop = ax.get_xlim()
-    ticks = np.linspace(start, stop, 7)
+    
+    #ticks to seperate out the different regions...
+    ticks = np.linspace(start, stop, len(intersecting_regions) + 1)
     starts = ticks[:-1]
-    stops = ticks[1:]
-    reals = phastcons_values[::2]
-    rands = phastcons_values[1::2]
+
     bins = 20
-    for n in range(6):
-        heights1, edges1 = np.histogram(reals[n], normed=True, bins=bins)
-        heights2, edges2 = np.histogram(rands[n], normed=True, bins=bins)
+    for n, region in enumerate(intersecting_regions): 
+        heights1, edges1 = np.histogram(phastcons_values['real'][region], normed=True, bins=bins)
+        heights2, edges2 = np.histogram(phastcons_values['rand'][region], normed=True, bins=bins)
+        
+        #insert 0 at start to anchor CDF
         CDF1 = np.cumsum(heights1) / np.sum(heights1)
         CDF1 = np.insert(CDF1, 0, 0)
         CDF2 = np.cumsum(heights2) / np.sum(heights2)
@@ -379,14 +391,15 @@ def build_phastcons_values(ax, phastcons_values):
     for x in starts[1:]:
         ax.axvline(x, color='k', lw=2)
     
-    ax.set_xticks([0, 1, 2, 3, 4, 5])
-    ax.set_xticklabels(formal_labels)
+    #Really hacky way of getting labels centered, need to dive in to this more
+    ax.set_xticks(np.linspace(start, stop, len(intersecting_regions) + 2)[1:-1])
+    ax.set_xticklabels(list(intersecting_regions))
     ax.set_ylabel("PhastCons Score")
 
 def CLIP_QC_figure(reads_in_clusters, reads_out_clusters, cluster_lengths, 
                    reads_per_cluster, premRNA, mRNA, exondist, introndist, 
                    genomic_locs, clusters_locs, genomic_types, clusters_types,
-                   zscores, homer_location, kmer_box_params, phastcons_values):
+                   homer_location, kmer_results, motifs, phastcons_values):
     
     """
     
@@ -407,8 +420,9 @@ def CLIP_QC_figure(reads_in_clusters, reads_out_clusters, cluster_lengths,
     clusters_types --
     zscores -- list of zcores for each peak
     homer_location -- location of homer results file
-    kmer_box_params -- ??
-    phastcons_values -- ??
+    kmer_results - dict[region][k][(kmer, value) the results of calculate_kmer_diff
+    motifs - list[str] motifs to plot
+    phastcons_values -- list[float] - conservation scores for each cluster
     
     """
     
@@ -467,261 +481,136 @@ def CLIP_QC_figure(reads_in_clusters, reads_out_clusters, cluster_lengths,
     build_reads_in_clusters(ax_pie_inout, reads_in_clusters, reads_out_clusters)
     build_reads_per_cluster(ax_nreads, reads_per_cluster)
     build_cluster_lengths(ax_lengths, cluster_lengths)
-    #build_phastcons_values(ax_cons, phastcons_values)
-    #TODO add in z-score stuff again
+    build_phastcons_values(ax_cons, phastcons_values)
+
     build_gene_distribution(ax_genedist, premRNA, mRNA)
     build_exon_exon_distribution(ax_exondist, exondist, introndist)
     build_genomic_content(ax_pie_genomic, genomic_locs)
     build_cluster_content(ax_pie_clusters, clusters_locs)
     build_nearest_exon(ax_bar_exontypes, genomic_types, clusters_types)
     build_common_motifs(motif_grid, homer_location)
-            
+    build_motif_boxplots(ax_hist_zscores, kmer_results, motifs) #TODO add in subplot for this figure
     plt.tight_layout()
     return fig
 
-def plot_motif_dist(assigned_clusters, motifFILE, figure, nrand=3, color = "red", label=None, species="mm9", slopsize=0, scale='linear'):
+def plot_motifs(motif_distances):
     
     """
     
-    Plotting function, don't want touch this with a 10 foot pole, can be refactored easily
-    Takes output of get_motif_distance and plots for each different genic region
+    Plots all motifs given in motif distances returns the figure for saving
+    motif_distances - list of results from calculate_motif_distance
+    
+    """
+    
+    fig = plt.figure(figsize=(8.5, 11))
+    colors = ["red", "orange", "green", "blue", "purple", "brown", "black", "pink", "gray", "cyan", "magenta"]
+
+    for i, motif in enumerate(motif_distances):
+        plot_motifs(motif, fig, color = colors[i], species=species, slopsize=200)
+    
+    return fig
+
+def plot_motif_dist(motif_distances, figure, color = "red", label=None, scale='linear'):
+    
+    """
+    
+    Plots distances of motifs from clusters, data structure generated by calculate_motif_distance
     
     assigned_clusters - dict clusters assigned to specific genic regions + random assignments 
     motifFILE - precompiled bed12 /w transcriptome locations for given motif  
     figure - output location
-    nrand - number of randomization steps
-    slopsize - size around clusters to look for other motifs (windowed bed)
+
+   
     
+    dict{region : {'real': {'size' : int, 'dist' : list[int (distance to motif)},
+                   'rand': {'size' : int, 'dist' : list[int (distance to motif)}}
+
     """
-    
-    motifBed = pybedtools.BedTool(motifFILE)
-    if label is None:
-        label=motifFILE
-    UTR5dist = get_motif_distance(assigned_clusters['UTR5']['real'], motifBed, slop=slopsize)
-    rand_5UTR = list()
+   
+    subplot_number = 320
+    for region in motif_distances:
+        subplot_number += 1
+        ax_region = figure.add_subplot(subplot_number, title=region)
+        ax_region.set_yscale(scale)
 
-    for i in range(nrand):
-        rand_5UTR.extend(get_motif_distance(assigned_clusters['UTR5']['rand'][i], motifBed, slop=slopsize))
+        region_hist, region_edges = np.histogram(motif_distances['all']['real']['dist'], bins=50, range=(-150, 150))
+        region_hist = region_hist/(motif_distances['all']['real']['size']/1000.)        
+        
+        region_rand_hist, region_edges_rand = np.histogram(motif_distances['all']['rand']['dist'], bins=50, range=(-150, 150))
+        region_rand_hist = region_rand_hist/(motif_distances['all']['rand']['size']/1000.)
+        
+        #plots all motifs on same canvis 
+        ax_region.plot(region_edges[:-1], region_hist, c=color, linestyle='solid', label=label)
+        ax_region.hold(True)
+        ax_region.plot(region_edges_rand[:-1], region_rand_hist, linestyle='dashed', c=color, label="_nolegend_")
 
-    UTR5size = assigned_clusters['UTR5']['real'].total_coverage()
-    UTR5_rand_size = UTR5size*nrand
-    print "UTR5 done"
-    UTR3dist = get_motif_distance(assigned_clusters['UTR3']['real'], motifBed, slop=slopsize)
-    rand_3UTR = list()
-    for i in range(nrand):
-        rand_3UTR.extend(get_motif_distance(assigned_clusters['UTR3']['rand'][i], motifBed, slop=slopsize))
-
-    UTR3size = assigned_clusters['UTR3']['real'].total_coverage()
-    UTR3_rand_size = UTR3size*nrand            
-    print "UTR3 done"
-    exondist = get_motif_distance(assigned_clusters['exon']['real'], motifBed, slop=slopsize)
-    rand_exon = list()
-    for i in range(nrand):
-        rand_exon.extend(get_motif_distance(assigned_clusters['exon']['rand'][i], motifBed, slop=slopsize))
-
-    exonsize = assigned_clusters['exon']['real'].total_coverage()
-    exon_rand_size = exonsize*nrand            
-    print "exon done"
-
-    distintrondist = get_motif_distance(assigned_clusters['distintron']['real'], motifBed, slop=slopsize)
-    rand_distintron = list()
-    for i in range(nrand):
-        rand_distintron.extend(get_motif_distance(assigned_clusters['distintron']['rand'][i], motifBed, slop=slopsize))
-
-    distintronsize = assigned_clusters['distintron']['real'].total_coverage()
-    distintron_rand_size = distintronsize*nrand                        
-    print "distintron done"
-    
-    proxintrondist = get_motif_distance(assigned_clusters['proxintron']['real'], motifBed, slop=slopsize)
-    rand_proxintron = list()
-    for i in range(nrand):
-        rand_proxintron.extend(get_motif_distance(assigned_clusters['proxintron']['rand'][i], motifBed, slop=slopsize))
-
-    proxintronsize = assigned_clusters['proxintron']['real'].total_coverage()
-    proxintron_rand_size = proxintronsize*nrand
-
-    print "proxintron done"
-
-    allsize = UTR5size + UTR3size + exonsize + proxintronsize + distintronsize
-    all_rand_size = allsize*nrand
-
-    all = list()
-    all.extend(UTR5dist)
-    all.extend(UTR3dist)
-    all.extend(exondist)
-    all.extend(proxintrondist)
-    all.extend(distintrondist)                    
-
-    all_rand = list()
-    all_rand.extend(rand_5UTR)
-    all_rand.extend(rand_3UTR)
-    all_rand.extend(rand_exon)
-    all_rand.extend(rand_distintron)
-    all_rand.extend(rand_proxintron)    
-
-    ax_all = figure.add_subplot(321, title="All Clusters")
-    ax_all.set_yscale(scale)
-    ax_UTR5 = figure.add_subplot(322, title="5'UTR")
-    ax_UTR5.set_yscale(scale)
-    ax_exon = figure.add_subplot(323, title="Exon")
-    ax_exon.set_yscale(scale)
-    ax_UTR3 = figure.add_subplot(324, title="3'UTR")
-    ax_UTR3.set_yscale(scale)
-    ax_proxintron = figure.add_subplot(325, title="Proximal Intron")
-    ax_proxintron.set_yscale(scale)
-    ax_distintron = figure.add_subplot(326, title="Distal Intron")
-    ax_distintron.set_yscale(scale)
-
-    all_hist, all_edges = np.histogram(all, bins=50, range=(-150, 150))
-    all_hist = all_hist/(allsize/1000.)        
-    all_rand_hist, all_edges_rand = np.histogram(all_rand, bins=50, range=(-150, 150))
-    all_rand_hist = all_rand_hist/(all_rand_size/1000.)
-
-    ax_all.plot(all_edges[:-1], all_hist, c=color, linestyle='solid', label=label)
-    ax_all.plot(all_edges_rand[:-1], all_rand_hist, linestyle='dashed', c=color, label="_nolegend_")
-
-    UTR5_hist, UTR5_edges = np.histogram(UTR5dist, bins=50, range=(-150, 150))
-    UTR5_hist = UTR5_hist/(UTR5size/1000.)        
-    UTR5_rand_hist, UTR5_edges_rand = np.histogram(rand_5UTR, bins=50, range=(-150, 150))
-    UTR5_rand_hist = UTR5_rand_hist/(UTR5_rand_size/1000.)       
-    ax_UTR5.plot(UTR5_edges[:-1], UTR5_hist, linestyle='solid', c=color, label="_nolegend_")
-    ax_UTR5.hold(True)
-    ax_UTR5.plot(UTR5_edges_rand[:-1], UTR5_rand_hist, linestyle='dashed', c=color, label="_nolegend_")
-
-    UTR3_hist, UTR3_edges = np.histogram(UTR3dist, bins=50, range=(-150, 150))
-    UTR3_hist = UTR3_hist/(UTR3size/1000.)        
-    UTR3_rand_hist, UTR3_edges_rand = np.histogram(rand_3UTR, bins=50, range=(-150, 150))
-    UTR3_rand_hist = UTR3_rand_hist/(UTR3_rand_size/1000.)       
-    ax_UTR3.plot(UTR3_edges[:-1], UTR3_hist, linestyle='solid', c=color, label="_nolegend_")
-    ax_UTR3.hold(True)
-    ax_UTR3.plot(UTR3_edges_rand[:-1], UTR3_rand_hist, linestyle='dashed', c=color, label="_nolegend_")    
-
-    exon_hist, exon_edges = np.histogram(exondist, bins=50, range=(-150, 150))
-    exon_hist = exon_hist/(exonsize/1000.)        
-    exon_rand_hist, exon_edges_rand = np.histogram(rand_exon, bins=50, range=(-150, 150))
-    exon_rand_hist = exon_rand_hist/(exon_rand_size/1000.)       
-    ax_exon.plot(exon_edges[:-1], exon_hist, linestyle='solid', c=color, label="_nolegend_")
-    ax_exon.hold(True)
-    ax_exon.plot(exon_edges_rand[:-1], exon_rand_hist, linestyle='dashed', c=color, label="_nolegend_")
-
-    distintron_hist, distintron_edges = np.histogram(distintrondist, bins=50, range=(-150, 150))
-    distintron_hist = distintron_hist/(distintronsize/1000.)        
-    distintron_rand_hist, distintron_edges_rand = np.histogram(rand_distintron, bins=50, range=(-150, 150))
-    distintron_rand_hist = distintron_rand_hist/(distintron_rand_size/1000.)       
-    ax_distintron.plot(distintron_edges[:-1], distintron_hist, linestyle='solid', c=color, label="_nolegend_")
-    ax_distintron.hold(True)
-    ax_distintron.plot(distintron_edges_rand[:-1], distintron_rand_hist, linestyle='dashed', c=color, label="_nolegend_")
-
-    proxintron_hist, proxintron_edges = np.histogram(proxintrondist, bins=50, range=(-150, 150))
-    proxintron_hist = proxintron_hist/(proxintronsize/1000.)        
-    proxintron_rand_hist, proxintron_edges_rand = np.histogram(rand_proxintron, bins=50, range=(-150, 150))
-    proxintron_rand_hist = proxintron_rand_hist/(proxintron_rand_size/1000.)       
-    ax_proxintron.plot(proxintron_edges[:-1], proxintron_hist, linestyle='solid', c=color, label="_nolegend_")
-    ax_proxintron.hold(True)
-    ax_proxintron.plot(proxintron_edges_rand[:-1], proxintron_rand_hist, linestyle='dashed', c=color, label="_nolegend_")
-
-    return
-
-def motif_boxplots(kmerloc, filename, klengths, highlight_motifs, subplot=None):
+def build_motif_boxplots(ax, kmer_results, highlight_motifs):
 
     """
     
     Make bake boxplots of motif z-scores. you must get kmer z-scores first with run_kmerdiff.  up to 11 motifs can be highlighted
     pass a pylab subplot instance to the kwarg \"subplot\" to attach this to a figure, otherwise it will make its own figure
-    
-    Fix this up later...
-    
+
+    kmer_results - dict[region][k][kmer] = motif (motif object defined in kmerdirr) the results of calculate_kmer_diff
+    highlight_motifs - list[str] motifs to plot
+
+    I'll come back to this, in a way its alrgiht...
     """
     
     colorcycle = ["red", "orange", "green", "blue", "purple", "brown", "black", "pink", "gray", "cyan", "magenta"]
-    regions = ["all", "exon", "UTR3", "UTR5", "proxintron", "distintron"]
-    formal_labels = ["All Regions", "Exon", "3'UTR", "5'UTR", "Proximal Intron", "Distal Intron"]    
+    formal_labels = ["All Regions", "Exon", "3'UTR", "5'UTR", "Proximal Intron", "Distal Intron"] #might be able to remove   
+    
+    
     kmers = {}
     all_kmers = set()
-    for region in regions:
+    
+    #might consider converting into pandas data frame
+    for region in kmer_results:
         kmers[region] = {}
-        for k in klengths:
-            if(os.path.exists(os.path.join(kmerloc, "%s.k%s.%s.kmerdiff.sort" %(filename, str(k), region)))):
-                f = open(os.path.join(kmerloc, "%s.k%s.%s.kmerdiff.sort" %(filename, str(k), region)))  
-                for line in f:
-                    kmer, val = line.strip().split("\t")
-                    kmer, val = map(str.strip, [kmer, val])
+        
+        #loads all kmers into the allmers set and into a dict 
+        #print kmer_results
+        for k in kmer_results[region].keys():
+            for kmer in kmer_results[region][k]:
+                for kmer, motif_data in kmer_results[region][k][0].items():
                     all_kmers.add(kmer)
-                    kmers[region][kmer] = float(val)
+                    kmers[region][kmer] = float(motif_data.delta)
 
     for i, m in enumerate(highlight_motifs):
         #hash the motifs, convert to DNA letters
         highlight_motifs[i] = m.lower().replace("u", "t")
-    ak = np.ndarray(shape=(len(all_kmers), len(regions)))
+        
+    #creates an ndarray to load all kmer values into
+    ak = np.ndarray(shape=(len(all_kmers), len(kmer_results.keys())))
     all_kmers = list(all_kmers)
 
     for i, kmer in enumerate(all_kmers):
-        for j, region in enumerate(regions):            
-            ak[i,j] = kmers[region][kmer]
-    
-    showme=False
-    if subplot is None: #
-        showme=True
-        x = plt.figure()
-        subplot = x.add_subplot(111)
+        for j, region in enumerate(kmer_results.keys()):
+            try:            
+                ak[i,j] = kmers[region][kmer]
+            except: #if kmer doesn't exist in specified region its value is zero
+                ak[i,j] = 0
+                
 
-    subplot.boxplot(ak, vert=False, notch=1, sym='k.',  whis=2)
-    subplot.set_yticklabels(formal_labels)
+    #loads everything up and only showed the motifs that are highlighted...
+    ax.boxplot(ak, vert=False, notch=1, sym='k.',  whis=2)
+    ax.set_yticklabels(kmer_results.keys())
     for i, motif in enumerate(highlight_motifs):
         indices= list()
         for ind, k in enumerate(all_kmers):
             if motif in k:
                 indices.append(ind)
-        y = map(lambda x: x+1, range(len(regions)))
+        y = map(lambda x: x+1, range(len(kmer_results.keys())))
         for m, ind in enumerate(indices):
             if m ==0:
                 label=motif
             else:
                 label=None
-            subplot.plot(ak[ind,:], y, 'o', color=colorcycle[i], label=label, markersize=10)
-    subplot.set_xscale('symlog', linthreshx=10)
-    subplot.axvline(x=-4)
-    subplot.axvline(x=4)
+            ax.plot(ak[ind,:], y, 'o', color=colorcycle[i], label=label, markersize=10)
+    ax.set_xscale('symlog', linthreshx=10)
+    ax.axvline(x=-4)
+    ax.axvline(x=4)
     
-
-    subplot.legend(frameon=False,loc=0, numpoints=1)
+    ax.legend(frameon=False,loc=0, numpoints=1)
     
-    subplot.set_xlabel("Z-score")
-    if showme is True:
-        plt.show()    
-
-    return ak, all_kmers
-
-def get_motif_distance(clusters, motif, slop=500):
-    
-    """
-    
-    TODO: This shouldn't be in the visualization side of things, need to factor out
-    
-    Compares two bed files and computes distance from center of first (indicated by bed12)
-    to center of second (by bed12)
-    
-
-    Gets offsets for each cluster
-
-    Input:
-      
-    clusters - bedtool (bed12)
-    motif - bedtool (bed12)
-    
-    returns distance from clusters to nearest motif 
-    
-    """
-    
-    ov = clusters.window(motif, w=slop, sm=True)
-    distances = list()
-    for line in ov:
-        positions=str(line).split("\t")
-        cluster_center = int(positions[7])-int(positions[6])/2
-        motif_center = int(positions[15]) - int(positions[14])/2
-        distance = motif_center - cluster_center
-        if positions[5] == "-":
-            distance = distance * -1
-        distances.append(distance)
-    del ov
-    return distances
+    ax.set_xlabel("Z-score")

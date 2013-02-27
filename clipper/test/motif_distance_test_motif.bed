@@ -1,0 +1,4 @@
+track name="/home/gabrielp/bioinformatics/Yeo_Lab/clipper/allup_peak_results.bed" visibility=2 colorByStrand="0,0,0 0,0,0"
+chr1	110	120	ENSMUSG00000051951_1_147	0.0	-	110	120
+chr1	210	220	ENSMUSG00000051951_1_147	0.0	+	210	220
+

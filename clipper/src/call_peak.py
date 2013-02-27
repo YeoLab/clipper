@@ -445,6 +445,44 @@ class SmoothingSpline(PeakGenerator):
         starts = array([x[0] for x in starts_and_stops])
         stops  = array([x[1] for x in starts_and_stops])
         return starts_and_stops, starts, stops
+    def find_local_maxima(self, arr):
+    
+        """
+            
+            Returns a list of boolean values for an array that mark if a value is a local 
+        maxima or not True for yes false for no
+        
+        Importantly for ranges of local maxima the value in the middle of the range
+        is chosen as the minimum value
+        
+        """
+        
+        #walks through array, finding local maxima ranges
+        
+        #to initalize a new array to all false
+        maxima = empty(len(arr), dtype='bool')
+        maxima.fill(False)
+        
+        max_range_start = 0
+        increasing = True
+        for i in range(len(arr[:-1])):
+            
+            #update location of maxima start until 
+            if arr[i] < arr[i + 1]:
+        
+                max_range_start = i + 1
+                increasing = True
+            
+            if (arr[i] > arr[i+1]) and increasing is True:
+                increasing = False
+                #gets the local maxima midpoint
+                maxima[(max_range_start + i) / 2] = True
+        
+        #catches last case
+        if increasing: 
+            maxima[(max_range_start + len(arr) - 1) / 2] = True
+            
+        return maxima
     
     def find_local_minima(self, arr):
         
@@ -549,9 +587,76 @@ class SmoothingSpline(PeakGenerator):
         
         starts_and_stops, starts, stops = self.get_regions_above_threshold(threshold, 
                                                                       spline_values)
+        peak_definitions = []
+        for peak_start, peak_stop in starts_and_stops: 
+            peak_center = [x + peak_start for x in self.xRange[self.find_local_maxima(spline_values[peak_start:(peak_stop + 1)])]]
+            
+            assert len(peak_center) in (0,1) 
+            
+            if len(peak_center) == 1:
+                peak_definitions.append((peak_start, peak_stop, peak_center[0]))
     
-        return (spline_values, starts_and_stops, starts, stops)
+        return peak_definitions
 
+class Classic(PeakGenerator):
+    """ Class to reimplement kaseys original peak calling method """   
+    def __init__(self, xRange, yData, max_width, min_width, max_gap):
+        
+        """
+        
+        xRange -- the range to interpolate the spline over, must be monotonically increasing
+        yData  -- the yAxis of the spline that corosponds to the xRange
+                
+        """
+        
+        super(Classic,self).__init__(xRange, yData)
+        self.max_width = max_width
+        self.min_width = min_width
+        self.max_gap = max_gap
+        
+    def peaks(self):
+        peak_definitions = []
+        
+        in_peak = False
+        peak_start = 0 
+        for x, y in zip(self.xRange, self.yData):
+            
+            if in_peak is False and y != 0:
+                in_peak = True
+                peak_start = x
+            
+            #set peak stop
+            if y != 0:
+                peak_stop = x + 1
+            
+            #if the gap has been reached
+            if in_peak and x - peak_stop >= self.max_gap:
+                if peak_stop - peak_start < self.min_width:
+                    #peak_stop = peak_start + self.min_width
+                    pass
+                #Change peak calculation and p-value min width calculation
+                #also visuzlzation min width should be ~10
+                peak_center = peak_start + self.yData[peak_start:peak_stop].index(max(self.yData[peak_start:peak_stop]))
+                peak_definitions.append((peak_start, peak_stop, peak_center))
+                in_peak = False
+            
+            #if the max width has been reached
+            if in_peak and peak_stop - peak_start >= self.max_width:
+                peak_center = peak_start + self.yData[peak_start:peak_stop].index(max(self.yData[peak_start:peak_stop]))
+
+                peak_definitions.append((peak_start, peak_stop, peak_center))
+                in_peak = False
+        
+        #catch last case
+        if in_peak: 
+            if peak_stop - peak_start < self.min_width:
+                peak_stop = peak_start + self.min_width
+            
+            peak_center = peak_start + self.yData[peak_start:peak_stop].index(max(self.yData[peak_start:peak_stop]))
+            peak_definitions.append((peak_start, peak_stop, peak_center))
+        
+        return peak_definitions
+    
 class GaussMix(object):
     from sklearn import mixture as mix
     
@@ -582,45 +687,6 @@ class GaussMix(object):
         
     def predict(self):
         pass
-
-def find_local_maxima(arr):
-    
-    """
-        
-        Returns a list of boolean values for an array that mark if a value is a local 
-    maxima or not True for yes false for no
-    
-    Importantly for ranges of local maxima the value in the middle of the range
-    is chosen as the minimum value
-    
-    """
-    
-    #walks through array, finding local maxima ranges
-    
-    #to initalize a new array to all false
-    maxima = empty(len(arr), dtype='bool')
-    maxima.fill(False)
-    
-    max_range_start = 0
-    increasing = True
-    for i in range(len(arr[:-1])):
-        
-        #update location of maxima start until 
-        if arr[i] < arr[i + 1]:
-    
-            max_range_start = i + 1
-            increasing = True
-        
-        if (arr[i] > arr[i+1]) and increasing is True:
-            increasing = False
-            #gets the local maxima midpoint
-            maxima[(max_range_start + i) / 2] = True
-    
-    #catches last case
-    if increasing: 
-        maxima[(max_range_start + len(arr) - 1) / 2] = True
-        
-    return maxima
 
 def plot_sections(wiggle, sections, threshold):
     
@@ -722,14 +788,15 @@ def poissonP(reads_in_gene, reads_in_peak, gene_length, peak_length):
         return cum_p
     
     except Exception as error:
-        print error
+        logging.error(error)
         return 1
 
 def call_peaks(loc, gene_length, bam_fileobj=None, bam_file=None, 
                margin=25, fdr_alpha=0.05, user_threshold=None,
                minreads=20, poisson_cutoff=0.05, 
                plotit=False, w_cutoff=10, windowsize=1000, 
-               SloP=False, correct_p=False):
+               SloP=False, correct_p=False, max_width=None, min_width=None,
+               max_gap=None, algorithm="spline"):
     
     """
 
@@ -750,7 +817,9 @@ def call_peaks(loc, gene_length, bam_fileobj=None, bam_file=None,
     windowssize - for super local calculation distance left and right to look 
     SloP - super local p-value instead of gene-wide p-value
     correct_p - boolean bonferoni correction of p-values from poisson
-    
+    max_width - int maximum with of classic peak calling algorithm peak
+    min_width - int min width of classic peak calling algorithm peak
+    max_gap   - int max gap of classic peak calling algorithm peak
     """
     
     #sys.stderr.write("plotit foo" + str(plotit))
@@ -781,15 +850,20 @@ def call_peaks(loc, gene_length, bam_fileobj=None, bam_file=None,
 
     #TODO have a check to kill this if there aren't any reads in a region
         
-    result = peaks_from_info(list(wiggle), pos_counts, lengths, loc, gene_length, margin, fdr_alpha, user_threshold, minreads, poisson_cutoff, plotit, w_cutoff, windowsize, SloP, correct_p)
+    result = peaks_from_info(bam_fileobj, list(wiggle), pos_counts, lengths, 
+                             loc, gene_length, margin, fdr_alpha, 
+                             user_threshold, minreads, poisson_cutoff, 
+                             plotit, w_cutoff, windowsize, SloP, correct_p,
+                             max_width, min_width, max_gap)
     
     return result
 
-def peaks_from_info(wiggle, pos_counts, lengths, loc, gene_length, 
+def peaks_from_info(bam_fileobj, wiggle, pos_counts, lengths, loc, gene_length, 
                     margin=25, fdr_alpha=0.05, user_threshold=None,
                     minreads=20, poisson_cutoff=0.05, plotit=False, 
                     width_cutoff=10, windowsize=1000, SloP=False, 
-                    correct_p=False):
+                    correct_p=False, max_width=None, min_width=None, 
+                    max_gap=None, algorithm="spline"):
 
     """
     
@@ -808,19 +882,19 @@ def peaks_from_info(wiggle, pos_counts, lengths, loc, gene_length,
     fdr_alpha - false discovery rate, p-value bonferoni correct from peaks script (called in setup)
     user_threshold - user defined FDR thershold (probably should be factored into fdr_alpha
     minreads - min reads in section to try and call peaks
-    poisson_cutoff - p-value for signifance cut off for number of reads in peak that gets called - might want to use ashifted distribution
+    poisson_cutoff - p-value for signifance cut off for number of reads in genomic_center that gets called - might want to use ashifted distribution
     plotit - makes figures 
     
     w_cutoff - width cutoff, peaks narrower than this are discarted 
     windowssize - for super local calculation distance left and right to look 
     SloP - super local p-value instead of gene-wide p-value
     correct_p - boolean bonferoni correction of p-values from poisson
-        
+    algorithm - str the algorithm to run
     """
 
     peak_dict = {}
     
-    #all the information nessessary to record a peak, used later, but declared outside of loops
+    #all the information nessessary to record a genomic_center, used later, but declared outside of loops
 
     
     #these are what is built in this dict, complicated enough that it might 
@@ -867,6 +941,8 @@ def peaks_from_info(wiggle, pos_counts, lengths, loc, gene_length,
         sectstart, sectstop = sect
         sect_length = sectstop - sectstart + 1
         data = wiggle[sectstart:(sectstop + 1)]
+        
+        #this cts is alright because we know the reads are bounded
         cts = pos_counts[sectstart:(sectstop + 1)]
         xvals = arange(0, sect_length)
         Nreads = sum(cts)
@@ -908,175 +984,156 @@ def peaks_from_info(wiggle, pos_counts, lengths, loc, gene_length,
         peak_dict['sections'][sect]['nreads'] = int(Nreads)
         peak_dict['sections'][sect]['tried'] = True
         peak_dict['sections'][sect]['nPeaks'] = 0
-        #if wiggle track never excides threshold
+        
         if max(data) < threshold:
             logging.info("data does not excede threshold, stopping")
             continue
-
-        fitType = "Spline"
-        ###gauss mixture model
-        if fitType == "Spline":
+        
+        if algorithm == "spline":
             
             initial_smoothing_value = (sectstop - sectstart + 1)
-            print xvals, data, initial_smoothing_value
             fitter = SmoothingSpline(xvals, data, initial_smoothing_value,
                             lossFunction="get_norm_penalized_residuals")
-        
-        elif fitType == "Gaussian":
+            
+        elif algorithm == "gaussian":
             fitter = GaussMix(xvals, data)
             
-
+        elif algorithm == "classic":
+            fitter = Classic(xvals, data, max_width, min_width, max_gap)
         try:
-            (fit_values, starts_and_stops, starts, stops) = fitter.peaks(threshold, plotit)
+            peak_definitions = fitter.peaks(threshold, plotit)
+
         except Exception as error:
-            print gene_name
+            logging.error(gene_name)
             raise error
             
-         
-        #walks along spline, and calls peaks along spline
-        #for each start, take the next stop and find the peak 
-        #between the start and the stop this is where I need to 
-        #fix, some peaks starts start right after another start, 
-        #but not on top of it make sure the next start is after the 
-        #previous stop
-
         #subsections that are above threshold
-        for p_start, p_stop in starts_and_stops: 
+        #peak center is actually the location where we think binding should
+        #occur, not the average of start and stop
+        for peak_start, peak_stop, peak_center in peak_definitions: 
+ 
+             genomic_start = tx_start + sectstart + peak_start
+             genomic_stop = tx_start + sectstart + peak_stop
+             
+             number_reads_in_peak = bam_fileobj.count(chrom, start=genomic_start, end=genomic_stop)
+             #sum(cts[peak_start:(peak_stop + 1)])
+             logging.info("""Peak %d (%d - %d) has %d 
+                              reads""" %(peak_number,                                             
+                                          peak_start,
+                                          (peak_stop + 1),
+                                          number_reads_in_peak))
 
-            #peaks with-in this subsection, indexed from section 
-            #(not subsection) start
-            #find all local maxima
-            peaks = [x + p_start for x in xvals[find_local_maxima(fit_values[p_start:(p_stop + 1)])]]
+             #makes sure there enough reads
+             if (number_reads_in_peak < minreads or 
+                 max(data[peak_start:(peak_stop + 1)]) < threshold):
+                 logging.info("""skipping genomic_center, %d is not enough reads"""
+                              %(number_reads_in_peak))
+                 continue
 
-            assert len(peaks) in (0,1) 
+  
+             #highest point in start stop
+             genomic_center = tx_start + sectstart + peak_center
 
-            #handles logic if there are multiple peaks between 
-            #start and stop
-            if len(peaks) <= 0:
-                continue
-            if len(peaks) is 1:
-                #TODO All this formatting logic doesn't belong here 
-                #should be simplifed
-                #gets reads in peak
-                number_reads_in_peak = sum(cts[p_start:(p_stop + 1)])
-                logging.info("""Peak %d (%d - %d) has %d 
-                                 reads""" %(peak_number,                                             
-                                             p_start,
-                                             (p_stop + 1),
-                                             number_reads_in_peak))
+             #makes it thicker so we can see on the browser 
+             thick_start = genomic_center - 2
+             thick_stop = genomic_center + 2
 
-                #makes sure there enough reads
-                if (number_reads_in_peak < minreads or 
-                    max(data[p_start:(p_stop + 1)]) < threshold):
-                    logging.info("""skipping peak, %d is not enough reads"""
-                                 %(number_reads_in_peak))
-                    continue
+             #best_error checking logic to keep bed files from breaking
+             if thick_start < genomic_start:
+                 thick_start = genomic_start
+             if thick_stop > genomic_stop:
+                 thick_stop = genomic_stop
 
-                #formatting of bed track
-                #start and stop for bed track to be created
-                g_start = tx_start + sectstart + p_start
-                g_stop = tx_start + sectstart + p_stop
+             peak_length = genomic_stop - genomic_start + 1
 
-                #highest point in start stop
-                peak = tx_start + sectstart + peaks[0]
+             #skip really small peaks
+             if peak_length < width_cutoff:
+                 continue
+           
 
-                #makes it thicker so we can see on the browser 
-                thick_start = peak - 2
-                thick_stop = peak + 2
+             #super local logic 
+             #best_error check to make sure area is in area of gene
 
-                #best_error checking logic to keep bed files from breaking
-                if thick_start < g_start:
-                    thick_start = g_start
-                if thick_stop > g_stop:
-                    thick_stop = g_stop
+             #distance from gene start
+             if genomic_center - tx_start - windowsize < 0: 
+                 area_start = 0
 
-                peak_length = g_stop - g_start + 1
+             #for super local gets area around genomic_center for calculation
+             else:  
+                 area_start = genomic_center - tx_start - windowsize
+                 #area_start = sectstart
 
-                #skip really small peaks
-                if peak_length < width_cutoff:
-                    continue
-              
+             #same thing except for end of gene instead of start
+             if genomic_center + windowsize > tx_end: #distance to gene stop
+                 area_stop = tx_start - tx_end + 1
+             else:
+                 area_stop = genomic_center - tx_start + windowsize
+                 #area_stop = sectstop
 
-                #super local logic 
-                #best_error check to make sure area is in area of gene
+             #use area reads + 1/2 all other reads in gene: 
+             #area_reads = sum(pos_counts[area_start:area_stop]) + 
+             #0.5*(sum(pos_counts) - 
+             #sum(pos_counts[area_start:area_stop]))
 
-                #distance from gene start
-                if peak - tx_start - windowsize < 0: 
-                    area_start = 0
+             #use area reads:
+             area_reads = sum(pos_counts[area_start:area_stop])
+             area_size = area_stop - area_start + 1
 
-                #for super local gets area around peak for calculation
-                else:  
-                    area_start = peak - tx_start - windowsize
-                    #area_start = sectstart
+             #area_reads = sum(pos_counts[sectstart:sectstop])
+             #area_size = sect_length
 
-                #same thing except for end of gene instead of start
-                if peak + windowsize > tx_end: #distance to gene stop
-                    area_stop = tx_start - tx_end + 1
-                else:
-                    area_stop = peak - tx_start + windowsize
-                    #area_stop = sectstop
-
-                #use area reads + 1/2 all other reads in gene: 
-                #area_reads = sum(pos_counts[area_start:area_stop]) + 
-                #0.5*(sum(pos_counts) - 
-                #sum(pos_counts[area_start:area_stop]))
-
-                #use area reads:
-                area_reads = sum(pos_counts[area_start:area_stop])
-                area_size = area_stop - area_start + 1
-
-                #area_reads = sum(pos_counts[sectstart:sectstop])
-                #area_size = sect_length
-
-                #calcluates poisson based of whole gene vs peak
-                gene_pois_p = poissonP(nreads_in_gene, 
+             #calcluates poisson based of whole gene vs genomic_center
+             if algorithm == "classic" and peak_length < min_width:
+                 peak_length = min_width
+                 
+             gene_pois_p = poissonP(nreads_in_gene, 
+                                    number_reads_in_peak, 
+                                    gene_length, 
+                                    peak_length)
+             if SloP is True:
+                 #same thing except for based on super local p-value
+                 slop_pois_p = poissonP(area_reads, 
                                        number_reads_in_peak, 
-                                       gene_length, 
+                                       area_size, 
                                        peak_length)
-                if SloP is True:
-                    #same thing except for based on super local p-value
-                    slop_pois_p = poissonP(area_reads, 
-                                          number_reads_in_peak, 
-                                          area_size, 
-                                          peak_length)
 
-                #makes sure spop_poisP is defined, even if its 
-                #just normal, something to be removed later,
-                #slop should only be used when defined as true
-                else:
-                    slop_pois_p = gene_pois_p
+             #makes sure spop_poisP is defined, even if its 
+             #just normal, something to be removed later,
+             #slop should only be used when defined as true
+             else:
+                 slop_pois_p = gene_pois_p
 
 
-                if math.isnan(slop_pois_p):
-                    slop_pois_p = 1
+             if math.isnan(slop_pois_p):
+                 slop_pois_p = 1
 
-                #defines the bedline of a peak for returning
-                #TODO This should be abstracted out for now... seperate model from view
-                
-                peak_dict['clusters'].append(Peak(chrom, 
-                                                  g_start, 
-                                                  g_stop, 
-                                                  gene_name, 
-                                                  slop_pois_p, 
-                                                  strand,
-                                                  thick_start,
-                                                  thick_stop,
-                                                  peak_number,
-                                                  number_reads_in_peak,
-                                                  gene_pois_p,
-                                                  peak_length,
-                                                  0
-                                                  )
-                                             )
-   
-                peak_number += 1
-                peak_dict['sections'][sect]['nPeaks'] +=1
+             #defines the bedline of a genomic_center for returning
+             #TODO This should be abstracted out for now... seperate model from view
+             
+             peak_dict['clusters'].append(Peak(chrom, 
+                                               genomic_start, 
+                                               genomic_stop, 
+                                               gene_name, #need this is a unique id for later analysis
+                                               slop_pois_p, 
+                                               strand,
+                                               thick_start,
+                                               thick_stop,
+                                               peak_number,
+                                               number_reads_in_peak,
+                                               gene_pois_p,
+                                               peak_length,
+                                               0
+                                               )
+                                          )
+
+             peak_number += 1
+             peak_dict['sections'][sect]['nPeaks'] +=1
            
     #inflate p-values based on # of comparisons #bonferroni corrected
     if correct_p is True:
         #best I can tell this never executes...            
-        for peak in peak_dict['clusters']:
-            peak.p = peak.p * peak_number  #bonferroni correct p-value for MHT
+        for genomic_center in peak_dict['clusters']:
+            genomic_center.p = genomic_center.p * peak_number  #bonferroni correct p-value for MHT
         
         
 
