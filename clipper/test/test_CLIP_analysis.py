@@ -377,7 +377,8 @@ class Test(unittest.TestCase):
         """
         cluster_regions = {"exon" : 
                            {'real' : pybedtools.BedTool(clipper.test_file("clip_analysis_test_peak_results.bed.exon.real.BED")),
-                            'rand' : {0: pybedtools.BedTool(clipper.test_file("clip_analysis_test_peak_results.bed.exon.rand.0.BED"))}}
+                            'rand' : {0 : pybedtools.BedTool(clipper.test_file("clip_analysis_test_peak_results.bed.exon.rand.0.BED")),
+                                      1 : pybedtools.BedTool(clipper.test_file("clip_analysis_test_peak_results.bed.exon.rand.0.BED"))}}
                            }
         regions = (["all", "exon", "UTR3", "UTR5", "proxintron500", "distintron500"])    
         phastcons = '/home/gabrielp/bioinformatics/Yeo_Lab/clip_analysis_metadata/phastcons/mm9_phastcons.bw'

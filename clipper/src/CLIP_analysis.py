@@ -119,11 +119,15 @@ def parse_AS_STRUCTURE_dict(species, working_dir):
     
     Important return values:
     
+    info a dict of gene info
+    genes - bedtool of gene locations
+    
     Parses out all important AS structure - see constructed dict in function
     for information on what is needed...
     
     also returns bed file of genes 
     Should refactor to be a real object, but I'm lazy right now...
+    
     """
     
 
@@ -854,7 +858,7 @@ def calculate_phastcons(regions, cluster_regions, phastcons_location):
             #can't concatanate zero length arrays, so prime it
             randPhast = get_mean_phastcons(cluster_regions[region]['rand'][0], phastcons_location)
             for i in range(1, len(cluster_regions[region]['rand'])):
-                randPhast = np.concatenate(randPhast, get_mean_phastcons(cluster_regions[region]['rand'][i], phastcons_location))
+                randPhast = np.concatenate((randPhast, get_mean_phastcons(cluster_regions[region]['rand'][i], phastcons_location)), axis=1)
             phast_values["rand"][region] = randPhast
         except KeyError as e:
             print "ignoring: ", e
