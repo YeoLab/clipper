@@ -285,7 +285,7 @@ def assign_to_regions(tool, clusters, speciesFA, regions_dir, regions,
     
     #constructs bed tools for each region
     #TODO fix names
-    
+    bedtracks = {}
     #bedtracks = build_genomic_regions(pybedtools.BedTool(regions_dir))
     #regions = bedtracks.keys()
     regions = ["exon", "UTR3", "UTR5", "proxintron500", "distintron500"]
@@ -1159,7 +1159,6 @@ if __name__== "__main__":
     parser.add_option("--structure", dest="structure", help="also doesn't do anything gets structure maps", action="store_true")
     parser.add_option("--nrand", dest="nrand", default=3, help="selects number of times to randomly sample genome", type="int")
     parser.add_option("--outdir", "-o", dest="outdir", default=os.getcwd(), help="directory for output, default:cwd")
-    parser.add_option("--run_phast", dest="run_phast", action="store_true", help="re-runs phastcons (not be implemented)", default=False)
     ##Below here are critical files that always need to be referenced
     parser.add_option("--AS_Structure", dest="as_structure",  help="Location of AS_Structure directory (chromosme files should be inside)", default=None)
     parser.add_option("--genome_location", dest="genome_location", help="location of all.fa file for genome of interest", default=None)
