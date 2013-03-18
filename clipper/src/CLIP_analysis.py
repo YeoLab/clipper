@@ -16,7 +16,7 @@ from bx.bbi.bigwig_file import BigWigFile
 from clipper.src import CLIP_Analysis_Display
 from clipper.src.kmerdiff import kmer_diff
 from collections import Counter
-
+from random import sample
 
 def intersection(A, B=None):
     
@@ -215,6 +215,49 @@ def count_genomic_region_sizes(regions_dir, species="hg19"):
         genomic_region_sizes[region] = region_tool.total_coverage()
     return genomic_region_sizes
 
+def build_genomic_regions(tool, prox_distance=500):
+    
+    """
+    
+    Makes dict of seperated genomic regions from gtf file
+    
+    tool: gtf formatted bedfile with gene definitions.  Must contain defenitions 3UTR, 5UTR, CDS and exon
+    prox_distance, the distance to define an intron as proximal
+    returns dict of regions 5UTR, 3UTR, CDS, proxintron, distintron
+    
+    """
+    
+    prev_line = None
+    proximal_introns = ""
+    distal_introns   = ""
+    
+    for line in tool.filter(lambda read: read[2] == "exon"):
+        if prev_line is None or not prev_line.name == line.name:
+            prev_line = line
+            continue
+        
+        #adjust by one to prevent overlapping regions
+        
+        if line.start - prev_line.stop < prox_distance * 2:
+             proximal_introns += "\t".join([str(x) for x in [prev_line.chrom, "stdin", "proxintron", prev_line.stop + 1, line.start - 1, prev_line.name, prev_line.strand, "gene_id \"%s\";" % (line.name), "\n"]])
+        else:
+            #May be an off by one bug here, but it doesn't matter to much... (hopefully)
+            proximal_introns += "\t".join([str(x) for x in [prev_line.chrom, "stdin", "proxintron", prev_line.stop + 1, prev_line.stop + prox_distance, prev_line.name, prev_line.strand, "gene_id \"%s\";" % (line.name),  "\n"]])
+            proximal_introns += "\t".join([str(x) for x in [line.chrom, "stdin", "proxintron", line.start - prox_distance, line.start - 1, line.name, line.strand, "gene_id \"%s\";" % (line.name), "\n"]])
+            
+            #adjust by 2 bp so we don't overlap the stop / start site of either the exon or the proxintron
+            distal_introns += "\t".join([str(x) for x in [line.chrom, "stdin", "proxintron",  prev_line.stop + prox_distance + 2, line.start - prox_distance - 2, line.name, line.strand, "gene_id \"%s\";" % (line.name), "\n"]])
+
+        prev_line = line
+        
+    proximal_introns = pybedtools.BedTool(proximal_introns, from_string=True)
+    distal_introns   = pybedtools.BedTool(distal_introns, from_string=True)
+    UTR_5 = tool.filter(lambda read: read[2] == "5UTR").saveas()
+    UTR_3 = tool.filter(lambda read: read[2] == "3UTR").saveas()
+    CDS  = tool.filter(lambda read: read[2] == "CDS").saveas()
+    
+    return {"CDS" : CDS, "UTR5" : UTR_5, "UTR3" : UTR_3, "proxintron" : proximal_introns, "distintron" : distal_introns}
+
 def assign_to_regions(tool, clusters, speciesFA, regions_dir, regions, 
                       assigned_dir, fasta_dir, species="hg19", nrand = 3, 
                       getseq=False):
@@ -238,11 +281,13 @@ def assign_to_regions(tool, clusters, speciesFA, regions_dir, regions,
     
     """
     
-    bedtracks = {}
     region_files = {}
     
     #constructs bed tools for each region
     #TODO fix names
+    
+    #bedtracks = build_genomic_regions(pybedtools.BedTool(regions_dir))
+    #regions = bedtracks.keys()
     regions = ["exon", "UTR3", "UTR5", "proxintron500", "distintron500"]
     for region in regions:
         region_files[region] = os.path.join(regions_dir, region + "_" + species + "_frea_sorted.withscore")
@@ -304,7 +349,7 @@ def assign_to_regions(tool, clusters, speciesFA, regions_dir, regions,
             
             #for each region shuffles all peaks in that region around the region 
             #then pulls out sequences if requested 
-            random_intervals = bed_dict[region]['real'].shuffle(genome=species, incl=region_files[region]).sort()
+            random_intervals = bed_dict[region]['real'].shuffle(genome=species, incl=bedtracks[region].fn).sort()
 
             #shuffling doesn't change offsets so we adjust bed 11 and 12 lines here to correct 
             random_intervals = adjust_offsets(random_intervals, offset_dict)
@@ -627,7 +672,7 @@ def chop(chr, start,end, wsize=5):
         i += wsize
     file.close()
  
-def get_mean_phastcons(bedtool, phastcons_location):
+def get_mean_phastcons(bedtool, phastcons_location, sample_size = 10000):
     
     """
     
@@ -641,8 +686,8 @@ def get_mean_phastcons(bedtool, phastcons_location):
     bw = BigWigFile(file=f)
 
     #if bedtool
-    data = np.ndarray(len(bedtool))  
-    for i, bedline in enumerate(bedtool):
+    data = []
+    for bedline in sample(bedtool, min(len(bedtool), sample_size)):
               
         conservation_values = bw.get_as_array(bedline.chrom, bedline.start, bedline.stop)
         
@@ -650,7 +695,7 @@ def get_mean_phastcons(bedtool, phastcons_location):
             mean_phastcons = np.mean(conservation_values)
         else:
             mean_phastcons = 0
-        data[i] = mean_phastcons
+        data.append(mean_phastcons)
         
     return data
 

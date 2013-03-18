@@ -60,7 +60,8 @@ class Test(unittest.TestCase):
                 "--bam", clipper.test_file("allup_test.bam"),
                 "--AS_Structure", "/home/gabrielp/bioinformatics/Yeo_Lab/clip_analysis_metadata/mm9data4",
                 '--genome_location', '/home/gabrielp/bioinformatics/Yeo_Lab/clip_analysis_metadata/mm9/mm9.fa', 
-                "--regions_location", '/home/gabrielp/bioinformatics/Yeo_Lab/clip_analysis_metadata/regions',
+                '--regions_location', clipper.test_file("knownGene_sample.gtf"),
+                #"--regions_location", '/home/gabrielp/bioinformatics/Yeo_Lab/clip_analysis_metadata/regions',
                 '--phastcons_location', '/home/gabrielp/bioinformatics/Yeo_Lab/clip_analysis_metadata/phastcons/mm9_phastcons.bw',
                 '--motif', 'AAAAAA',
                 '--nrand', '1',
@@ -414,6 +415,46 @@ class Test(unittest.TestCase):
         self.assertListEqual(result.keys(), ['all', 'exon'])
         self.assertListEqual(result['all'].keys(), ['real', 'rand'])
         self.assertListEqual(result['all']['real'].keys(), ['dist', 'size'])
+        
+    def test_build_genomic_regions(self):
+        """
+        
+        Tests build genomic regions
+        
+        """
+
+        CDS = pybedtools.BedTool("""chr1\t7700\t7900\tfoo\t0\t+\n
+                                   chr1\t7999\t8500\tfoo\t0\t+\n""", from_string = True)
+        UTR5 = pybedtools.BedTool("""chr1\t7499\t7700\tfoo\t0\t+\n""", from_string = True)
+        UTR3 = pybedtools.BedTool("""chr1\t8500\t9000\tfoo\t0\t+\n""", from_string = True)
+        proxintron = pybedtools.BedTool("""chr1\t100\t300\tfoo\t0\t+\n
+                                          chr1\t798\t998\tfoo\t0\t+\n
+                                          chr1\t2000\t2200\tfoo\t0\t+\n
+                                          chr1\t2798\t2998\tfoo\t0\t+\n
+                                          chr1\t6000\t6200\tfoo\t0\t+\n
+                                          chr1\t6798\t6998\tfoo\t0\t+\n
+                                          chr1\t7900\t7998\tfoo\t0\t+\n""", from_string = True
+                                          )
+        distintron = pybedtools.BedTool("""chr1\t301\t797\tfoo\t0\t+\n
+                                           chr1\t2201\t2797\tfoo\t0\t+\n
+                                           chr1\t6201\t6797\tfoo\t0\t+\n""", from_string = True)
+        
+        regions = build_genomic_regions(pybedtools.BedTool(clipper.test_file("test.gtf")), prox_distance=200)        
+        
+        #print UTR3
+
+        #print regions['UTR3']
+        print proxintron
+        print regions['proxintron']
+        #print regions['distintron']
+        
+        self.assertEqual(len(CDS.intersect(regions['CDS'], f= 1.0, r = True)), 2)
+        self.assertEqual(len(UTR5.intersect(regions['UTR5'], f= 1.0, r = True)), 1)
+        self.assertEqual(len(UTR3.intersect(regions['UTR3'], f= 1.0, r = True)), 1)
+        self.assertEqual(len(proxintron.intersect(regions['proxintron'], f= 1.0, r = True)), 7)
+        self.assertEqual(len(distintron.intersect(regions['distintron'], f= 1.0, r = True)), 3)
+        
+
         
     def test_main(self):
         pass
