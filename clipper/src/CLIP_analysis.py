@@ -228,7 +228,7 @@ def assign_to_regions(tool, clusters, speciesFA, regions_dir, regions,
     
     for region in regions:
         output_file = clusters + "." + region + ".real.BED"
-        
+
         #check with mike about this
         remaining_clusters, overlapping = intersection(remaining_clusters, 
                                                        B = bedtracks[region])  
@@ -242,7 +242,6 @@ def assign_to_regions(tool, clusters, speciesFA, regions_dir, regions,
         bed_dict[region] = {}
         bed_dict[region]['rand'] = {}
         
-        #hack to allow saving of filter results
         bed_dict[region]['real'] = overlapping.filter(is_valid_bed12).sort().saveas(os.path.join(assigned_dir, output_file))
         remaining_clusters = pybedtools.BedTool(str(remaining_clusters.filter(is_valid_bed12)), from_string=True)
         
@@ -279,7 +278,6 @@ def assign_to_regions(tool, clusters, speciesFA, regions_dir, regions,
 
     print "After assigning, I\'m left with %d un-categorized regions" %(len(remaining_clusters))
     try:
-        #TODO this is wrong that only gets the non-overlapping somethings...
         bed_dict['uncatagorized'] = remaining_clusters.sort()
     except:
         pass
@@ -907,9 +905,9 @@ def main(options):
     """
     print "starting"
     #gets clusters in a bed tools + names species 
-    clusters = options.clusters
+    clusters = os.path.basename(options.clusters)
     species = options.species
-    clusters_bed = pybedtools.BedTool(clusters)
+    clusters_bed = pybedtools.BedTool(options.clusters)
 
     #makes output file names 
     clusters = str.replace(clusters, ".BED", "")
@@ -936,9 +934,6 @@ def main(options):
 
     regions = (["all", "exon", "UTR3", "UTR5", "proxintron500", "distintron500"])    
     
-    #Not quite sure whats going on here, but its one logical block
-    #either reassigns clusters to genic regions or reads from already
-    #made assigned lists
     genes_dict, genes_bed = parse_AS_STRUCTURE_dict(species, options.as_structure)
     
     if options.assign is False:
@@ -950,8 +945,6 @@ def main(options):
             print "I had problems retreiving region-assigned BED files from %s, i'll rebuild" % (assigned_dir)
             options.assign = True
     
-    #This is what I'm working on tomorrow
-    #assign to reions / this big chunk that should get factoed out of main...
     if options.assign is True:
         print "Assigning Clusters to Genic Regions"
         #TODO what is region sizes?
@@ -960,8 +953,8 @@ def main(options):
                                                    options.genome_location, 
                                                    options.regions_location, 
                                                    regions,
-                                                   assigned_dir,
-                                                   fasta_dir,
+                                                   assigned_dir=assigned_dir,
+                                                   fasta_dir=fasta_dir,
                                                    species=species, 
                                                    getseq=True, 
                                                    nrand=options.nrand,
@@ -999,8 +992,8 @@ def main(options):
                           genomic_types["A3E:"]]    
     kmer_results = []
     if options.reMotif is True:
-        kmer_results = calculate_kmer_diff(options.k, regions, clusters, fasta_dir)        
-        calculate_homer_motifs(options.k, regions, options.homer, clusters, fasta_dir, homerout)
+        kmer_results = calculate_kmer_diff(options.k, regions, options.clusters, fasta_dir)        
+        calculate_homer_motifs(options.k, regions, options.homer, options.clusters, fasta_dir, homerout)
     
     phast_values = []
     #loads phastcons values output_file generates them again
