@@ -6,6 +6,7 @@ Created on Sep 10, 2012
 import unittest
 import CLIP_analysis 
 from CLIP_analysis import *
+from AS_Structure_tools import *
 from optparse import OptionParser, SUPPRESS_HELP 
 import os
 import pkg_resources       

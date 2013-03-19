@@ -17,6 +17,7 @@ from clipper.src import CLIP_Analysis_Display
 from clipper.src.kmerdiff import kmer_diff
 from collections import Counter
 from random import sample
+from AS_Structure_tools import parse_AS_STRUCTURE_dict
 
 def intersection(A, B=None):
     
@@ -113,94 +114,7 @@ def count_genomic_types(as_structure_dict):
     
     return genomic_types
 
-def parse_AS_STRUCTURE_dict(species, working_dir):
-    
-    """
-    
-    Important return values:
-    
-    info a dict of gene info
-    genes - bedtool of gene locations
-    
-    Parses out all important AS structure - see constructed dict in function
-    for information on what is needed...
-    
-    also returns bed file of genes 
-    Should refactor to be a real object, but I'm lazy right now...
-    
-    """
-    
 
-    
-    print species
-    if species == "hg19":
-        chroms = [str(x) for x in range(1, 23)] #1-22
-        chroms.append("X")
-        chroms.append("Y")
-    elif species == "mm9":
-        chroms = [str(x) for x in range(1, 20)] #1-19
-        chroms.append("X")
-        chroms.append("Y")        
-    elif species == "test":
-        chroms = ["1"]
-
-    info = {}
-    bed_string = ""
-    
-    for chrom in chroms:
-
-        as_file = os.path.join(working_dir, species + ".tx." + chrom + ".AS.STRUCTURE")
-        
-        f = open(as_file, "r")
-        for line in f.readlines():
-            if not line.startswith(">"):
-                continue
-            
-            blank, gene, chrom, transcripts, d2, d3, d4, strand, number_of_exons, exonloc, intronloc, exonlen, intronlen, asType, locType = line.strip().split("\t")
-            signstrand = "-"
-            if int(strand) == 1:
-                signstrand = "+"
-            number_of_exons = int(number_of_exons)
-            info[gene] = {}
-            info[gene]['chrom'] = "chr" + str(chrom)
-            info[gene]['strand'] = signstrand
-            info[gene]['exons'] = {}
-            info[gene]['introns'] = {}
-            info[gene]['types'] = {}                        
-            exons = exonloc.split("|")
-            introns = intronloc.split("|")
-            types = asType.split("|")
-            info[gene]['numEx'] = number_of_exons
-            info[gene]['mRNA_length'] = 0
-            info[gene]['premRNA_length'] = 0
-            tx_start = np.Inf
-            tx_stop  = np.NINF
-            for i, exon in enumerate(exons):
-                if i == number_of_exons: #last exon is empty
-                    continue
-            
-                info[gene]['exons'][i] = exon
-                info[gene]['types'][i] = types[i]
-                exstart, exstop = [int(x) for x in exon.split("-")]
-                tx_start = min(exstart, tx_start)
-                tx_stop = max(exstop, tx_stop)
-                
-                #there is an off by one bug in here somewhere, this if off 
-                #from exon and intron lengths column
-                info[gene]['mRNA_length'] += exstop-exstart+1
-                info[gene]['premRNA_length'] += exstop-exstart+1                
-            for i, intron in enumerate(introns):
-                if i == number_of_exons-1: #only number_of_exons-1 introns
-                    continue
-                info[gene]['introns'][i] = intron
-                intstart, intstop = [int(x) for x in intron.split("-")]
-                info[gene]['premRNA_length'] += intstop-intstart+1
-            info[gene]['tx_start'] = tx_start
-            info[gene]['tx_stop'] = tx_stop
-            bed_string += "\t".join([info[gene]['chrom'], str(info[gene]['tx_start']), str(info[gene]['tx_stop']), gene, "0", info[gene]['strand']]) + "\n"
-            
-            
-    return info, pybedtools.BedTool(bed_string, from_string=True)
 
 def count_genomic_region_sizes(regions_dir, species="hg19"):
     
