@@ -856,8 +856,8 @@ def calculate_phastcons(regions, cluster_regions, phastcons_location):
             phast_values["real"][region] = get_mean_phastcons(cluster_regions[region]['real'], phastcons_location)
             
             #can't concatanate zero length arrays, so prime it
-            randPhast = get_mean_phastcons(cluster_regions[region]['rand'][0], phastcons_location)
-            for i in range(1, len(cluster_regions[region]['rand'])):
+            randPhast = np.array([])
+            for i in range(len(cluster_regions[region]['rand'])):
                 randPhast = np.concatenate((randPhast, get_mean_phastcons(cluster_regions[region]['rand'][i], phastcons_location)), axis=1)
             phast_values["rand"][region] = randPhast
         except KeyError as e:
@@ -1083,7 +1083,7 @@ def main(options):
     genomic_type_count = [genomic_types["CE:"], genomic_types["SE:"], 
                           genomic_types["MXE:"], genomic_types["A5E:"], 
                           genomic_types["A3E:"]]    
-    
+    kmer_results = []
     if options.reMotif is True:
         kmer_results = calculate_kmer_diff(options.k, regions, clusters, fasta_dir)        
         calculate_homer_motifs(options.k, regions, options.homer, clusters, fasta_dir, homerout)
@@ -1155,7 +1155,7 @@ if __name__== "__main__":
     parser.add_option("--rePhast", dest="rePhast", action="store_true", default=False, help="re-calculate conservation, must have been done before") 
     parser.add_option("--runPhast", dest="runPhast", action="store_true", default=False, help="Run Phastcons ") 
 
-    parser.add_option("--old_motifs", dest="reMotif", action="store_false", default=True, help="use old motif files")
+    parser.add_option("--runMotif", dest="reMotif", action="store_true", default=False, help="Calculate Motif scores")
     parser.add_option("--motif", dest="motif", action="append", help="Files of motif locations", default=None)
     parser.add_option("--homer", dest="homer", action="store_true", help="Runs homer", default=False)
     parser.add_option("--k", dest="k", action="append", help="k-mer and homer motif ananlysis", default=[6])

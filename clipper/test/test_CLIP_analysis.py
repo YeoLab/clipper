@@ -29,7 +29,7 @@ class Test(unittest.TestCase):
         self.parser.add_option("--reAssign", dest="assign", action="store_true", default=False, help="re-assign clusters, if not set it will re-use existing assigned clusters") 
         ##to-do. this should be auto-set if the creation date of "clusters" is after creation date fo assigned files
         self.parser.add_option("--rePhast", dest="rePhast", action="store_true", default=False, help="re-calculate conservation, must have been done before") 
-        self.parser.add_option("--old_motifs", dest="reMotif", action="store_false", default=True, help="use old motif files")
+        self.parser.add_option("--runMotif", dest="reMotif", action="store_true", default=False, help="Calculate Motif scores")
         self.parser.add_option("--motif", dest="motif", action="append", help="Files of motif locations", default=None)
         self.parser.add_option("--homer", dest="homer", action="store_true", help="What does this do?", default=False)
         self.parser.add_option("--conservation", dest="cons", help="what does this do?", action="store_true")
@@ -66,7 +66,8 @@ class Test(unittest.TestCase):
                 '--motif', 'AAAAAA',
                 '--nrand', '1',
                 '--rePhast',
-                '--runPhast'
+                '--runPhast',
+                '--runMotif'
                 ]    
         (options, args) = self.parser.parse_args(args)
         CLIP_analysis.main(options)

@@ -1090,6 +1090,8 @@ def peaks_from_info(bam_fileobj, wiggle, pos_counts, lengths, loc, gene_length,
                                     number_reads_in_peak, 
                                     gene_length, 
                                     peak_length)
+             elif stastical_test == "negative_binomial":
+                 pass
              if SloP is True:
                  #same thing except for based on super local p-value
                  if stastical_test == "poisson":
