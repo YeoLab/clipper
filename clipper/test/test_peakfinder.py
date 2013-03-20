@@ -60,6 +60,7 @@ class Test(unittest.TestCase):
         self.parser.add_option("--max_gap", dest="max_gap",type="int", default=10, help="defines min gap for classic algorithm")
         self.parser.add_option("--algorithm", dest="algorithm",default="spline", help="Defines algorithm to run, currently Spline, or Classic")
         self.parser.add_option("--hadoop", dest="hadoop",default=False, action="store_true", help="Run in hadoop mode")
+        self.parser.add_option("--bonferroni", dest="bonferroni_correct",action="store_true", default=False, help="Perform Bonferroni on data before filtering")
 
 
     
@@ -547,7 +548,7 @@ class Test(unittest.TestCase):
         
         result = transcriptome_filter(poisson_cutoff, transcriptome_size, transcriptome_reads, cluster)
         
-        self.assertFalse(result) 
+        self.assertEqual(result, 1) 
         
         #cluster = {'Nreads' : 10000, "size" : 100}
         cluster = Peak(0,0,0,0,0,0,0,0,0,10000,0,100,0)
@@ -557,7 +558,7 @@ class Test(unittest.TestCase):
         poisson_cutoff = .05
         
         result = transcriptome_filter(poisson_cutoff, transcriptome_size, transcriptome_reads, cluster)
-        self.assertTrue(result)
+        self.assertEqual(result,0.0)
         
         #cluster = {'Nreads' : 0, "size" : 0}
         cluster = Peak(0,0,0,0,0,0,0,0,0,0,0,0,0)
@@ -566,7 +567,7 @@ class Test(unittest.TestCase):
         poisson_cutoff = .05
         
         result = transcriptome_filter(poisson_cutoff, transcriptome_size, transcriptome_reads, cluster)
-        self.assertFalse(result)
+        self.assertEqual(result, 1)
         
     def test_filter_results(self):
         
@@ -590,16 +591,59 @@ class Test(unittest.TestCase):
         transcriptome_size = 10000
         transcriptome_reads = 100000
         
-        result = filter_results(results, .07, transcriptome_size, transcriptome_reads, False)
+        result = filter_results(results, .07, transcriptome_size, transcriptome_reads, False, False)
         self.assertSetEqual(set(['chr15\t1\t10\tENSG1_1_52\t0.04\t-\t50\t60', 'chr15\t200\t300\tENSG2_2_239\t0.06\t-\t140\t160']), result)
-        #assert False
+       
         
-        result = filter_results(results, .05, transcriptome_size, transcriptome_reads, False)
+        result = filter_results(results, .05, transcriptome_size, transcriptome_reads, False, False)
         self.assertSetEqual(set(['chr15\t1\t10\tENSG1_1_52\t0.04\t-\t50\t60']), result)
 
-        result = filter_results(results, .07, transcriptome_size, transcriptome_reads, True)
-        self.assertSetEqual(set([]), result)
+    def test_broken_filter_results(self):
+        
+        """
+        
+        Tests filter results, expects no output, even from transcriptome wide estimations
+        
+        """
+        
+        peak1 = Peak("chr15", 1, 10, "ENSG1", .04 , "-", 50, 60, 1, 52, .04, 32, 0)
+        peak2 = Peak("chr15", 200, 300, "ENSG2", .06 , "-", 140, 160, 2, 239, .06, 45, 0)
+        results = [{'loc': ['chr15', 'ENSG00000198901', 91509274, 91537804, '-'], 
+          'Nclusters': 24, 
+          'nreads': 2086, 
+          'threshold': 32, 
+          'clusters': [peak1, peak2]}]
+        
 
+        transcriptome_size = 10000
+        transcriptome_reads = 100000
+        
+        #I had my mental model of how the global cutoff was should have worked wrong the entire time...
+        result = filter_results(results, .07, transcriptome_size, transcriptome_reads, True, False)
+        self.assertSetEqual(set(['chr15\t1\t10\tENSG1_1_52\t0.04\t-\t50\t60', 'chr15\t200\t300\tENSG2_2_239\t0.06\t-\t140\t160']), result)
+    
+    def test_bonferroni_correct_filter_results(self):
+        
+        """
+        
+        Tests to make sure bonferroni correction works
+        
+        """
+        
+        transcriptome_size = 10000
+        transcriptome_reads = 100000
+        
+        peak1 = Peak("chr15", 1, 10, "ENSG1", .04 , "-", 50, 60, 1, 52, .04, 32, 0)
+        peak2 = Peak("chr15", 200, 300, "ENSG2", .06 , "-", 140, 160, 2, 239, .06, 45, 0)
+        results = [{'loc': ['chr15', 'ENSG00000198901', 91509274, 91537804, '-'], 
+          'Nclusters': 24, 
+          'nreads': 2086, 
+          'threshold': 32, 
+          'clusters': [peak1, peak2]}]
+        
+        result = filter_results(results, .09, transcriptome_size, transcriptome_reads, False, True)
+        self.assertSetEqual(set(['chr15\t1\t10\tENSG1_1_52\t0.08\t-\t50\t60']), result)
+        
     def test_count_transcriptome_reads(self):
         """
         

@@ -13,6 +13,7 @@ import clipper
 from clipper import data_dir
 from clipper.src.call_peak import call_peaks, poissonP
 import logging
+import numpy as np
 logging.captureWarnings(True)
     
 def trim_reads(bamfile):
@@ -307,15 +308,9 @@ def transcriptome_filter(poisson_cutoff, transcriptome_size, transcriptome_reads
     
     if math.isnan(transcriptome_p):
         logging.info("""Transcriptome P is NaN, transcriptome_reads = %d, cluster reads = %d, transcriptome_size = %d, cluster_size = %d""" % (transcriptome_reads, cluster.number_reads_in_peak, transcriptome_size, cluster.size))
-        return False
+        return np.Inf
     
-    if transcriptome_p > poisson_cutoff:
-        logging.info("%s\n Failed Transcriptome cutoff with %s reads, pval: %s" % (cluster, cluster.number_reads_in_peak, transcriptome_p))
-
-        return False
-    
-    return True
-
+    return transcriptome_p
 
 def count_transcriptome_reads(results):
     
@@ -339,7 +334,7 @@ def count_transcriptome_reads(results):
     
     return transcriptome_reads
 
-def filter_results(results, poisson_cutoff, transcriptome_size, transcriptome_reads, use_global_cutoff):
+def filter_results(results, poisson_cutoff, transcriptome_size, transcriptome_reads, use_global_cutoff, bonferroni_correct):
     
     """
     
@@ -354,7 +349,8 @@ def filter_results(results, poisson_cutoff, transcriptome_size, transcriptome_re
     """
     #combine results
     allpeaks = set([])
-        
+    total_clusters = sum([len(gene_result['clusters']) for gene_result in results])
+    
     for gene_result in results:
 
         #alert user that there aren't any clusters for specific gene
@@ -364,22 +360,24 @@ def filter_results(results, poisson_cutoff, transcriptome_size, transcriptome_re
         
         for cluster in gene_result['clusters']:
             meets_cutoff = True
+            global_pval = np.Inf
             try:
                 
                 if use_global_cutoff:
-                    meets_cutoff = meets_cutoff and transcriptome_filter(poisson_cutoff, 
-                                                                         transcriptome_size, 
-                                                                         transcriptome_reads,  
-                                                                         cluster)
+                    global_pval = transcriptome_filter(poisson_cutoff, 
+                                                       transcriptome_size, 
+                                                       transcriptome_reads,  
+                                                       cluster)
                 
-                #should factor out this as well, but I'll leave it be until nessessary            
-                #does SlOP always get used?  it looks like it does
-                corrected_SloP_pval = cluster.super_local_poisson_p
-                corrected_gene_pval = cluster.gene_poisson_p
-                min_pval = min([corrected_SloP_pval, corrected_gene_pval])
+                min_pval = min([cluster.super_local_poisson_p, 
+                                cluster.gene_poisson_p, 
+                                global_pval])
                 
+                if bonferroni_correct:
+                    min_pval = min_pval * total_clusters 
+                            
                 if not (min_pval < poisson_cutoff):
-                    logging.info("Failed Gene Pvalue: %s and failed SloP Pvalue: %s for Gene %s %s" % (corrected_gene_pval, corrected_SloP_pval, cluster.gene_name, cluster.peak_number))
+                    logging.info("Failed Gene Pvalue: %s and failed SloP Pvalue: %s and global value %s for Gene %s %s" % (cluster.super_local_poisson_p, cluster.gene_poisson_p, global_pval, cluster.gene_name, cluster.peak_number))
                     meets_cutoff = False
                 
                 if meets_cutoff:
@@ -548,7 +546,8 @@ def main(options):
                               poisson_cutoff, 
                               transcriptome_size,  
                               transcriptome_reads, 
-                              options.use_global_cutoff)
+                              options.use_global_cutoff,
+                              options.bonferroni_correct)
     
     
     #need to include scaliable way to see ALL peaks, not just filtered one
@@ -603,6 +602,8 @@ def call_main():
     parser.add_option("--max_width", dest="max_width", type="int", default=75, help="Defines max width for classic algorithm")
     parser.add_option("--min_width", dest="min_width", type="int", default=50, help="Defines min width for classic algorithm")
     parser.add_option("--max_gap", dest="max_gap",type="int", default=10, help="defines min gap for classic algorithm")
+    parser.add_option("--bonferroni", dest="bonferroni_correct",action="store_true", default=False, help="Perform Bonferroni on data before filtering")
+    
     parser.add_option("--algorithm", dest="algorithm",default="spline", help="Defines algorithm to run, currently Spline, or Classic")
     parser.add_option("--hadoop", dest="hadoop",default=False, action="store_true", help="Run in hadoop mode")
     
