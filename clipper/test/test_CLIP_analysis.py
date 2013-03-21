@@ -6,6 +6,7 @@ Created on Sep 10, 2012
 import unittest
 import CLIP_analysis 
 from CLIP_analysis import *
+from AS_Structure_tools import *
 from optparse import OptionParser, SUPPRESS_HELP 
 import os
 import pkg_resources       
@@ -29,7 +30,7 @@ class Test(unittest.TestCase):
         self.parser.add_option("--reAssign", dest="assign", action="store_true", default=False, help="re-assign clusters, if not set it will re-use existing assigned clusters") 
         ##to-do. this should be auto-set if the creation date of "clusters" is after creation date fo assigned files
         self.parser.add_option("--rePhast", dest="rePhast", action="store_true", default=False, help="re-calculate conservation, must have been done before") 
-        self.parser.add_option("--old_motifs", dest="reMotif", action="store_false", default=True, help="use old motif files")
+        self.parser.add_option("--runMotif", dest="reMotif", action="store_true", default=False, help="Calculate Motif scores")
         self.parser.add_option("--motif", dest="motif", action="append", help="Files of motif locations", default=None)
         self.parser.add_option("--homer", dest="homer", action="store_true", help="What does this do?", default=False)
         self.parser.add_option("--conservation", dest="cons", help="what does this do?", action="store_true")
@@ -60,12 +61,14 @@ class Test(unittest.TestCase):
                 "--bam", clipper.test_file("allup_test.bam"),
                 "--AS_Structure", "/home/gabrielp/bioinformatics/Yeo_Lab/clip_analysis_metadata/mm9data4",
                 '--genome_location', '/home/gabrielp/bioinformatics/Yeo_Lab/clip_analysis_metadata/mm9/mm9.fa', 
+                #'--regions_location', clipper.test_file("knownGene_sample.gtf"),
                 "--regions_location", '/home/gabrielp/bioinformatics/Yeo_Lab/clip_analysis_metadata/regions',
                 '--phastcons_location', '/home/gabrielp/bioinformatics/Yeo_Lab/clip_analysis_metadata/phastcons/mm9_phastcons.bw',
                 '--motif', 'AAAAAA',
                 '--nrand', '1',
                 '--rePhast',
-                '--runPhast'
+                '--runPhast',
+                '--runMotif'
                 ]    
         (options, args) = self.parser.parse_args(args)
         CLIP_analysis.main(options)
@@ -376,7 +379,8 @@ class Test(unittest.TestCase):
         """
         cluster_regions = {"exon" : 
                            {'real' : pybedtools.BedTool(clipper.test_file("clip_analysis_test_peak_results.bed.exon.real.BED")),
-                            'rand' : {0: pybedtools.BedTool(clipper.test_file("clip_analysis_test_peak_results.bed.exon.rand.0.BED"))}}
+                            'rand' : {0 : pybedtools.BedTool(clipper.test_file("clip_analysis_test_peak_results.bed.exon.rand.0.BED")),
+                                      1 : pybedtools.BedTool(clipper.test_file("clip_analysis_test_peak_results.bed.exon.rand.0.BED"))}}
                            }
         regions = (["all", "exon", "UTR3", "UTR5", "proxintron500", "distintron500"])    
         phastcons = '/home/gabrielp/bioinformatics/Yeo_Lab/clip_analysis_metadata/phastcons/mm9_phastcons.bw'
@@ -414,6 +418,46 @@ class Test(unittest.TestCase):
         self.assertListEqual(result.keys(), ['all', 'exon'])
         self.assertListEqual(result['all'].keys(), ['real', 'rand'])
         self.assertListEqual(result['all']['real'].keys(), ['dist', 'size'])
+        
+    def test_build_genomic_regions(self):
+        """
+        
+        Tests build genomic regions
+        
+        """
+
+        CDS = pybedtools.BedTool("""chr1\t7700\t7900\tfoo\t0\t+\n
+                                   chr1\t7999\t8500\tfoo\t0\t+\n""", from_string = True)
+        UTR5 = pybedtools.BedTool("""chr1\t7499\t7700\tfoo\t0\t+\n""", from_string = True)
+        UTR3 = pybedtools.BedTool("""chr1\t8500\t9000\tfoo\t0\t+\n""", from_string = True)
+        proxintron = pybedtools.BedTool("""chr1\t100\t300\tfoo\t0\t+\n
+                                          chr1\t798\t998\tfoo\t0\t+\n
+                                          chr1\t2000\t2200\tfoo\t0\t+\n
+                                          chr1\t2798\t2998\tfoo\t0\t+\n
+                                          chr1\t6000\t6200\tfoo\t0\t+\n
+                                          chr1\t6798\t6998\tfoo\t0\t+\n
+                                          chr1\t7900\t7998\tfoo\t0\t+\n""", from_string = True
+                                          )
+        distintron = pybedtools.BedTool("""chr1\t301\t797\tfoo\t0\t+\n
+                                           chr1\t2201\t2797\tfoo\t0\t+\n
+                                           chr1\t6201\t6797\tfoo\t0\t+\n""", from_string = True)
+        
+        regions = build_genomic_regions(pybedtools.BedTool(clipper.test_file("test.gtf")), prox_distance=200)        
+        
+        #print UTR3
+
+        #print regions['UTR3']
+        print proxintron
+        print regions['proxintron']
+        #print regions['distintron']
+        
+        self.assertEqual(len(CDS.intersect(regions['CDS'], f= 1.0, r = True)), 2)
+        self.assertEqual(len(UTR5.intersect(regions['UTR5'], f= 1.0, r = True)), 1)
+        self.assertEqual(len(UTR3.intersect(regions['UTR3'], f= 1.0, r = True)), 1)
+        self.assertEqual(len(proxintron.intersect(regions['proxintron'], f= 1.0, r = True)), 7)
+        self.assertEqual(len(distintron.intersect(regions['distintron'], f= 1.0, r = True)), 3)
+        
+
         
     def test_main(self):
         pass

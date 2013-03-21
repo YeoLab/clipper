@@ -16,7 +16,8 @@ from bx.bbi.bigwig_file import BigWigFile
 from clipper.src import CLIP_Analysis_Display
 from clipper.src.kmerdiff import kmer_diff
 from collections import Counter
-
+from random import sample
+from AS_Structure_tools import parse_AS_STRUCTURE_dict
 
 def intersection(A, B=None):
     
@@ -113,90 +114,7 @@ def count_genomic_types(as_structure_dict):
     
     return genomic_types
 
-def parse_AS_STRUCTURE_dict(species, working_dir):
-    
-    """
-    
-    Important return values:
-    
-    Parses out all important AS structure - see constructed dict in function
-    for information on what is needed...
-    
-    also returns bed file of genes 
-    Should refactor to be a real object, but I'm lazy right now...
-    """
-    
 
-    
-    print species
-    if species == "hg19":
-        chroms = [str(x) for x in range(1, 23)] #1-22
-        chroms.append("X")
-        chroms.append("Y")
-    elif species == "mm9":
-        chroms = [str(x) for x in range(1, 20)] #1-19
-        chroms.append("X")
-        chroms.append("Y")        
-    elif species == "test":
-        chroms = ["1"]
-
-    info = {}
-    bed_string = ""
-    
-    for chrom in chroms:
-
-        as_file = os.path.join(working_dir, species + ".tx." + chrom + ".AS.STRUCTURE")
-        
-        f = open(as_file, "r")
-        for line in f.readlines():
-            if not line.startswith(">"):
-                continue
-            
-            blank, gene, chrom, transcripts, d2, d3, d4, strand, number_of_exons, exonloc, intronloc, exonlen, intronlen, asType, locType = line.strip().split("\t")
-            signstrand = "-"
-            if int(strand) == 1:
-                signstrand = "+"
-            number_of_exons = int(number_of_exons)
-            info[gene] = {}
-            info[gene]['chrom'] = "chr" + str(chrom)
-            info[gene]['strand'] = signstrand
-            info[gene]['exons'] = {}
-            info[gene]['introns'] = {}
-            info[gene]['types'] = {}                        
-            exons = exonloc.split("|")
-            introns = intronloc.split("|")
-            types = asType.split("|")
-            info[gene]['numEx'] = number_of_exons
-            info[gene]['mRNA_length'] = 0
-            info[gene]['premRNA_length'] = 0
-            tx_start = np.Inf
-            tx_stop  = np.NINF
-            for i, exon in enumerate(exons):
-                if i == number_of_exons: #last exon is empty
-                    continue
-            
-                info[gene]['exons'][i] = exon
-                info[gene]['types'][i] = types[i]
-                exstart, exstop = [int(x) for x in exon.split("-")]
-                tx_start = min(exstart, tx_start)
-                tx_stop = max(exstop, tx_stop)
-                
-                #there is an off by one bug in here somewhere, this if off 
-                #from exon and intron lengths column
-                info[gene]['mRNA_length'] += exstop-exstart+1
-                info[gene]['premRNA_length'] += exstop-exstart+1                
-            for i, intron in enumerate(introns):
-                if i == number_of_exons-1: #only number_of_exons-1 introns
-                    continue
-                info[gene]['introns'][i] = intron
-                intstart, intstop = [int(x) for x in intron.split("-")]
-                info[gene]['premRNA_length'] += intstop-intstart+1
-            info[gene]['tx_start'] = tx_start
-            info[gene]['tx_stop'] = tx_stop
-            bed_string += "\t".join([info[gene]['chrom'], str(info[gene]['tx_start']), str(info[gene]['tx_stop']), gene, "0", info[gene]['strand']]) + "\n"
-            
-            
-    return info, pybedtools.BedTool(bed_string, from_string=True)
 
 def count_genomic_region_sizes(regions_dir, species="hg19"):
     
@@ -214,6 +132,49 @@ def count_genomic_region_sizes(regions_dir, species="hg19"):
         region_tool = pybedtools.BedTool(os.path.join(regions_dir, region + "_" + species + "_frea_sorted.withscore"))
         genomic_region_sizes[region] = region_tool.total_coverage()
     return genomic_region_sizes
+
+def build_genomic_regions(tool, prox_distance=500):
+    
+    """
+    
+    Makes dict of seperated genomic regions from gtf file
+    
+    tool: gtf formatted bedfile with gene definitions.  Must contain defenitions 3UTR, 5UTR, CDS and exon
+    prox_distance, the distance to define an intron as proximal
+    returns dict of regions 5UTR, 3UTR, CDS, proxintron, distintron
+    
+    """
+    
+    prev_line = None
+    proximal_introns = ""
+    distal_introns   = ""
+    
+    for line in tool.filter(lambda read: read[2] == "exon"):
+        if prev_line is None or not prev_line.name == line.name:
+            prev_line = line
+            continue
+        
+        #adjust by one to prevent overlapping regions
+        
+        if line.start - prev_line.stop < prox_distance * 2:
+             proximal_introns += "\t".join([str(x) for x in [prev_line.chrom, "stdin", "proxintron", prev_line.stop + 1, line.start - 1, prev_line.name, prev_line.strand, "gene_id \"%s\";" % (line.name), "\n"]])
+        else:
+            #May be an off by one bug here, but it doesn't matter to much... (hopefully)
+            proximal_introns += "\t".join([str(x) for x in [prev_line.chrom, "stdin", "proxintron", prev_line.stop + 1, prev_line.stop + prox_distance, prev_line.name, prev_line.strand, "gene_id \"%s\";" % (line.name),  "\n"]])
+            proximal_introns += "\t".join([str(x) for x in [line.chrom, "stdin", "proxintron", line.start - prox_distance, line.start - 1, line.name, line.strand, "gene_id \"%s\";" % (line.name), "\n"]])
+            
+            #adjust by 2 bp so we don't overlap the stop / start site of either the exon or the proxintron
+            distal_introns += "\t".join([str(x) for x in [line.chrom, "stdin", "proxintron",  prev_line.stop + prox_distance + 2, line.start - prox_distance - 2, line.name, line.strand, "gene_id \"%s\";" % (line.name), "\n"]])
+
+        prev_line = line
+        
+    proximal_introns = pybedtools.BedTool(proximal_introns, from_string=True)
+    distal_introns   = pybedtools.BedTool(distal_introns, from_string=True)
+    UTR_5 = tool.filter(lambda read: read[2] == "5UTR").saveas()
+    UTR_3 = tool.filter(lambda read: read[2] == "3UTR").saveas()
+    CDS  = tool.filter(lambda read: read[2] == "CDS").saveas()
+    
+    return {"CDS" : CDS, "UTR5" : UTR_5, "UTR3" : UTR_3, "proxintron" : proximal_introns, "distintron" : distal_introns}
 
 def assign_to_regions(tool, clusters, speciesFA, regions_dir, regions, 
                       assigned_dir, fasta_dir, species="hg19", nrand = 3, 
@@ -238,11 +199,13 @@ def assign_to_regions(tool, clusters, speciesFA, regions_dir, regions,
     
     """
     
-    bedtracks = {}
     region_files = {}
     
     #constructs bed tools for each region
     #TODO fix names
+    bedtracks = {}
+    #bedtracks = build_genomic_regions(pybedtools.BedTool(regions_dir))
+    #regions = bedtracks.keys()
     regions = ["exon", "UTR3", "UTR5", "proxintron500", "distintron500"]
     for region in regions:
         region_files[region] = os.path.join(regions_dir, region + "_" + species + "_frea_sorted.withscore")
@@ -265,7 +228,7 @@ def assign_to_regions(tool, clusters, speciesFA, regions_dir, regions,
     
     for region in regions:
         output_file = clusters + "." + region + ".real.BED"
-        
+
         #check with mike about this
         remaining_clusters, overlapping = intersection(remaining_clusters, 
                                                        B = bedtracks[region])  
@@ -279,7 +242,6 @@ def assign_to_regions(tool, clusters, speciesFA, regions_dir, regions,
         bed_dict[region] = {}
         bed_dict[region]['rand'] = {}
         
-        #hack to allow saving of filter results
         bed_dict[region]['real'] = overlapping.filter(is_valid_bed12).sort().saveas(os.path.join(assigned_dir, output_file))
         remaining_clusters = pybedtools.BedTool(str(remaining_clusters.filter(is_valid_bed12)), from_string=True)
         
@@ -304,7 +266,7 @@ def assign_to_regions(tool, clusters, speciesFA, regions_dir, regions,
             
             #for each region shuffles all peaks in that region around the region 
             #then pulls out sequences if requested 
-            random_intervals = bed_dict[region]['real'].shuffle(genome=species, incl=region_files[region]).sort()
+            random_intervals = bed_dict[region]['real'].shuffle(genome=species, incl=bedtracks[region].fn).sort()
 
             #shuffling doesn't change offsets so we adjust bed 11 and 12 lines here to correct 
             random_intervals = adjust_offsets(random_intervals, offset_dict)
@@ -316,7 +278,6 @@ def assign_to_regions(tool, clusters, speciesFA, regions_dir, regions,
 
     print "After assigning, I\'m left with %d un-categorized regions" %(len(remaining_clusters))
     try:
-        #TODO this is wrong that only gets the non-overlapping somethings...
         bed_dict['uncatagorized'] = remaining_clusters.sort()
     except:
         pass
@@ -627,7 +588,7 @@ def chop(chr, start,end, wsize=5):
         i += wsize
     file.close()
  
-def get_mean_phastcons(bedtool, phastcons_location):
+def get_mean_phastcons(bedtool, phastcons_location, sample_size = 10000):
     
     """
     
@@ -641,8 +602,8 @@ def get_mean_phastcons(bedtool, phastcons_location):
     bw = BigWigFile(file=f)
 
     #if bedtool
-    data = np.ndarray(len(bedtool))  
-    for i, bedline in enumerate(bedtool):
+    data = []
+    for bedline in sample(bedtool, min(len(bedtool), sample_size)):
               
         conservation_values = bw.get_as_array(bedline.chrom, bedline.start, bedline.stop)
         
@@ -650,7 +611,7 @@ def get_mean_phastcons(bedtool, phastcons_location):
             mean_phastcons = np.mean(conservation_values)
         else:
             mean_phastcons = 0
-        data[i] = mean_phastcons
+        data.append(mean_phastcons)
         
     return data
 
@@ -807,9 +768,9 @@ def calculate_phastcons(regions, cluster_regions, phastcons_location):
             phast_values["real"][region] = get_mean_phastcons(cluster_regions[region]['real'], phastcons_location)
             
             #can't concatanate zero length arrays, so prime it
-            randPhast = get_mean_phastcons(cluster_regions[region]['rand'][0], phastcons_location)
-            for i in range(1, len(cluster_regions[region]['rand'])):
-                randPhast = np.concatenate(randPhast, get_mean_phastcons(cluster_regions[region]['rand'][i], phastcons_location))
+            randPhast = np.array([])
+            for i in range(len(cluster_regions[region]['rand'])):
+                randPhast = np.concatenate((randPhast, get_mean_phastcons(cluster_regions[region]['rand'][i], phastcons_location)), axis=1)
             phast_values["rand"][region] = randPhast
         except KeyError as e:
             print "ignoring: ", e
@@ -944,9 +905,9 @@ def main(options):
     """
     print "starting"
     #gets clusters in a bed tools + names species 
-    clusters = options.clusters
+    clusters = os.path.basename(options.clusters)
     species = options.species
-    clusters_bed = pybedtools.BedTool(clusters)
+    clusters_bed = pybedtools.BedTool(options.clusters)
 
     #makes output file names 
     clusters = str.replace(clusters, ".BED", "")
@@ -973,9 +934,6 @@ def main(options):
 
     regions = (["all", "exon", "UTR3", "UTR5", "proxintron500", "distintron500"])    
     
-    #Not quite sure whats going on here, but its one logical block
-    #either reassigns clusters to genic regions or reads from already
-    #made assigned lists
     genes_dict, genes_bed = parse_AS_STRUCTURE_dict(species, options.as_structure)
     
     if options.assign is False:
@@ -987,8 +945,6 @@ def main(options):
             print "I had problems retreiving region-assigned BED files from %s, i'll rebuild" % (assigned_dir)
             options.assign = True
     
-    #This is what I'm working on tomorrow
-    #assign to reions / this big chunk that should get factoed out of main...
     if options.assign is True:
         print "Assigning Clusters to Genic Regions"
         #TODO what is region sizes?
@@ -997,8 +953,8 @@ def main(options):
                                                    options.genome_location, 
                                                    options.regions_location, 
                                                    regions,
-                                                   assigned_dir,
-                                                   fasta_dir,
+                                                   assigned_dir=assigned_dir,
+                                                   fasta_dir=fasta_dir,
                                                    species=species, 
                                                    getseq=True, 
                                                    nrand=options.nrand,
@@ -1034,10 +990,10 @@ def main(options):
     genomic_type_count = [genomic_types["CE:"], genomic_types["SE:"], 
                           genomic_types["MXE:"], genomic_types["A5E:"], 
                           genomic_types["A3E:"]]    
-    
+    kmer_results = []
     if options.reMotif is True:
-        kmer_results = calculate_kmer_diff(options.k, regions, clusters, fasta_dir)        
-        calculate_homer_motifs(options.k, regions, options.homer, clusters, fasta_dir, homerout)
+        kmer_results = calculate_kmer_diff(options.k, regions, options.clusters, fasta_dir)        
+        calculate_homer_motifs(options.k, regions, options.homer, options.clusters, fasta_dir, homerout)
     
     phast_values = []
     #loads phastcons values output_file generates them again
@@ -1106,7 +1062,7 @@ if __name__== "__main__":
     parser.add_option("--rePhast", dest="rePhast", action="store_true", default=False, help="re-calculate conservation, must have been done before") 
     parser.add_option("--runPhast", dest="runPhast", action="store_true", default=False, help="Run Phastcons ") 
 
-    parser.add_option("--old_motifs", dest="reMotif", action="store_false", default=True, help="use old motif files")
+    parser.add_option("--runMotif", dest="reMotif", action="store_true", default=False, help="Calculate Motif scores")
     parser.add_option("--motif", dest="motif", action="append", help="Files of motif locations", default=None)
     parser.add_option("--homer", dest="homer", action="store_true", help="Runs homer", default=False)
     parser.add_option("--k", dest="k", action="append", help="k-mer and homer motif ananlysis", default=[6])
@@ -1114,7 +1070,6 @@ if __name__== "__main__":
     parser.add_option("--structure", dest="structure", help="also doesn't do anything gets structure maps", action="store_true")
     parser.add_option("--nrand", dest="nrand", default=3, help="selects number of times to randomly sample genome", type="int")
     parser.add_option("--outdir", "-o", dest="outdir", default=os.getcwd(), help="directory for output, default:cwd")
-    parser.add_option("--run_phast", dest="run_phast", action="store_true", help="re-runs phastcons (not be implemented)", default=False)
     ##Below here are critical files that always need to be referenced
     parser.add_option("--AS_Structure", dest="as_structure",  help="Location of AS_Structure directory (chromosme files should be inside)", default=None)
     parser.add_option("--genome_location", dest="genome_location", help="location of all.fa file for genome of interest", default=None)

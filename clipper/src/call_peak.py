@@ -5,6 +5,7 @@ Created on Jul 25, 2012
 '''
 
 from numpy import Inf
+import numpy as np
 import sys
 import pysam
 from clipper.src.peaks import readsToWiggle_pysam, shuffle, find_sections
@@ -863,7 +864,7 @@ def peaks_from_info(bam_fileobj, wiggle, pos_counts, lengths, loc, gene_length,
                     minreads=20, poisson_cutoff=0.05, plotit=False, 
                     width_cutoff=10, windowsize=1000, SloP=False, 
                     correct_p=False, max_width=None, min_width=None, 
-                    max_gap=None, algorithm="spline"):
+                    max_gap=None, algorithm="spline", stastical_test = "poisson"):
 
     """
     
@@ -1068,7 +1069,6 @@ def peaks_from_info(bam_fileobj, wiggle, pos_counts, lengths, loc, gene_length,
                  area_stop = tx_start - tx_end + 1
              else:
                  area_stop = genomic_center - tx_start + windowsize
-                 #area_stop = sectstop
 
              #use area reads + 1/2 all other reads in gene: 
              #area_reads = sum(pos_counts[area_start:area_stop]) + 
@@ -1085,30 +1085,31 @@ def peaks_from_info(bam_fileobj, wiggle, pos_counts, lengths, loc, gene_length,
              #calcluates poisson based of whole gene vs genomic_center
              if algorithm == "classic" and peak_length < min_width:
                  peak_length = min_width
-                 
-             gene_pois_p = poissonP(nreads_in_gene, 
+            
+             if stastical_test == "poisson":
+                gene_pois_p = poissonP(nreads_in_gene, 
                                     number_reads_in_peak, 
                                     gene_length, 
                                     peak_length)
+             elif stastical_test == "negative_binomial":
+                 pass
+             
+             #set SloP
              if SloP is True:
                  #same thing except for based on super local p-value
-                 slop_pois_p = poissonP(area_reads, 
+                 if stastical_test == "poisson":
+                    slop_pois_p = poissonP(area_reads, 
                                        number_reads_in_peak, 
                                        area_size, 
                                        peak_length)
+                 if math.isnan(slop_pois_p):
+                     slop_pois_p = np.Inf
 
-             #makes sure spop_poisP is defined, even if its 
-             #just normal, something to be removed later,
-             #slop should only be used when defined as true
              else:
-                 slop_pois_p = gene_pois_p
+                 slop_pois_p = np.Inf
 
 
-             if math.isnan(slop_pois_p):
-                 slop_pois_p = 1
 
-             #defines the bedline of a genomic_center for returning
-             #TODO This should be abstracted out for now... seperate model from view
              
              peak_dict['clusters'].append(Peak(chrom, 
                                                genomic_start, 
