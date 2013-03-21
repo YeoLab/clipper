@@ -812,7 +812,7 @@ def call_peaks(loc, gene_length, bam_fileobj=None, bam_file=None,
     minreads - min reads in section to try and call peaks
     poisson_cutoff - p-value for signifance cut off for number of reads in peak that gets called - might want to use ashifted distribution
     plotit - makes figures 
-    
+
     w_cutoff - width cutoff, peaks narrower than this are discarted 
     windowssize - for super local calculation distance left and right to look 
     SloP - super local p-value instead of gene-wide p-value
