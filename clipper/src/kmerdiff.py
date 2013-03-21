@@ -131,7 +131,7 @@ if __name__ == "__main__":
     file1 = sys.argv[1]
     file2 = sys.argv[2]
     k = sys.argv[3]
-    results, n1, n2kmer_diff(file1, file2, k)
+    results, n1,n2 =  kmer_diff(file1, file2, k)
     for key in results.keys():
         result = results[key]
         print "%s\t%s\t%s\t%s" % (key.lower(), str(result.freq1), str(result.freq2), result.delta)
