@@ -78,7 +78,14 @@ class Test(unittest.TestCase):
         pass
     
     def test_intersection(self):
-        pass
+        
+        """
+        
+        Tests intersection, returns all things in a that overlap with b and all things in a that don't 
+        overlap with b
+        
+        """
+        a =  pybedtools.BedTool
     
     def test_adjust_offsets(self):
         
@@ -234,9 +241,18 @@ class Test(unittest.TestCase):
         
         """
         
-        #bedtool = pybedtools.BedTool(clipper.test_file("clip_analysis_test_peak_results.bed"))
+        tool = pybedtools.BedTool(clipper.test_file("FOX2Brain-05.15.09.polyATrim.adapterTrim.rmRep.sorted.rmDup.peaks.bed"))
         
-        #assign_to_regions(tool, clusters, speciesFA, regions_dir, regions, species="hg19", nrand = 3, getseq=False):
+        assign_to_regions(tool=tool, 
+                          clusters="test", 
+                          speciesFA="/home/gabrielp/bioinformatics/Yeo_Lab/clip_analysis_metadata/mm9/mm9.fa", 
+                          regions_dir="/home/gabrielp/bioinformatics/Yeo_Lab/clip_analysis_metadata/regions", 
+                          regions=[],
+                          assigned_dir = clipper.test_dir(),
+                          fasta_dir = clipper.test_dir(),
+                          species="mm9", 
+                          nrand = 3, 
+                          getseq=False)
 
     
     def test_build_assigned_from_existing(self):

@@ -256,8 +256,8 @@ def build_common_motifs(motif_grid, homer_location):
                     "exon", 
                     "UTR3", 
                     "UTR5", 
-                    "proxintron", 
-                    "distintron",
+                    "proxintron500", 
+                    "distintron500",
                     ]
     
     formal_labels = ["All", 

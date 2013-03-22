@@ -30,9 +30,12 @@ def intersection(A, B=None):
     
     """
     
-    less = A.subtract(B, s=True) #without regions that overlap
-    more = A.subtract(less, s=True) #only regions that overlap
-    return less, more
+    overlapping = A.intersect(B, wa=True, u=True)
+    remaining   = A.intersect(B, wa=True, v=True)
+    #overlapping = A.subtract(B, s=True, A=True).saveas() #without regions that overlap
+    #print len(less)
+    #remaining = A.subtract(less, s=True, A=True) #only regions that overlap
+    return remaining, overlapping 
 
 
 def adjust_offsets(tool, offsets=None):
@@ -41,7 +44,7 @@ def adjust_offsets(tool, offsets=None):
     
     For finding motiff position relative to center of peaks
     Handles merging overlapping peaks, merge > bed12 -> bed6
-    picks first offset from merged peak and assigns that to 
+    picks first offset from merged peak and assigns tqhat to 
     new peaks
     
     Input:
@@ -188,9 +191,12 @@ def assign_to_regions(tool, clusters, speciesFA, regions_dir, regions,
     Needs to be refactored desperatly
     
     tool - a bed tool (each line represnting a cluster)
+    clusters - name of cluster file
     speciesFA - the species fasta file
     regions_dir - the directory that has genomic regions already processed
     regions - list [str] regions to process, not used now but should be after refactoring
+    assigned_dir - location to save files in
+    fasta_dir -location to save fasta files in
     species - str species to segment
     nrand - int number offsets times to shuffle for null hypothesis
     getseq - boolean gets the full sequence to store
@@ -199,7 +205,6 @@ def assign_to_regions(tool, clusters, speciesFA, regions_dir, regions,
     
     """
     
-    region_files = {}
     
     #constructs bed tools for each region
     #TODO fix names
@@ -208,8 +213,7 @@ def assign_to_regions(tool, clusters, speciesFA, regions_dir, regions,
     #regions = bedtracks.keys()
     regions = ["exon", "UTR3", "UTR5", "proxintron500", "distintron500"]
     for region in regions:
-        region_files[region] = os.path.join(regions_dir, region + "_" + species + "_frea_sorted.withscore")
-        bedtracks[region] = pybedtools.BedTool(region_files[region])
+        bedtracks[region] = pybedtools.BedTool(os.path.join(regions_dir, region + "_" + species + "_frea_sorted.withscore"))
               
     #creates the basics of bed dict
     bed_dict = {}
@@ -253,13 +257,15 @@ def assign_to_regions(tool, clusters, speciesFA, regions_dir, regions,
         
         #this should be factored out
         sizes[region] = bed_dict[region]['real'].total_coverage()
-
-        bed_dict[region]['real'].sequence(fi=speciesFA, s=True)
+        
+        region_fa = fa_file(clusters, region = region, directory=fasta_dir, type="real")
+        bed_dict[region]['real'].sequence(fi=speciesFA, s=True).save_seqs(region_fa)
 
         #saves offsets so after shuffling the offsets can be readjusted    
         offset_dict = get_offsets_bed12(overlapping)
     
         #TODO refactor to different function
+        rand_list = []
         for i in range(nrand):
             output_file = clusters + "." + region + ".rand." + str(i) + ".BED"
             bed_dict['all']['rand'][i] = pybedtools.BedTool("", from_string=True)
@@ -274,8 +280,11 @@ def assign_to_regions(tool, clusters, speciesFA, regions_dir, regions,
             #saves intervals, makes the all interval by appending all regions together
             bed_dict[region]['rand'][i] = random_intervals.saveas(os.path.join(assigned_dir, output_file))
             bed_dict['all']['rand'][i] = pybedtools.BedTool(str(bed_dict['all']['rand'][i]) + str(bed_dict[region]['rand'][i]), from_string=True)
-
-
+            
+            rand_list.append(bed_dict[region]['rand'][i].sequence(fi=speciesFA, s=True))
+            
+        write_seqs(fa_file(clusters, region = region, directory=fasta_dir, type="random"), rand_list)
+        
     print "After assigning, I\'m left with %d un-categorized regions" %(len(remaining_clusters))
     try:
         bed_dict['uncatagorized'] = remaining_clusters.sort()
@@ -530,9 +539,13 @@ def run_homer(foreground, background, k = list([5,6,7,8,9]), outloc = os.getcwd(
     #converts k to a string for use in subprocess
     k = ",".join([str(x) for x in k])
     print "starting Homer"
-    
+    print " ".join(["findMotifs.pl", foreground, "fasta", 
+                                  outloc, "-p", "4", "-rna", "-S", "20",
+                                   "-len", k, "-fasta", background])
     try:
-        result = subprocess.call(["findMotifs.pl", foreground, "fasta", outloc, "-p", "4", "-rna", "-S", "20", "-len", k, "-fasta", background])
+        result = subprocess.call(["findMotifs.pl", foreground, "fasta", 
+                                  outloc, "-p", "4", "-rna", "-S", "20",
+                                   "-len", k, "-fasta", background])
         print "Homer Finished, output here: %s" %(outloc)
     except OSError:
         print "Homer not installed, ignoring motif generation, install homer for this to work"  
@@ -702,8 +715,10 @@ def calculate_kmer_diff(kmer_list, regions, clusters, fasta_dir):
     kmer_results = {}    
 
     for region in regions:
+
         real_fa = fa_file(clusters, region=region, directory=fasta_dir, type="real")
         rand_fa = fa_file(clusters, region=region, directory=fasta_dir, type="random")
+
         kmer_results[region] = {}
         
         for k in kmer_list:
@@ -715,7 +730,7 @@ def calculate_kmer_diff(kmer_list, regions, clusters, fasta_dir):
                 
     return kmer_results
  
-def calculate_homer_motifs(kmer_list, regions, run_homer, clusters, fasta_dir, homerout):
+def calculate_homer_motifs(kmer_list, regions, clusters, fasta_dir, homerout):
     
     """
     
@@ -723,7 +738,6 @@ def calculate_homer_motifs(kmer_list, regions, run_homer, clusters, fasta_dir, h
     
     kmer_list - list[int] different kmers to examine
     regions   - list[str] regions to compute kmers on
-    run_homer - boolean, run homer or not
     clusters - str name out output file
     fasta_dir - str directoy of fasta files
     homerout - str output dir of homer
@@ -736,9 +750,9 @@ def calculate_homer_motifs(kmer_list, regions, run_homer, clusters, fasta_dir, h
         #reads nicely named files
         real_fa = fa_file(clusters, region=region, directory=fasta_dir, type="real")
         rand_fa = fa_file(clusters, region=region, directory=fasta_dir, type="random")
-        if run_homer is True:
-            region_homer_out = os.path.join(homerout, region)
-            run_homer(real_fa, rand_fa, kmer_list, outloc=region_homer_out)
+
+        region_homer_out = os.path.join(homerout, region)
+        run_homer(real_fa, rand_fa, kmer_list, outloc=region_homer_out)
 
 def calculate_phastcons(regions, cluster_regions, phastcons_location):
     
@@ -991,9 +1005,11 @@ def main(options):
                           genomic_types["MXE:"], genomic_types["A5E:"], 
                           genomic_types["A3E:"]]    
     kmer_results = []
-    if options.reMotif is True:
-        kmer_results = calculate_kmer_diff(options.k, regions, options.clusters, fasta_dir)        
-        calculate_homer_motifs(options.k, regions, options.homer, options.clusters, fasta_dir, homerout)
+    if options.reMotif:
+        kmer_results = calculate_kmer_diff(options.k, regions, clusters, fasta_dir)        
+    
+    if options.homer:
+        calculate_homer_motifs(options.k, regions, clusters, fasta_dir, homerout)
     
     phast_values = []
     #loads phastcons values output_file generates them again
@@ -1064,7 +1080,7 @@ if __name__== "__main__":
 
     parser.add_option("--runMotif", dest="reMotif", action="store_true", default=False, help="Calculate Motif scores")
     parser.add_option("--motif", dest="motif", action="append", help="Files of motif locations", default=None)
-    parser.add_option("--homer", dest="homer", action="store_true", help="Runs homer", default=False)
+    parser.add_option("--runHomer", dest="homer", action="store_true", help="Runs homer", default=False)
     parser.add_option("--k", dest="k", action="append", help="k-mer and homer motif ananlysis", default=[6])
     parser.add_option("--conservation", dest="cons", help="Runs conservation (might not do anything)", action="store_true")
     parser.add_option("--structure", dest="structure", help="also doesn't do anything gets structure maps", action="store_true")
