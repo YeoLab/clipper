@@ -136,25 +136,31 @@ def build_distribution(ax, dist1, dist2):
     #print dist2
 
     alt_ax = ax.twinx()
-    
+
     #error checking in case there is a null distribution for some reasion...
     if len(dist1) > 0:
-        ax.hist(dist1, range=(0, 1.0), 
+        count, bins, ignored = ax.hist(dist1, range=(0, 1.0), 
             histtype="step", 
             color="red", 
             bins=100, 
-            normed=True)
+            normed=True,
+            visible = False)
+        
+        ax.plot([(bins[x] + bins[x+1]) / 2 for x in range(len(bins) - 1)], count, color="red")
         for tick in ax.get_yticklabels():
             tick.set_color('blue')
 
-        
+
     if len(dist2) > 0:
-        alt_ax.hist(dist2, 
+        count, bins, ignored = alt_ax.hist(dist2, 
                 range=(0, 1.0), 
                 histtype="step", 
                 color="blue", 
                 bins=100, 
-                normed=True)
+                normed=True,
+                visible=False)
+        
+        alt_ax.plot([(bins[x] + bins[x+1]) / 2 for x in range(len(bins) - 1)], count, color="blue")
         for tick in alt_ax.get_yticklabels():
             tick.set_color('red')
 
@@ -162,7 +168,7 @@ def build_distribution(ax, dist1, dist2):
     return alt_ax
 
 
-def build_genomic_content(ax, genomic_locs):
+def build_genomic_content(ax, genomic_locs, regions):
     
     """
     
@@ -174,9 +180,9 @@ def build_genomic_content(ax, genomic_locs):
     
     """
     
-    build_pie_chart_content(ax, genomic_locs)
+    build_pie_chart_content(ax, genomic_locs, regions)
 
-def build_cluster_content(ax, cluster_locs):
+def build_cluster_content(ax, cluster_locs, regions):
     
     """
     
@@ -188,26 +194,26 @@ def build_cluster_content(ax, cluster_locs):
     Distal Intron
     """
     
-    build_pie_chart_content(ax, cluster_locs)
+    build_pie_chart_content(ax, cluster_locs, regions)
 
-def build_pie_chart_content(ax, regions):
+def build_pie_chart_content(ax, regions_count, regions):
     
     """
     
     builds pie chart describing the total size of things falling inside regions
     
     ax - the axis to draw on
-    regions - dict of {region : count} of all the regions counted
+    regions_count - dict of {region : count} of all the regions counted
+    regions - dict raw name : good name
     clusters stored inside order is Exon, 3'UTR, 5'UTR, Proximal Intron, 
     Distal Intron
     
     """
 
     #red, tan, blue, green, purple
-    colors = ["#E52C27", "#C3996B", "#3C54A4", "#48843D", "#852882"][:len(regions)]
-    labels = ["Exon", "3'UTR", "5'UTR", "Proximal\nIntron", "Distal\nIntron"]
+    colors = ["#E52C27", "#C3996B", "#3C54A4", "#48843D", "#852882"][:len(regions_count)]
     
-    ax.pie(regions.values(), colors=colors, labels=regions.keys())
+    ax.pie(regions_count.values(), colors=colors, labels=[regions[region] for region in regions_count.keys()])
     
 
 def build_nearest_exon(ax, genomic_types, clusters_types):
@@ -239,7 +245,7 @@ def build_nearest_exon(ax, genomic_types, clusters_types):
     ax.axhline(y=0, ls="-", color='k')
 
 
-def build_common_motifs(motif_grid, homer_location):
+def build_common_motifs(motif_grid, homer_location, regions):
     
     """
     
@@ -251,25 +257,8 @@ def build_common_motifs(motif_grid, homer_location):
     (for getting the data, should factor out)
     
     """
-    
-    all_regions = ["all", 
-                    "exon", 
-                    "UTR3", 
-                    "UTR5", 
-                    "proxintron500", 
-                    "distintron500",
-                    ]
-    
-    formal_labels = ["All", 
-                     "Exon", 
-                     "3'UTR", 
-                     "5'UTR", 
-                     "Proximal Intron", 
-                     "Distal Intron",
-                     ]
-    
-    #for reach region 
-    for i, region in enumerate(all_regions):
+        
+    for i, region in enumerate(regions):
         
         #make a gridspec for the top 8 motifs 
         gs_homer_motifs = gridspec.GridSpecFromSubplotSpec(8, 1, subplot_spec=(motif_grid[i]))
@@ -287,8 +276,7 @@ def build_common_motifs(motif_grid, homer_location):
             
                 #print title only once
                 if j == 0:
-                    title = formal_labels[i]
-                    ax = plt.subplot(space, frameon=False, xticks=[], yticks=[], title=title)
+                    ax = plt.subplot(space, frameon=False, xticks=[], yticks=[], title=region[regions])
                 else:
                     ax = plt.subplot(space, frameon=False, xticks=[], yticks=[])
                 ax.imshow(motif)
@@ -297,7 +285,7 @@ def build_common_motifs(motif_grid, homer_location):
 
 
 
-def build_phastcons_values(ax, phastcons_values):
+def build_phastcons_values(ax, phastcons_values, regions):
     
     """
     
@@ -306,21 +294,12 @@ def build_phastcons_values(ax, phastcons_values):
     ax - axis to plot phastcons values on
     phastcons_values - clusterfuck of a list that stores CDF for real
     and random values
+    regions dict informal name : formal name
     
     """
-    
-    formal_labels = ["All", 
-                     "Exon", 
-                     "3'UTR", 
-                     "5'UTR", 
-                     "Proximal\nIntron", 
-                     "Distal\nIntron",
-                     ]
-    
-    #filters out bad values
-    #should convert to pandas data frame
+        
     intersecting_regions = set(phastcons_values['real'].keys()).intersection(set(phastcons_values['rand'].keys()))
-
+   
     for region in intersecting_regions:
         phastcons_values['real'][region] = [value for value in phastcons_values['real'][region] if not math.isnan(value)]
         phastcons_values['rand'][region] = [value for value in phastcons_values['rand'][region] if not math.isnan(value)]
@@ -331,7 +310,7 @@ def build_phastcons_values(ax, phastcons_values):
         box_values.append(phastcons_values['real'][region])
         box_values.append(phastcons_values['rand'][region])
 
-    positions = np.arange(len(intersecting_regions)) - .1
+    #positions = np.arange(len(intersecting_regions) * 2)
     width = .1
     
     #make boxplots of phastcons values for all regions
@@ -362,22 +341,22 @@ def build_phastcons_values(ax, phastcons_values):
         line.set_color('red')
         
     start, stop = ax.get_xlim()
-    
+    #start = 0
+    #stop += .5
     #ticks to seperate out the different regions...
     ticks = np.linspace(start, stop, len(intersecting_regions) + 1)
-    starts = ticks[:-1]
-
+    starts = np.array(ticks[:-1])
     bins = 20
     for n, region in enumerate(intersecting_regions): 
         heights1, edges1 = np.histogram(phastcons_values['real'][region], normed=True, bins=bins)
         heights2, edges2 = np.histogram(phastcons_values['rand'][region], normed=True, bins=bins)
-        
+ 
+       
         #insert 0 at start to anchor CDF
         CDF1 = np.cumsum(heights1) / np.sum(heights1)
         CDF1 = np.insert(CDF1, 0, 0)
         CDF2 = np.cumsum(heights2) / np.sum(heights2)
         CDF2 = np.insert(CDF2, 0, 0)
-
         yvals = np.linspace(0, 1, (bins + 1))
         if n == 0:
             label1 = "real"
@@ -385,21 +364,22 @@ def build_phastcons_values(ax, phastcons_values):
         else:
             label1 = "_nolegend_"
             label2 = "_nolegend_"
-        ax.plot(starts[n] + CDF1, yvals, 'blue', label=label1)
-        ax.plot(starts[n] + CDF2, yvals, 'red', label=label2)
-    
+        ax.plot((starts[n] + (CDF1 * 2)), yvals, 'blue', label=label1)
+        ax.plot((starts[n] + (CDF2 * 2)), yvals, 'red', label=label2)
+
     for x in starts[1:]:
         ax.axvline(x, color='k', lw=2)
     
-    #Really hacky way of getting labels centered, need to dive in to this more
-    ax.set_xticks(np.linspace(start, stop, len(intersecting_regions) + 2)[1:-1])
-    ax.set_xticklabels(list(intersecting_regions))
+    
+    #sets ticks to be in the middle of box plots
+    ax.set_xticks([(ax.get_xticks()[x] + ax.get_xticks()[x+1])  / 2.0 for x in range(len(ax.get_xticks()))[::2]])
+    ax.set_xticklabels([regions[region] for region in list(intersecting_regions)])
     ax.set_ylabel("PhastCons Score")
 
 def CLIP_QC_figure(reads_in_clusters, reads_out_clusters, cluster_lengths, 
                    reads_per_cluster, premRNA, mRNA, exondist, introndist, 
                    genomic_locs, clusters_locs, genomic_types, clusters_types,
-                   homer_location, kmer_results, motifs, phastcons_values):
+                   homer_location, kmer_results, motifs, phastcons_values, regions):
     
     """
     
@@ -423,6 +403,7 @@ def CLIP_QC_figure(reads_in_clusters, reads_out_clusters, cluster_lengths,
     kmer_results - dict[region][k][(kmer, value) the results of calculate_kmer_diff
     motifs - list[str] motifs to plot
     phastcons_values -- list[float] - conservation scores for each cluster
+    regions - dict of short name : printable name 
     
     """
     
@@ -481,17 +462,16 @@ def CLIP_QC_figure(reads_in_clusters, reads_out_clusters, cluster_lengths,
     build_reads_in_clusters(ax_pie_inout, reads_in_clusters, reads_out_clusters)
     build_reads_per_cluster(ax_nreads, reads_per_cluster)
     build_cluster_lengths(ax_lengths, cluster_lengths)
-    try:
-        build_phastcons_values(ax_cons, phastcons_values)
-    except Exception as e:
-        print e
+    if phastcons_values is not None:
+        build_phastcons_values(ax_cons, phastcons_values, regions)
     build_gene_distribution(ax_genedist, premRNA, mRNA)
     build_exon_exon_distribution(ax_exondist, exondist, introndist)
-    build_genomic_content(ax_pie_genomic, genomic_locs)
-    build_cluster_content(ax_pie_clusters, clusters_locs)
+    build_genomic_content(ax_pie_genomic, genomic_locs, regions)
+    build_cluster_content(ax_pie_clusters, clusters_locs, regions)
     build_nearest_exon(ax_bar_exontypes, genomic_types, clusters_types)
-    build_common_motifs(motif_grid, homer_location)
-    build_motif_boxplots(ax_hist_zscores, kmer_results, motifs) #TODO add in subplot for this figure
+    build_common_motifs(motif_grid, homer_location, regions)
+    if kmer_results is not None:
+        build_motif_boxplots(ax_hist_zscores, kmer_results, motifs, regions)
     plt.tight_layout()
     return fig
 
@@ -546,7 +526,7 @@ def plot_motif_dist(motif_distances, figure, color = "red", label=None, scale='l
         ax_region.hold(True)
         ax_region.plot(region_edges_rand[:-1], region_rand_hist, linestyle='dashed', c=color, label="_nolegend_")
 
-def build_motif_boxplots(ax, kmer_results, highlight_motifs):
+def build_motif_boxplots(ax, kmer_results, highlight_motifs, regions):
 
     """
     
@@ -560,12 +540,12 @@ def build_motif_boxplots(ax, kmer_results, highlight_motifs):
     """
     
     colorcycle = ["red", "orange", "green", "blue", "purple", "brown", "black", "pink", "gray", "cyan", "magenta"]
-    formal_labels = ["All Regions", "Exon", "3'UTR", "5'UTR", "Proximal Intron", "Distal Intron"] #might be able to remove   
+ 
     
     
     kmers = {}
     all_kmers = set()
-    
+
     #might consider converting into pandas data frame
     for region in kmer_results:
         kmers[region] = {}
@@ -596,7 +576,7 @@ def build_motif_boxplots(ax, kmer_results, highlight_motifs):
 
     #loads everything up and only showed the motifs that are highlighted...
     ax.boxplot(ak, vert=False, notch=1, sym='k.',  whis=2)
-    ax.set_yticklabels(kmer_results.keys())
+    ax.set_yticklabels([regions[region] for region in kmer_results.keys()])
     for i, motif in enumerate(highlight_motifs):
         indices= list()
         for ind, k in enumerate(all_kmers):

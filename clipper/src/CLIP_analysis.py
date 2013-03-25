@@ -30,8 +30,8 @@ def intersection(A, B=None):
     
     """
     
-    overlapping = A.intersect(B, wa=True, u=True)
-    remaining   = A.intersect(B, wa=True, v=True)
+    overlapping = A.intersect(B, wa=True, u=True).saveas()
+    remaining   = A.intersect(B, wa=True, v=True).saveas()
     #overlapping = A.subtract(B, s=True, A=True).saveas() #without regions that overlap
     #print len(less)
     #remaining = A.subtract(less, s=True, A=True) #only regions that overlap
@@ -194,7 +194,7 @@ def assign_to_regions(tool, clusters, speciesFA, regions_dir, regions,
     clusters - name of cluster file
     speciesFA - the species fasta file
     regions_dir - the directory that has genomic regions already processed
-    regions - list [str] regions to process, not used now but should be after refactoring
+    regions - dict [str] regions to process, not used now but should be after refactoring 
     assigned_dir - location to save files in
     fasta_dir -location to save fasta files in
     species - str species to segment
@@ -211,7 +211,7 @@ def assign_to_regions(tool, clusters, speciesFA, regions_dir, regions,
     bedtracks = {}
     #bedtracks = build_genomic_regions(pybedtools.BedTool(regions_dir))
     #regions = bedtracks.keys()
-    regions = ["exon", "UTR3", "UTR5", "proxintron500", "distintron500"]
+    
     for region in regions:
         bedtracks[region] = pybedtools.BedTool(os.path.join(regions_dir, region + "_" + species + "_frea_sorted.withscore"))
               
@@ -232,10 +232,12 @@ def assign_to_regions(tool, clusters, speciesFA, regions_dir, regions,
     
     for region in regions:
         output_file = clusters + "." + region + ".real.BED"
-
-        #check with mike about this
+        
+        #handles case of no more things to assign... I think
+ 
         remaining_clusters, overlapping = intersection(remaining_clusters, 
-                                                       B = bedtracks[region])  
+                                                  B = bedtracks[region])  
+
         
         #if for some reason there isn't a peak in the region skip it
         if len(overlapping) == 0:
@@ -285,6 +287,9 @@ def assign_to_regions(tool, clusters, speciesFA, regions_dir, regions,
             
         write_seqs(fa_file(clusters, region = region, directory=fasta_dir, type="random"), rand_list)
         
+        #if there are no more clusters to assign stop trying
+        if no_overlapping_count == 0:
+            break
     print "After assigning, I\'m left with %d un-categorized regions" %(len(remaining_clusters))
     try:
         bed_dict['uncatagorized'] = remaining_clusters.sort()
@@ -601,7 +606,7 @@ def chop(chr, start,end, wsize=5):
         i += wsize
     file.close()
  
-def get_mean_phastcons(bedtool, phastcons_location, sample_size = 10000):
+def get_mean_phastcons(bedtool, phastcons_location, sample_size = 1000):
     
     """
     
@@ -727,7 +732,7 @@ def calculate_kmer_diff(kmer_list, regions, clusters, fasta_dir):
             except IOError as e:
                 print e
                 print "Ignoring: %s" % (region)
-                
+ 
     return kmer_results
  
 def calculate_homer_motifs(kmer_list, regions, clusters, fasta_dir, homerout):
@@ -754,7 +759,7 @@ def calculate_homer_motifs(kmer_list, regions, clusters, fasta_dir, homerout):
         region_homer_out = os.path.join(homerout, region)
         run_homer(real_fa, rand_fa, kmer_list, outloc=region_homer_out)
 
-def calculate_phastcons(regions, cluster_regions, phastcons_location):
+def calculate_phastcons(regions, cluster_regions, phastcons_location, sample_size=1000):
     
     """
     
@@ -763,7 +768,7 @@ def calculate_phastcons(regions, cluster_regions, phastcons_location):
     regions - list[str] regions to analize
     cluster_regions - special dict that contains all random and normal cluster info
     phastcons_location - str location of phastcons file
-    
+    sample_size - int the number of regions to randomly sample to calculate phastcons (needed because sampling from bw file is slow for phastcons)
     
     """
     
@@ -773,18 +778,22 @@ def calculate_phastcons(regions, cluster_regions, phastcons_location):
     phast_values = {"real" : {}, "rand" : {}}
     print "Fetching Phastcons Scores..."
     #phastcons values for all regions except "all"
-    for region in regions[1:]: #skip "all" combine them later
+    for region in regions: #skip "all" combine them later
         print "%s..." % (region)
         try: #gracefully fail if the region isn't represented
             #think about collecting random sample to study...
             #samplesize = 1000
             print "getting real..." #gets phastcons values real regions
-            phast_values["real"][region] = get_mean_phastcons(cluster_regions[region]['real'], phastcons_location)
+            phast_values["real"][region] = get_mean_phastcons(cluster_regions[region]['real'], 
+                                                              phastcons_location, 
+                                                              sample_size = sample_size)
             
             #can't concatanate zero length arrays, so prime it
             randPhast = np.array([])
             for i in range(len(cluster_regions[region]['rand'])):
-                randPhast = np.concatenate((randPhast, get_mean_phastcons(cluster_regions[region]['rand'][i], phastcons_location)), axis=1)
+                randPhast = np.concatenate((randPhast, get_mean_phastcons(cluster_regions[region]['rand'][i], 
+                                                                          phastcons_location,  
+                                                                          sample_size = sample_size)), axis=1)
             phast_values["rand"][region] = randPhast
         except KeyError as e:
             print "ignoring: ", e
@@ -945,12 +954,19 @@ def main(options):
     make_dir(misc_dir)
     make_dir(fasta_dir)
     make_dir(homerout)
-
-    regions = (["all", "exon", "UTR3", "UTR5", "proxintron500", "distintron500"])    
+    
+    #lazy refactor, this used to be a list, but the dict acts the same until I don't want it to...
+    regions = {"all" : "All", "exon" : "Exon", "UTR3" : "3' UTR", 
+               "UTR5" : "5' UTR", "proxintron500" : "Proximal\nIntron", 
+               "distintron500" : "Distal\nIntron"}    
+    
+     #all catagory would break some analysies, create copy and remove it
+    assigned_regions = regions.copy()
+    del assigned_regions['all']
     
     genes_dict, genes_bed = parse_AS_STRUCTURE_dict(species, options.as_structure)
     
-    if options.assign is False:
+    if not options.assign:
         try:
             cluster_regions, region_sizes, genic_region_sizes = build_assigned_from_existing(assigned_dir, clusters, regions, options.nrand)
             
@@ -959,14 +975,17 @@ def main(options):
             print "I had problems retreiving region-assigned BED files from %s, i'll rebuild" % (assigned_dir)
             options.assign = True
     
-    if options.assign is True:
+    if options.assign:
         print "Assigning Clusters to Genic Regions"
-        #TODO what is region sizes?
+        
+       
+        
+        
         cluster_regions, region_sizes = assign_to_regions(clusters_bed,
                                                    clusters,
                                                    options.genome_location, 
                                                    options.regions_location, 
-                                                   regions,
+                                                   assigned_regions,
                                                    assigned_dir=assigned_dir,
                                                    fasta_dir=fasta_dir,
                                                    species=species, 
@@ -1004,30 +1023,31 @@ def main(options):
     genomic_type_count = [genomic_types["CE:"], genomic_types["SE:"], 
                           genomic_types["MXE:"], genomic_types["A5E:"], 
                           genomic_types["A3E:"]]    
-    kmer_results = []
+    kmer_results = None
     if options.reMotif:
         kmer_results = calculate_kmer_diff(options.k, regions, clusters, fasta_dir)        
     
     if options.homer:
         calculate_homer_motifs(options.k, regions, clusters, fasta_dir, homerout)
     
-    phast_values = []
+    phast_values = None
     #loads phastcons values output_file generates them again
-    if not options.rePhast:
-        try:
-            phast_values = pickle.load(open(os.path.join(misc_dir, "%s.phast.pickle" % (clusters))))
-        except:
-            options.rePhast = True
+    #if not options.rePhast:
+    #    try:
+    #        phast_values = pickle.load(open(os.path.join(misc_dir, "%s.phast.pickle" % (clusters))))
+    #    except:
+    #        options.rePhast = True
 
-    if options.rePhast and options.runPhast:
-        phast_values = calculate_phastcons(regions, cluster_regions, options.phastcons_location)
+    if options.runPhast:
+        phast_values = calculate_phastcons(assigned_regions, cluster_regions, options.phastcons_location)
     
     #build qc figure
     QCfig_params = [reads_in_clusters, (total_reads - reads_in_clusters), 
                     cluster_lengths, reads_per_cluster, premRNA_positions, 
                     mRNA_positions, exon_positions, intron_positions, 
                     genic_region_sizes, region_sizes, genomic_type_count,
-                     type_count, homerout, kmer_results, motifs, phast_values]
+                    type_count, homerout, kmer_results, motifs, phast_values, 
+                    regions]
     
     QCfig = CLIP_Analysis_Display.CLIP_QC_figure(*QCfig_params)
     fn = clusters + ".QCfig.pdf"
@@ -1064,7 +1084,7 @@ def main(options):
 
     out_file = open(os.path.join(assigned_dir, "%s.pickle" %(clusters)), 'w')
     pickle.dump(out_dict, file=out_file)
-
+    print "done"
     #fin
 if __name__== "__main__":
     parser = OptionParser()
@@ -1073,17 +1093,16 @@ if __name__== "__main__":
     parser.add_option("--bam", dest="bam", help="The bam file from the CLIP analysis")
     parser.add_option("--species", "-s", dest="species", help = "genome version")
     ##to-do. this should be auto-set if the creation date of "clusters" is after creation date fo assigned files
-    parser.add_option("--reAssign", dest="assign", action="store_true", default=False, help="re-assign clusters, if not set it will re-use existing assigned clusters") 
+    #parser.add_option("--reAssign", dest="assign", action="store_true", default=False, help="re-assign clusters, if not set it will re-use existing assigned clusters") 
     ##to-do. this should be auto-set if the creation date of "clusters" is after creation date fo assigned files
-    parser.add_option("--rePhast", dest="rePhast", action="store_true", default=False, help="re-calculate conservation, must have been done before") 
+    #parser.add_option("--rePhast", dest="rePhast", action="store_true", default=False, help="re-calculate conservation, must have been done before") 
     parser.add_option("--runPhast", dest="runPhast", action="store_true", default=False, help="Run Phastcons ") 
-
     parser.add_option("--runMotif", dest="reMotif", action="store_true", default=False, help="Calculate Motif scores")
-    parser.add_option("--motif", dest="motif", action="append", help="Files of motif locations", default=None)
     parser.add_option("--runHomer", dest="homer", action="store_true", help="Runs homer", default=False)
+    parser.add_option("--motifs", dest="motif", action="append", help="Motifs to use (files of motifs give must exist in motif_directory directory)", default=None)
     parser.add_option("--k", dest="k", action="append", help="k-mer and homer motif ananlysis", default=[6])
-    parser.add_option("--conservation", dest="cons", help="Runs conservation (might not do anything)", action="store_true")
-    parser.add_option("--structure", dest="structure", help="also doesn't do anything gets structure maps", action="store_true")
+    #parser.add_option("--conservation", dest="cons", help="Runs conservation (might not do anything)", action="store_true")
+    #parser.add_option("--structure", dest="structure", help="also doesn't do anything gets structure maps", action="store_true")
     parser.add_option("--nrand", dest="nrand", default=3, help="selects number of times to randomly sample genome", type="int")
     parser.add_option("--outdir", "-o", dest="outdir", default=os.getcwd(), help="directory for output, default:cwd")
     ##Below here are critical files that always need to be referenced
@@ -1093,7 +1112,8 @@ if __name__== "__main__":
     parser.add_option("--phastcons_location", dest="phastcons_location",  help="location of phastcons file", default=None)
     parser.add_option("--regions_location", dest="regions_location",  help="directory of genomic regions for a species", default=None)
     parser.add_option("--motif_directory", dest="motif_location",  help="directory of pre-computed motifs for analysis", default=os.getcwd())
-   
+    parser.add_option("--reAssign", dest="assign", action="store_true", default=False, help="re-assign clusters, if not set it will re-use existing assigned clusters")
+
     (options, args) = parser.parse_args()
     
     #error checking

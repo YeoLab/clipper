@@ -22,30 +22,30 @@ class Test(unittest.TestCase):
     
     def setUp(self):
         self.parser = OptionParser()
-    
         self.parser.add_option("--clusters", dest="clusters", help="BED file of clusters", metavar="BED")
-        self.parser.add_option("--bam", dest="bam")
+        self.parser.add_option("--bam", dest="bam", help="The bam file from the CLIP analysis")
         self.parser.add_option("--species", "-s", dest="species", help = "genome version")
         ##to-do. this should be auto-set if the creation date of "clusters" is after creation date fo assigned files
-        self.parser.add_option("--reAssign", dest="assign", action="store_true", default=False, help="re-assign clusters, if not set it will re-use existing assigned clusters") 
+        #parser.add_option("--reAssign", dest="assign", action="store_true", default=False, help="re-assign clusters, if not set it will re-use existing assigned clusters") 
         ##to-do. this should be auto-set if the creation date of "clusters" is after creation date fo assigned files
-        self.parser.add_option("--rePhast", dest="rePhast", action="store_true", default=False, help="re-calculate conservation, must have been done before") 
-        self.parser.add_option("--runMotif", dest="reMotif", action="store_true", default=False, help="Calculate Motif scores")
-        self.parser.add_option("--motif", dest="motif", action="append", help="Files of motif locations", default=None)
-        self.parser.add_option("--homer", dest="homer", action="store_true", help="What does this do?", default=False)
-        self.parser.add_option("--conservation", dest="cons", help="what does this do?", action="store_true")
-        self.parser.add_option("--structure", dest="structure", help="what does this do?", action="store_true")
-        self.parser.add_option("--nrand", dest="nrand", default=3, help="selects number of times to randomly sample genome", type="int")
-        self.parser.add_option("--k", dest="k", action="append", help="what does this do?", default=[6])
-        self.parser.add_option("--outdir", "-o", dest="outdir", default=os.getcwd(), help="directory for output, default:cwd")
-        self.parser.add_option("--run_phast", dest="run_phast", action="store_true", help="what does this do?", default=False)
-        self.parser.add_option("--AS_Structure", dest="as_structure", help="Location of AS_Structure directory (chromosme files should be inside)", default=None)
-        self.parser.add_option("--genome_location", dest="genome_location", help="location of all.fa file for genome of interest", default=None)
-        self.parser.add_option("--homer_path", dest="homer_path", help="path to homer, if not in default path", default=None)
-        self.parser.add_option("--phastcons_location", dest="phastcons_location", help="location of phastcons file", default=None)
-        self.parser.add_option("--regions_location", dest="regions_location" , help="directory of genomic regions for a species", default=None)
-        self.parser.add_option("--motif_location", dest="motif_location", help="directory of pre-computed motifs for analysis", default=os.getcwd())
+        #parser.add_option("--rePhast", dest="rePhast", action="store_true", default=False, help="re-calculate conservation, must have been done before") 
         self.parser.add_option("--runPhast", dest="runPhast", action="store_true", default=False, help="Run Phastcons ") 
+        self.parser.add_option("--runMotif", dest="reMotif", action="store_true", default=False, help="Calculate Motif scores")
+        self.parser.add_option("--runHomer", dest="homer", action="store_true", help="Runs homer", default=False)
+        self. parser.add_option("--motifs", dest="motif", action="append", help="Motifs to use (files of motifs give must exist in motif_directory directory)", default=None)
+        self.parser.add_option("--k", dest="k", action="append", help="k-mer and homer motif ananlysis", default=[6])
+        #parser.add_option("--conservation", dest="cons", help="Runs conservation (might not do anything)", action="store_true")
+        #parser.add_option("--structure", dest="structure", help="also doesn't do anything gets structure maps", action="store_true")
+        self.parser.add_option("--nrand", dest="nrand", default=3, help="selects number of times to randomly sample genome", type="int")
+        self.parser.add_option("--outdir", "-o", dest="outdir", default=os.getcwd(), help="directory for output, default:cwd")
+        ##Below here are critical files that always need to be referenced
+        self.parser.add_option("--AS_Structure", dest="as_structure",  help="Location of AS_Structure directory (chromosme files should be inside)", default=None)
+        self.parser.add_option("--genome_location", dest="genome_location", help="location of all.fa file for genome of interest", default=None)
+        self.parser.add_option("--homer_path", dest="homer_path", action="append", help="path to homer, if not in default path", default=None)
+        self.parser.add_option("--phastcons_location", dest="phastcons_location",  help="location of phastcons file", default=None)
+        self.parser.add_option("--regions_location", dest="regions_location",  help="directory of genomic regions for a species", default=None)
+        self.parser.add_option("--motif_directory", dest="motif_location",  help="directory of pre-computed motifs for analysis", default=os.getcwd())
+        self.parser.add_option("--reAssign", dest="assign", action="store_true", default=False, help="re-assign clusters, if not set it will re-use existing assigned clusters")
 
 
      
@@ -64,9 +64,8 @@ class Test(unittest.TestCase):
                 #'--regions_location', clipper.test_file("knownGene_sample.gtf"),
                 "--regions_location", '/home/gabrielp/bioinformatics/Yeo_Lab/clip_analysis_metadata/regions',
                 '--phastcons_location', '/home/gabrielp/bioinformatics/Yeo_Lab/clip_analysis_metadata/phastcons/mm9_phastcons.bw',
-                '--motif', 'AAAAAA',
+                '--motifs', 'AAAAAA',
                 '--nrand', '1',
-                '--rePhast',
                 '--runPhast',
                 '--runMotif'
                 ]    
@@ -247,7 +246,9 @@ class Test(unittest.TestCase):
                           clusters="test", 
                           speciesFA="/home/gabrielp/bioinformatics/Yeo_Lab/clip_analysis_metadata/mm9/mm9.fa", 
                           regions_dir="/home/gabrielp/bioinformatics/Yeo_Lab/clip_analysis_metadata/regions", 
-                          regions=[],
+                          regions={"exon" : "Exon", "UTR3" : "3' UTR", 
+                                    "UTR5" : "5' UTR", "proxintron500" : "Proximal Intron", 
+                                    "distintron500" : "Distal Intron"} ,
                           assigned_dir = clipper.test_dir(),
                           fasta_dir = clipper.test_dir(),
                           species="mm9", 
