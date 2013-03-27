@@ -119,7 +119,7 @@ def count_genomic_types(as_structure_dict):
 
 
 
-def count_genomic_region_sizes(regions_dir, species="hg19"):
+def count_genomic_region_sizes(regions_dir, regions, species="hg19"):
     
     """
     
@@ -129,7 +129,6 @@ def count_genomic_region_sizes(regions_dir, species="hg19"):
     """
     
     genomic_region_sizes = {}
-    regions = ["exon", "UTR3", "UTR5", "proxintron500", "distintron500"]
     
     for region in regions:
         region_tool = pybedtools.BedTool(os.path.join(regions_dir, region + "_" + species + "_frea_sorted.withscore"))
@@ -993,7 +992,7 @@ def main(options):
                                                    nrand=options.nrand,
                                                    )
         
-        genic_region_sizes = count_genomic_region_sizes(options.regions_location, 
+        genic_region_sizes = count_genomic_region_sizes(options.regions_location, assigned_regions,
                                                             species)
 
     print "Counting reads in clusters...",
