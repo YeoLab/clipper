@@ -1091,7 +1091,12 @@ def main(options):
 
     out_file = open(os.path.join(assigned_dir, "%s.pickle" %(clusters)), 'w')
     pickle.dump(out_dict, file=out_file)
-    print "done"
+    
+    with open(options.metrics, 'w') as outfile:
+        outfile.write("FRiP\n")
+        outfile.write("\t".join([str(float(reads_in_clusters) / float(total_reads))]) + "\n")
+    
+    
     #fin
 if __name__== "__main__":
     parser = OptionParser()
@@ -1120,6 +1125,7 @@ if __name__== "__main__":
     parser.add_option("--regions_location", dest="regions_location",  help="directory of genomic regions for a species", default=None)
     parser.add_option("--motif_directory", dest="motif_location",  help="directory of pre-computed motifs for analysis", default=os.getcwd())
     parser.add_option("--reAssign", dest="assign", action="store_true", default=False, help="re-assign clusters, if not set it will re-use existing assigned clusters")
+    parser.add_option("--metrics", dest="metrics", default="CLIP_Analysis.metrics", help="file name to output metrics to")
 
     (options, args) = parser.parse_args()
     

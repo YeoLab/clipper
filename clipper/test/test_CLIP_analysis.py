@@ -14,6 +14,8 @@ import clipper
 import pybedtools
 from numpy.testing import *
 from numpy import array
+from collections import OrderedDict
+
 class Test(unittest.TestCase):
     
     """  Runs tests on CLIP_analyis module """
@@ -46,9 +48,8 @@ class Test(unittest.TestCase):
         self.parser.add_option("--regions_location", dest="regions_location",  help="directory of genomic regions for a species", default=None)
         self.parser.add_option("--motif_directory", dest="motif_location",  help="directory of pre-computed motifs for analysis", default=os.getcwd())
         self.parser.add_option("--reAssign", dest="assign", action="store_true", default=False, help="re-assign clusters, if not set it will re-use existing assigned clusters")
+        self.parser.add_option("--metrics", dest="metrics",  default="CLIP_Analysis.metrics", help="file name to output metrics to")
 
-
-     
     def testName(self):
         pass
 
@@ -68,6 +69,7 @@ class Test(unittest.TestCase):
                 '--nrand', '1',
                 '--runPhast',
                 '--runMotif'
+                
                 ]    
         (options, args) = self.parser.parse_args(args)
         CLIP_analysis.main(options)
@@ -230,7 +232,13 @@ class Test(unittest.TestCase):
         
         """
         
-        results = count_genomic_region_sizes('/home/gabrielp/bioinformatics/Yeo_Lab/clip_analysis_metadata/regions', "mm9")
+        regions = OrderedDict()
+        regions["exon"] = "Exon"
+        regions["UTR3"] = "3' UTR"
+        regions["UTR5"] = "5' UTR"
+        regions["proxintron500"] = "Proximal\nIntron"
+        regions["distintron500"] = "Distal\nIntron"
+        results = count_genomic_region_sizes('/home/gabrielp/bioinformatics/Yeo_Lab/clip_analysis_metadata/regions', regions, "mm9")
         
     def test_assign_to_regions(self):
         
