@@ -258,7 +258,7 @@ def build_common_motifs(motif_grid, homer_location, regions):
     
     """
         
-    for i, region in enumerate(regions):
+    for i, region in enumerate(regions.keys()):
         
         #make a gridspec for the top 8 motifs 
         gs_homer_motifs = gridspec.GridSpecFromSubplotSpec(8, 1, subplot_spec=(motif_grid[i]))
@@ -276,7 +276,7 @@ def build_common_motifs(motif_grid, homer_location, regions):
             
                 #print title only once
                 if j == 0:
-                    ax = plt.subplot(space, frameon=False, xticks=[], yticks=[], title=region[regions])
+                    ax = plt.subplot(space, frameon=False, xticks=[], yticks=[], title=regions[region])
                 else:
                     ax = plt.subplot(space, frameon=False, xticks=[], yticks=[])
                 ax.imshow(motif)

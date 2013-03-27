@@ -15,7 +15,7 @@ import subprocess
 from bx.bbi.bigwig_file import BigWigFile
 from clipper.src import CLIP_Analysis_Display
 from clipper.src.kmerdiff import kmer_diff
-from collections import Counter
+from collections import Counter, OrderedDict
 from random import sample
 from AS_Structure_tools import parse_AS_STRUCTURE_dict
 
@@ -220,6 +220,9 @@ def assign_to_regions(tool, clusters, speciesFA, regions_dir, regions,
     bed_dict['all']['rand'] = {}
 
     #can't append None to string so hack a null bed tool
+    for n in range(nrand):
+        bed_dict['all']['rand'][n] = pybedtools.BedTool("", from_string=True)
+
     bed_dict['all']['real'] = pybedtools.BedTool("", from_string = True)
     
     offsets = get_offsets_bed12(tool)
@@ -269,7 +272,6 @@ def assign_to_regions(tool, clusters, speciesFA, regions_dir, regions,
         rand_list = []
         for i in range(nrand):
             output_file = clusters + "." + region + ".rand." + str(i) + ".BED"
-            bed_dict['all']['rand'][i] = pybedtools.BedTool("", from_string=True)
             
             #for each region shuffles all peaks in that region around the region 
             #then pulls out sequences if requested 
@@ -543,13 +545,13 @@ def run_homer(foreground, background, k = list([5,6,7,8,9]), outloc = os.getcwd(
     #converts k to a string for use in subprocess
     k = ",".join([str(x) for x in k])
     print "starting Homer"
-    print " ".join(["findMotifs.pl", foreground, "fasta", 
-                                  outloc, "-p", "4", "-rna", "-S", "20",
-                                   "-len", k, "-fasta", background])
+    
     try:
-        result = subprocess.call(["findMotifs.pl", foreground, "fasta", 
+        with open(os.devnull, 'w') as fnull:
+            result = subprocess.call(["findMotifs.pl", foreground, "fasta", 
                                   outloc, "-p", "4", "-rna", "-S", "20",
-                                   "-len", k, "-fasta", background])
+                                   "-len", k, "-fasta", background], shell=False, stdout=fnull)
+            
         print "Homer Finished, output here: %s" %(outloc)
     except OSError:
         print "Homer not installed, ignoring motif generation, install homer for this to work"  
@@ -615,20 +617,19 @@ def get_mean_phastcons(bedtool, phastcons_location, sample_size = 1000):
     
     """
     
-    f = open(phastcons_location, 'r')
-    bw = BigWigFile(file=f)
-
-    #if bedtool
-    data = []
-    for bedline in sample(bedtool, min(len(bedtool), sample_size)):
-              
-        conservation_values = bw.get_as_array(bedline.chrom, bedline.start, bedline.stop)
+    with open(phastcons_location) as bw_file:
+        bw = BigWigFile(bw_file)
+    
+        data = []
         
-        if len(conservation_values) > 0:
-            mean_phastcons = np.mean(conservation_values)
-        else:
-            mean_phastcons = 0
-        data.append(mean_phastcons)
+        for bedline in bedtool.random_subset(min(len(bedtool), sample_size)):
+            conservation_values = bw.get_as_array(bedline.chrom, bedline.start, bedline.stop)
+        
+            if len(conservation_values) > 0:
+                mean_phastcons = np.mean(conservation_values)
+            else:
+                mean_phastcons = 0
+            data.append(mean_phastcons)
         
     return data
 
@@ -777,27 +778,27 @@ def calculate_phastcons(regions, cluster_regions, phastcons_location, sample_siz
     phast_values = {"real" : {}, "rand" : {}}
     print "Fetching Phastcons Scores..."
     #phastcons values for all regions except "all"
+    
     for region in regions: #skip "all" combine them later
         print "%s..." % (region)
+
         try: #gracefully fail if the region isn't represented
-            #think about collecting random sample to study...
-            #samplesize = 1000
-            print "getting real..." #gets phastcons values real regions
             phast_values["real"][region] = get_mean_phastcons(cluster_regions[region]['real'], 
                                                               phastcons_location, 
                                                               sample_size = sample_size)
             
             #can't concatanate zero length arrays, so prime it
             randPhast = np.array([])
-            for i in range(len(cluster_regions[region]['rand'])):
-                randPhast = np.concatenate((randPhast, get_mean_phastcons(cluster_regions[region]['rand'][i], 
+            for rand_bed in cluster_regions[region]['rand'].values():                
+                randPhast = np.concatenate((randPhast, get_mean_phastcons(rand_bed, 
                                                                           phastcons_location,  
                                                                           sample_size = sample_size)), axis=1)
             phast_values["rand"][region] = randPhast
         except KeyError as e:
             print "ignoring: ", e
             continue
-    
+
+
     #get the "all" values
     phast_values["real"]["all"] = np.concatenate(phast_values["real"].values())
     phast_values["rand"]["all"] = np.concatenate(phast_values["rand"].values())
@@ -955,9 +956,13 @@ def main(options):
     make_dir(homerout)
     
     #lazy refactor, this used to be a list, but the dict acts the same until I don't want it to...
-    regions = {"all" : "All", "exon" : "Exon", "UTR3" : "3' UTR", 
-               "UTR5" : "5' UTR", "proxintron500" : "Proximal\nIntron", 
-               "distintron500" : "Distal\nIntron"}    
+    regions = OrderedDict()
+    regions["all" ] = "All"
+    regions["exon"] = "Exon"
+    regions["UTR3"] = "3' UTR"
+    regions["UTR5"] = "5' UTR"
+    regions["proxintron500"] = "Proximal\nIntron"
+    regions["distintron500"] = "Distal\nIntron"
     
      #all catagory would break some analysies, create copy and remove it
     assigned_regions = regions.copy()
@@ -995,6 +1000,8 @@ def main(options):
         genic_region_sizes = count_genomic_region_sizes(options.regions_location, assigned_regions,
                                                             species)
 
+
+            
     print "Counting reads in clusters...",
     reads_in_clusters, reads_per_cluster = count_reads_per_cluster(cluster_regions['all']['real'])
     
@@ -1037,9 +1044,10 @@ def main(options):
     #    except:
     #        options.rePhast = True
 
+    print "starting phast"
     if options.runPhast:
         phast_values = calculate_phastcons(assigned_regions, cluster_regions, options.phastcons_location)
-    
+    print "ending phast"
     #build qc figure
     QCfig_params = [reads_in_clusters, (total_reads - reads_in_clusters), 
                     cluster_lengths, reads_per_cluster, premRNA_positions, 
