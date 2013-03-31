@@ -554,7 +554,7 @@ def main(options):
         
     outbed = options.outfile
     color = options.color
-    pybedtools.BedTool("\n".join(filtered_peaks), from_string=True).sort(stream=True).saveas(outbed, trackline="track name=\"%s\" visibility=2 colorByStrand=\"%s %s\"" % (outbed, color, color))
+    pybedtools.BedTool("\n".join(filtered_peaks), from_string=True).sort(stream=True).saveas(outbed)
 
     logging.info("wrote peaks to %s" % (options.outfile))
     
