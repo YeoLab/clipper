@@ -376,7 +376,7 @@ def filter_results(results, poisson_cutoff, transcriptome_size, transcriptome_re
                                 global_pval])
                 
                 if bonferroni_correct:
-                    min_pval = min_pval * total_clusters 
+                    min_pval = min(min_pval * total_clusters,1.0) 
                             
                 if not (min_pval < poisson_cutoff):
                     logging.info("Failed Gene Pvalue: %s and failed SloP Pvalue: %s and global value %s for Gene %s %s" % (cluster.super_local_poisson_p, cluster.gene_poisson_p, global_pval, cluster.gene_name, cluster.peak_number))
@@ -551,6 +551,7 @@ def main(options):
         
     outbed = options.outfile
     color = options.color
+
     pybedtools.BedTool("\n".join(filtered_peaks), from_string=True).sort(stream=True).saveas(outbed)
 
     logging.info("wrote peaks to %s" % (options.outfile))
