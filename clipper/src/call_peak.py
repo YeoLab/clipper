@@ -1130,14 +1130,6 @@ def peaks_from_info(bam_fileobj, wiggle, pos_counts, lengths, loc, gene_length,
              peak_number += 1
              peak_dict['sections'][sect]['nPeaks'] +=1
            
-    #inflate p-values based on # of comparisons #bonferroni corrected
-    if correct_p is True:
-        #best I can tell this never executes...            
-        for genomic_center in peak_dict['clusters']:
-            genomic_center.p = genomic_center.p * peak_number  #bonferroni correct p-value for MHT
-        
-        
-
     peak_dict['Nclusters'] = peak_number
     if plotit:
         import sys
