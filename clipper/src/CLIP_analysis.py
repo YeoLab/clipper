@@ -13,7 +13,7 @@ import os
 import pickle
 import subprocess
 from bx.bbi.bigwig_file import BigWigFile
-from clipper.src import CLIP_Analysis_Display
+from clipper.src import CLIP_analysis_display
 from clipper.src.kmerdiff import kmer_diff
 from collections import Counter, OrderedDict
 from random import sample
@@ -61,7 +61,7 @@ def adjust_offsets(tool, offsets=None):
     clusters = []
     for bed_line in tool:
 
-        #handles multiple different types of bed files (don't know why)
+        #handles multiple different types of bed files
         if len(bed_line.fields) < 8:
             thick_start = 0
             thick_stop = 0
@@ -422,10 +422,10 @@ def RNA_position(bedline, as_structure_dict):
 
     
     try:
-        gene, n, reads = name.split("_")
+        gene = name.split("_")[0]
     except:
         #takes first gene if there are multiple overlapping 
-        gene, n, reads = name.split(";")[0].split("_")
+        gene = name.split(";")[0].split("_")[0]
     
     if gene not in as_structure_dict:
         raise KeyError(gene + " not in current as stucture dict ignoring cluster ")
@@ -675,14 +675,14 @@ def count_total_reads(bam, gene_definition):
     
     return len(bam.intersect(gene_definition, u=True))
 
-def count_reads_per_cluster(bedtool):
+def count_reads_per_cluster(bedtool, bamtool):
     
     """
     
     Counts the number of reads in each cluster
     
     bedtool: bedtool containing the specially formatted CLIPper bedlines
-    
+    bamtool: a pybedtools tool for all the reads in the bam file
     returns list(int) each index being a read in the cluster
     
     """
@@ -691,13 +691,17 @@ def count_reads_per_cluster(bedtool):
     #gets reads per cluster (figure 2)
 
     reads_per_cluster = []
-    for cluster in bedtool:
-        
-        #handles merged clusters (taking the reads from only the first one)
-        first_cluster = cluster.name.split(";")[0]
-        number_reads_in_peak = first_cluster.split("_")[2]
-        reads_per_cluster.append(int(number_reads_in_peak))
- 
+    try:
+        for cluster in bedtool:
+           #handles merged clusters (taking the reads from only the first one)
+           first_cluster = cluster.name.split(";")[0]
+           number_reads_in_peak = first_cluster.split("_")[2]
+           reads_per_cluster.append(int(number_reads_in_peak))
+    except: #can't count based on reported number, reverting to bedtools 
+        cov = bamtool.coverage(bedtool, s=True, counts=True)
+        for cluster in cov:
+            reads_per_cluster.append(int(cluster[-1]))
+            
     reads_in_clusters = sum(reads_per_cluster)
     return reads_in_clusters, reads_per_cluster
 
@@ -917,6 +921,12 @@ def generate_motif_distances(cluster_regions, region_sizes, motifs, motif_locati
     
     return motif_distance_list
 
+def make_unique(feature):
+        global uniq_count
+        uniq_count +=1
+        feature.name = feature.name + "_" + str(uniq_count)
+        return feature
+    
 def main(options):
     
     """
@@ -930,14 +940,18 @@ def main(options):
     #gets clusters in a bed tools + names species 
     clusters = os.path.basename(options.clusters)
     species = options.species
-    clusters_bed = pybedtools.BedTool(options.clusters)
 
+    #In case names aren't unique make them all unique
+    global uniq_count
+    uniq_count = 0
+    clusters_bed = pybedtools.BedTool(options.clusters).each(make_unique).saveas()
+    bamtool = pybedtools.BedTool(options.bam)
     #makes output file names 
     clusters = str.replace(clusters, ".BED", "")
     options.k = [int(x) for x in options.k]
     
     #all the different motifs that the user specifices 
-    motifs = list(options.motif)
+    motifs = options.motifs
     outdir = options.outdir
     
     #sets up output dirs
@@ -1003,20 +1017,17 @@ def main(options):
 
             
     print "Counting reads in clusters...",
-    reads_in_clusters, reads_per_cluster = count_reads_per_cluster(cluster_regions['all']['real'])
+    reads_in_clusters, reads_per_cluster = count_reads_per_cluster(cluster_regions['all']['real'], bamtool)
     
     #might want to actually count genes_dict, not clusters...
-    total_reads = count_total_reads(pybedtools.BedTool(options.bam), genes_bed)
+    total_reads = count_total_reads(bamtool, genes_bed)
     
     #one stat is just generated here
     #generates cluster lengths (figure 3)
     cluster_lengths = bedlengths(cluster_regions['all']['real'])
     print "done"
     
-
-    
     #also builds figure 10 (exon distances)
-    
     genomic_types = count_genomic_types(genes_dict)
     types, premRNA_positions, mRNA_positions, exon_positions, intron_positions = calculate_peak_locations(cluster_regions['all']['real'], genes_dict)
         
@@ -1057,13 +1068,13 @@ def main(options):
                     regions]
     
     QCfig = CLIP_Analysis_Display.CLIP_QC_figure(*QCfig_params)
-    fn = clusters + ".QCfig.pdf"
+    fn = clusters + ".QCfig.svg"
     outFig = os.path.join(outdir, fn)
     QCfig.savefig(outFig)
         
     #prints distance of clusters from various motifs in a different figure
     try:
-        if motifs is not None:
+        if motifs:
             motif_distances = generate_motif_distances(cluster_regions, region_sizes, motifs, options.motif_location, options.species)
             motif_fig = CLIP_Analysis_Display.plot_motifs(motif_distances)
             motif_fig.savefig(clusters + ".motif_distribution.pdf")
@@ -1111,7 +1122,7 @@ if __name__== "__main__":
     parser.add_option("--runPhast", dest="runPhast", action="store_true", default=False, help="Run Phastcons ") 
     parser.add_option("--runMotif", dest="reMotif", action="store_true", default=False, help="Calculate Motif scores")
     parser.add_option("--runHomer", dest="homer", action="store_true", help="Runs homer", default=False)
-    parser.add_option("--motifs", dest="motif", action="append", help="Motifs to use (files of motifs give must exist in motif_directory directory)", default=None)
+    parser.add_option("--motifs", dest="motifs", action="append", help="Motifs to use (files of motifs give must exist in motif_directory directory)", default=[])
     parser.add_option("--k", dest="k", action="append", help="k-mer and homer motif ananlysis", default=[6])
     #parser.add_option("--conservation", dest="cons", help="Runs conservation (might not do anything)", action="store_true")
     #parser.add_option("--structure", dest="structure", help="also doesn't do anything gets structure maps", action="store_true")
