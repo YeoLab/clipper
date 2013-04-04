@@ -1062,6 +1062,7 @@ def main(options):
     QCfig.savefig(outFig)
         
     #prints distance of clusters from various motifs in a different figure
+    motif_distances = []
     try:
         if motifs is not None:
             motif_distances = generate_motif_distances(cluster_regions, region_sizes, motifs, options.motif_location, options.species)
