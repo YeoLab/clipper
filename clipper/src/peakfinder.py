@@ -14,6 +14,8 @@ from clipper import data_dir
 from clipper.src.call_peak import call_peaks, poissonP
 import logging
 import numpy as np
+import random
+
 logging.captureWarnings(True)
     
 def trim_reads(bamfile):
@@ -467,7 +469,7 @@ def main(options):
         maxgenes = int(options.maxgenes)
 
     minreads = int(options.minreads)
-    poisson_cutoff = options.poisson_cutoff
+    poisson_cutoff = float(options.poisson_cutoff)
 
     #gets all the genes to call peaks on
 
@@ -476,20 +478,15 @@ def main(options):
     else: #selects all genes
         gene_list = genes.keys()
     
-
-    results = []
-    
+    #truncates for max genes
+    if options.maxgenes is not None:
+        gene_list = random.sample(genes, k=maxgenes)
+        
     #Set up peak calling by gene
     running_list = [genes[gene] for gene in gene_list]
     length_list  = [lengths[gene] for gene in gene_list]
     
-    #truncates for max genes
-    if options.maxgenes is not None:
-        import random
 
-        ind = random.sample(xrange(len(genes.keys())), k=options.maxgenes)
-        running_list = running_list[ind]
-        length_list  = length_list[ind]
     
     transcriptome_size = sum(length_list)
     #do the parralization
@@ -501,8 +498,8 @@ def main(options):
               for gene, length in zip(running_list, length_list)]
     
     jobs = []
+    results = []
     if options.debug:
-        
         for job in tasks:
             jobs.append(func_star(job))
         
@@ -554,7 +551,8 @@ def main(options):
         
     outbed = options.outfile
     color = options.color
-    pybedtools.BedTool("\n".join(filtered_peaks), from_string=True).sort(stream=True).saveas(outbed) #, trackline="track name=\"%s\" visibility=2 colorByStrand=\"%s %s\"" % (outbed, color, color))
+
+    pybedtools.BedTool("\n".join(filtered_peaks), from_string=True).sort(stream=True).saveas(outbed)
 
     logging.info("wrote peaks to %s" % (options.outfile))
     

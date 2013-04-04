@@ -22,11 +22,8 @@ def parse_AS_STRUCTURE_dict(species, working_dir):
     Should refactor to be a real object, but I'm lazy right now...
     
     """
-    
 
-    
-    print species
-    if species == "hg19":
+    if species == "hg19" or species == "hg18":
         chroms = [str(x) for x in range(1, 23)] #1-22
         chroms.append("X")
         chroms.append("Y")
