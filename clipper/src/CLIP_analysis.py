@@ -1067,8 +1067,8 @@ def main(options):
                     type_count, homerout, kmer_results, motifs, phast_values, 
                     regions]
     
-    QCfig = CLIP_Analysis_Display.CLIP_QC_figure(*QCfig_params)
-    fn = clusters + ".QCfig.svg"
+    QCfig = CLIP_analysis_display.CLIP_QC_figure(*QCfig_params)
+    fn = clusters + ".QCfig." + options.extension
     outFig = os.path.join(outdir, fn)
     QCfig.savefig(outFig)
         
@@ -1077,8 +1077,8 @@ def main(options):
     try:
         if motifs:
             motif_distances = generate_motif_distances(cluster_regions, region_sizes, motifs, options.motif_location, options.species)
-            motif_fig = CLIP_Analysis_Display.plot_motifs(motif_distances)
-            motif_fig.savefig(clusters + ".motif_distribution.pdf")
+            motif_fig = CLIP_analysis_display.plot_motifs(motif_distances)
+            motif_fig.savefig(clusters + ".motif_distribution." + options.extension)
     except:
         pass
     
@@ -1138,6 +1138,7 @@ if __name__== "__main__":
     parser.add_option("--motif_directory", dest="motif_location",  help="directory of pre-computed motifs for analysis", default=os.getcwd())
     parser.add_option("--reAssign", dest="assign", action="store_true", default=False, help="re-assign clusters, if not set it will re-use existing assigned clusters")
     parser.add_option("--metrics", dest="metrics", default="CLIP_Analysis.metrics", help="file name to output metrics to")
+    parser.add_option("--extension", dest="extension", default="png", help="file extension to use (svg, png, pdf...)")
 
     (options, args) = parser.parse_args()
     

@@ -34,7 +34,7 @@ class Test(unittest.TestCase):
         self.parser.add_option("--runPhast", dest="runPhast", action="store_true", default=False, help="Run Phastcons ") 
         self.parser.add_option("--runMotif", dest="reMotif", action="store_true", default=False, help="Calculate Motif scores")
         self.parser.add_option("--runHomer", dest="homer", action="store_true", help="Runs homer", default=False)
-        self. parser.add_option("--motifs", dest="motif", action="append", help="Motifs to use (files of motifs give must exist in motif_directory directory)", default=None)
+        self.parser.add_option("--motifs", dest="motifs", action="append", help="Motifs to use (files of motifs give must exist in motif_directory directory)", default=[])
         self.parser.add_option("--k", dest="k", action="append", help="k-mer and homer motif ananlysis", default=[6])
         #parser.add_option("--conservation", dest="cons", help="Runs conservation (might not do anything)", action="store_true")
         #parser.add_option("--structure", dest="structure", help="also doesn't do anything gets structure maps", action="store_true")
@@ -49,6 +49,7 @@ class Test(unittest.TestCase):
         self.parser.add_option("--motif_directory", dest="motif_location",  help="directory of pre-computed motifs for analysis", default=os.getcwd())
         self.parser.add_option("--reAssign", dest="assign", action="store_true", default=False, help="re-assign clusters, if not set it will re-use existing assigned clusters")
         self.parser.add_option("--metrics", dest="metrics",  default="CLIP_Analysis.metrics", help="file name to output metrics to")
+        self.parser.add_option("--extension", dest="extension", default="png", help="file extension to use (svg, png, pdf...)")
 
     def testName(self):
         pass
@@ -347,7 +348,7 @@ class Test(unittest.TestCase):
         
         bedtool = pybedtools.BedTool(clipper.test_file("clip_analysis_test_peak_results.bed"))
         
-        total_reads, reads_per_cluster = count_reads_per_cluster(bedtool)
+        total_reads, reads_per_cluster = count_reads_per_cluster(bedtool, None)
         
         self.assertListEqual([147,52, 239, 85, 47, 119, 58, 588, 92, 59, 196, 36], reads_per_cluster)
         self.assertEqual(sum([147,52, 239, 85, 47, 119, 58, 588, 92, 59, 196, 36]), total_reads)
@@ -361,7 +362,7 @@ class Test(unittest.TestCase):
         """
         
         tool = pybedtools.BedTool("chr15    91512755    91512836    ENSMUSG00000025736_1_83;ENSMUSG00000091321_6_83    0    -", from_string=True)
-        total_reads, reads_per_cluster = count_reads_per_cluster(tool)
+        total_reads, reads_per_cluster = count_reads_per_cluster(tool, None)
         
         self.assertListEqual([83], reads_per_cluster)
     def test_calculate_kmer_diff(self):
