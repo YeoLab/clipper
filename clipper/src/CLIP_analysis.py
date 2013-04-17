@@ -1109,7 +1109,7 @@ def main(options):
     
     
     #fin
-if __name__== "__main__":
+def call_main(): 
     parser = OptionParser()
     
     parser.add_option("--clusters", dest="clusters", help="BED file of clusters", metavar="BED")
@@ -1148,3 +1148,5 @@ if __name__== "__main__":
         
     main(options)
 
+if __name__== "__main__":
+    call_main()
