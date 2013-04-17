@@ -169,11 +169,11 @@ def build_transcript_data_gtf_as_structure(species, pre_mrna):
     
     """
     results = []
-    
-    gtf_file = pybedtools.BedTool(clipper.data_file(species + ".AS.STRUCTURE.COMPILED.gff"))
+    x = clipper.data_file(species + ".AS.STRUCTURE.COMPILED.gff")
+    gtf_file = pybedtools.BedTool(x)
     
     for gene in gtf_file:
-        effective_length = gene.attrs['mRNA_length'] if pre_mrna else gene.attrs['premrna_length'] 
+        effective_length = gene.attrs['premrna_length'] if pre_mrna else gene.attrs['mrna_length']  
         results.append(pybedtools.create_interval_from_list([gene['chrom'], 
                                         "AS_STRUCTURE", 
                                         "mRNA", 
@@ -206,6 +206,7 @@ def build_transcript_data_gtf(gtf_file, pre_mrna):
     
     #get all transcripts, their starts, stops and mrna lengths
     transcripts = defaultdict(default_transcript)
+    gtf_file = gtf_file.filter(lambda x: x[2] == 'exon')
     for interval in gtf_file:
         cur_transcript = transcripts[interval.attrs['transcript_id']]
         cur_transcript['start'] = min(cur_transcript['start'], interval.start)
@@ -215,7 +216,7 @@ def build_transcript_data_gtf(gtf_file, pre_mrna):
         cur_transcript['gene_id'] = interval.attrs['gene_id']
         cur_transcript['mRNA_length'] += interval.length
         cur_transcript['transcript_id'] = interval.attrs['transcript_id']
-    
+        
     #get the longest transcript from each gene group
     longest_genes = defaultdict(default_gene)
     for transcript_name, transcript in transcripts.items():
@@ -229,7 +230,7 @@ def build_transcript_data_gtf(gtf_file, pre_mrna):
     #convert back into a gtf file 
     results = []
     for gene in longest_genes.values():
-        effective_length = gene['mRNA_length'] if pre_mrna else gene['stop'] - gene['stop'] 
+        effective_length = gene['stop'] - gene['start'] if pre_mrna else gene['mRNA_length']
         results.append(pybedtools.create_interval_from_list([gene['chrom'], 
                                         "AS_STRUCTURE", 
                                         "mRNA", 
@@ -341,7 +342,8 @@ def build_transcript_data(species, gene_bed, gene_mrna, gene_pre_mrna, pre_mrna)
                         ".",
                         str(genes[gene][4]),
                         ".",
-                        "transcript_id=" + str(genes[gene][1]) + "; effective_length=" + str(lengths[gene])]))
+                        "gene_id=" + gene + "; effective_length=" + str(lengths[gene])]))
+
     return pybedtools.BedTool(gtf_list)
 
 def transcriptome_filter(poisson_cutoff, transcriptome_size, transcriptome_reads, cluster):
@@ -368,6 +370,12 @@ def transcriptome_filter(poisson_cutoff, transcriptome_size, transcriptome_reads
                                       'p'
                                       ])
     """
+    
+    print transcriptome_reads
+    print cluster.number_reads_in_peak
+    print transcriptome_size
+    print cluster.size
+    print
     
     transcriptome_p = poissonP(transcriptome_reads, 
                                cluster.number_reads_in_peak, 
@@ -436,7 +444,10 @@ def filter_results(results, poisson_cutoff, transcriptome_size, transcriptome_re
                                                        transcriptome_size, 
                                                        transcriptome_reads,  
                                                        cluster)
-                
+                print global_pval
+                print cluster.gene_poisson_p
+                print cluster.super_local_poisson_p
+                print 
                 min_pval = min([cluster.super_local_poisson_p, 
                                 cluster.gene_poisson_p, 
                                 global_pval])
@@ -519,7 +530,6 @@ def main(options):
         logging.error("Bam file: %s is not defined" % (bamfile))
         raise IOError
     
-    print options.gtfFile
     if options.gtfFile:
         gene_tool = build_transcript_data_gtf(pybedtools.BedTool(options.gtfFile), options.premRNA)
     else:
@@ -533,19 +543,18 @@ def main(options):
     
     #gets all the gene_tool to call peaks on
     if options.gene:
-        filter_func = lambda x : x.attrs['transcript_id'] in options.gene
-        gene_tool = gene_tool.filter(filter_func)
+        gene_tool = gene_tool.filter(lambda x : x.attrs['gene_id'] in options.gene)
 
     #truncates for max gene_tool
     if options.maxgenes:
         gene_tool = gene_tool.random_subset(maxgenes)
     
-    gene_tool.saveas()
-    
-    transcriptome_size = sum(x.attrs['effective_length'] if "effective_length" in x.attrs else x.length for x in gene_tool)
+    gene_tool = gene_tool.saveas()
+       
+    transcriptome_size = sum(int(x.attrs['effective_length']) if "effective_length" in x.attrs else x.length for x in gene_tool)
     #do the parralization
-    tasks =  [(gene, length, bamfile, margin, options.FDR_alpha, 
-               options.threshold, minreads, options.poisson_cutoff, 
+    tasks =  [(gene, bamfile, options.margin, options.FDR_alpha, 
+               options.threshold, options.minreads, options.poisson_cutoff, 
                options.plotit, 10, 1000, options.SloP, False,
                options.max_width, options.min_width, options.max_gap,
                options.algorithm)

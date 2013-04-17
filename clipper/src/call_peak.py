@@ -782,7 +782,7 @@ def poissonP(reads_in_gene, reads_in_peak, gene_length, peak_length):
         #gets multipled by the peak 
         #length as an estimator of the mean
         
-        lam = 1 + ((float(reads_in_gene) / (gene_length)) * (peak_length)) #expect at least one read.
+        lam = 1 + ((float(reads_in_gene) / float(gene_length)) * float(peak_length)) #expect at least one read.
 
         cum_p = 1 - stats.poisson.cdf(reads_in_peak, int(lam))
 
@@ -830,6 +830,10 @@ def call_peaks(interval, bam_file=None,
     logging.info("running on gene %s" % (str(interval)))
         
     bam_fileobj = pysam.Samfile(bam_file, 'rb')
+    
+    #fixes non-standard chrom file names (without the chr)
+    if not interval.chrom.startswith("chr"):
+        interval.chrom = "chr" + interval.chrom
         
     subset_reads = bam_fileobj.fetch(reference=interval.chrom, start=interval.start, end=interval.stop)
 
@@ -839,7 +843,7 @@ def call_peaks(interval, bam_file=None,
     #TODO have a check to kill this if there aren't any reads in a region
         
     result = peaks_from_info(bam_fileobj, list(wiggle), pos_counts, lengths, 
-                             loc, gene_length, margin, fdr_alpha, 
+                             interval, margin, fdr_alpha, 
                              user_threshold, minreads, poisson_cutoff, 
                              plotit, w_cutoff, windowsize, SloP, correct_p,
                              max_width, min_width, max_gap)
@@ -880,23 +884,16 @@ def peaks_from_info(bam_fileobj, wiggle, pos_counts, lengths, interval,
     algorithm - str the algorithm to run
     """
 
-    #these are what is built in this dict, complicated enough that it might 
-    #be worth turning into an object
-    peak_dict = {}
-    peak_dict['clusters'] = []
-    peak_dict['sections'] = {}
-    peak_dict['nreads'] = int(nreads_in_gene)
-    peak_dict['threshold'] = gene_threshold
-    peak_dict['loc'] = loc
-    
     #used for poisson calclulation?
     nreads_in_gene = sum(pos_counts)
     
+
+
     #decides FDR calcalation, maybe move getFRDcutoff mean into c code
     gene_threshold = 0
     if user_threshold is None:
         gene_threshold = get_FDR_cutoff_mean(lengths, 
-                                             gene_length, 
+                                             int(interval.attrs['effective_length']), 
                                              alpha=fdr_alpha)
     else:
         logging.info("using user threshold")
@@ -905,6 +902,14 @@ def peaks_from_info(bam_fileobj, wiggle, pos_counts, lengths, interval,
     if not isinstance(gene_threshold, int):
         raise TypeError
         
+    #these are what is built in this dict, complicated enough that it might 
+    #be worth turning into an object
+    peak_dict = {}
+    peak_dict['clusters'] = []
+    peak_dict['sections'] = {}
+    peak_dict['nreads'] = int(nreads_in_gene)
+    peak_dict['threshold'] = gene_threshold
+    peak_dict['loc'] = interval 
 
     peak_number=1
 
@@ -1064,7 +1069,7 @@ def peaks_from_info(bam_fileobj, wiggle, pos_counts, lengths, interval,
              if stastical_test == "poisson":
                 gene_pois_p = poissonP(nreads_in_gene, 
                                     number_reads_in_peak, 
-                                    gene_length, 
+                                    int(interval.attrs['effective_length']), 
                                     peak_length)
              elif stastical_test == "negative_binomial":
                  pass
@@ -1090,7 +1095,7 @@ def peaks_from_info(bam_fileobj, wiggle, pos_counts, lengths, interval,
              peak_dict['clusters'].append(Peak(interval.chrom, 
                                                genomic_start, 
                                                genomic_stop, 
-                                               interval.gene_name, 
+                                               interval.attrs['gene_id'], 
                                                slop_pois_p, 
                                                interval.strand,
                                                thick_start,

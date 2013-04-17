@@ -16,7 +16,7 @@ setup(
     packages = find_packages(),
     ext_modules = [peaks],
     package_data = {
-        '' : ['*.lengths', '*.gz', '*.bam', '*.bai']
+        '' : ['*.lengths', '*.gz', '*.bam', '*.bai', 'gff']
         },
     
     install_requires = ['setuptools', 
