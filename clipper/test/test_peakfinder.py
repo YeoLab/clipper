@@ -28,7 +28,8 @@ class Test(unittest.TestCase):
         self.parser.add_option("--customBED", dest="geneBEDfile", help="bed file to call peaks on, must come withOUT species and with customMRNA and customPREMRNA", metavar="BEDFILE")
         self.parser.add_option("--customMRNA", dest="geneMRNAfile", help="file with mRNA lengths for your bed file in format: GENENAME<tab>LEN", metavar="FILE")
         self.parser.add_option("--customPREMRNA", dest="genePREMRNAfile", help="file with pre-mRNA lengths for your bed file in format: GENENAME<tab>LEN", metavar="FILE")
-    
+        self.parser.add_option("--gtfFile", dest="gtfFile", help="use a gtf file instead of the AS structure data")
+
         self.parser.add_option("--outdir", dest="prefix", default=os.getcwd(), help="output directory, default=cwd")    
         self.parser.add_option("--outfile", dest="outfile", default="fitted_clusters", help="a bed file output, default:%default")
     
@@ -133,22 +134,16 @@ class Test(unittest.TestCase):
         
         main(options)
         
-        #tested = open(os.getcwd() + "/allup_peak_results.bed")
-        #correct = open(pkg_resources.resource_filename(__name__, "../test/peak_results_no_overlap.BED"))
+        tested = open(os.getcwd() + "/allup_peak_results.bed")
+        correct = open(pkg_resources.resource_filename(__name__, "../test/peak_results_no_overlap.BED"))
         
         
         #problem with tracks being different
-        #tested_tool = pybedtools.BedTool(tested)
-        #correct_tool = pybedtools.BedTool(correct)
-        
-        #checks to make sure files are equal and there are not exact dups
-        #print len(tested_tool)
-        #print len(correct_tool)
-        
-        #self.assertAlmostEqual(len(tested_tool), len(correct_tool), delta=3)
-        #print len(tested_tool)
-        #print len(correct_tool)
-        #assert False
+        tested_tool = pybedtools.BedTool(tested)
+        correct_tool = pybedtools.BedTool(correct)
+                
+        self.assertAlmostEqual(len(tested_tool), len(correct_tool), delta=3)
+
         """
         for test, correct in zip(tested_tool, correct_tool):
             self.assertEqual(test, correct)
@@ -166,8 +161,7 @@ class Test(unittest.TestCase):
         try to detect crashes
         
         """
-        return
-        #self.assertTrue(False, "test is currently disabled output from logging causes it to crash")
+    
         args = ["-b", pkg_resources.resource_filename(__name__, "../test/allup_test.bam"),
                  "-s", "hg19",
                  "-g", "ENSG00000198901", 
@@ -203,6 +197,28 @@ class Test(unittest.TestCase):
         """
         #cleanup
         os.remove(os.getcwd() + "/allup_peak_results.bed")
+    
+    def test_gtf_allup(self):
+        
+        """
+    
+        Performs basic all up test on entire program (using classic algorithm) using gtf file
+        
+        """
+        
+        #self.assertTrue(False, "test is currently disabled output from logging causes it to crash")
+        args = ["-b", pkg_resources.resource_filename(__name__, "../test/allup_test.bam"),
+                 "--gtfFile", clipper.test_file("ensembl_test.gtf"),
+                 "-g", "ENSG00000198901", 
+                 "--outfile=" + os.getcwd() + "/allup_peak_results_ensembl_test.bed",
+                 "--debug",
+                 "--algorithm=classic"
+                ]
+
+        (options, args) = self.parser.parse_args(args)
+        
+        
+        main(options)
         
     def test_filter(self):
         
@@ -214,7 +230,7 @@ class Test(unittest.TestCase):
         
         
         """
-        return
+    
         args = ["-b", pkg_resources.resource_filename(__name__, "../test/baz.sort.bam"),
                  "-s", "hg19",
                   "-g", "ENSG00000198901", 
@@ -245,7 +261,7 @@ class Test(unittest.TestCase):
         test_cutoff Tests that the cutoff code works if its enabled
         
         """
-        return
+    
         args = ["-b", pkg_resources.resource_filename(__name__, "../test/baz.sort.bam"),
                  "-s", "hg19",
                   "-g", "ENSG00000198901", 
@@ -277,7 +293,7 @@ class Test(unittest.TestCase):
         Checks for overlapping results, we don't want this
         
         """
-        return
+
         args = ["-b", pkg_resources.resource_filename(__name__, "../test/allup_test.bam"),
                  "-s", "hg19",
                   "-g", "ENSG00000198901", 
@@ -301,28 +317,6 @@ class Test(unittest.TestCase):
         os.remove(os.getcwd() + "/overlap_peak_results.bed")
         os.remove(os.getcwd() + "/foo.bed")
        
-
-    
-    def test_trim_reads(self):
-        
-        """
-    
-        Performs unit tests on trim_reads
-        
-        """ 
-
-        #does standard test assuming no melformed input
-        test_file = pkg_resources.resource_filename(__name__, "../test/allup_test.bam")
-        #print type(test_file)
-        outfile = trim_reads(test_file)
-        correct = pysam.Samfile(pkg_resources.resource_filename(__name__, "../test/rmdup_test.bam"))
-        test = pysam.Samfile(outfile)
-        
-        assert filecmp.cmp(outfile, pkg_resources.resource_filename(__name__, "../test/rmdup_test.bam") )
-        #for t, c in zip(correct, test):
-        #    assert t == c
-            
-
     def test_check_for_index(self):
         
         """
@@ -351,51 +345,48 @@ class Test(unittest.TestCase):
         #should also check if file exists, but I'm lazy
         handle = pkg_resources.resource_filename(__name__, "../test/indexed_test.bam")
         result = check_for_index(handle)
-        assert result == 1
+        assert result == None
         
         #Test if file is bam and not indexed, expected 
         #result is returns one and succedes
         #should also check if file exists, but I'm lazy
         handle = pkg_resources.resource_filename(__name__, "../test/not_indexed_test.bam")
         result = check_for_index(handle)
-        assert result == 1
+        assert result == None
         
         #cleanup (should be in taredown)
         os.remove(pkg_resources.resource_filename(__name__, "../test/not_indexed_test.bam.bai"))
     
     
-    def test_build_transcript_data_bed(self):
-        
-        """
-        
-        Tests building transcript data from bed with both pre-mrna and mrna data
-        
-        """
-        
-        test = pybedtools.BedTool(clipper.test_file("test_bed_creation.bed"))
-
-        true_genes = {"ENST00000237247" : ["chr1", "ENST00000237247", 66999065, 67210057, "+"], 
-                      "ENST00000371039" : ["chr1", "ENST00000371039", 66999274, 67210768, "+"], 
-                      "ENST00000424320" : ["chr1", "ENST00000424320", 66999297, 67145425, "+"]}
-        
-        #tests mrna
-        true_lengths = {"ENST00000237247" : 3997, "ENST00000371039" : 4080, "ENST00000424320" : 951}
-        
-        genes, lengths = build_transcript_data_bed(test, False)
-        
-        self.assertDictEqual(true_genes, genes, "mrna genes not equal")
-        self.assertDictEqual(true_lengths, lengths, "mrna lengths not equal")
-        
-        #tests pre-mrna 
-        
-        true_lengths = {"ENST00000237247" : 210992, "ENST00000371039" : 211494, "ENST00000424320" : 146128}
-        genes, lengths = build_transcript_data_bed(test, True)
-        
-        self.assertDictEqual(true_genes, genes, "pre-mrna genes not equal")
-        self.assertDictEqual(true_lengths, lengths, "pre-mrna lengths not equal")
-        
+#    def test_build_transcript_data_bed(self):
+#        
+#        """
+#        
+#        Tests building transcript data from bed with both pre-mrna and mrna data
+#        
+#        """
+#        
+#        test = pybedtools.BedTool(clipper.test_file("test_bed_creation.bed"))
+#
+#        true_genes = {["chr1", "AS_STRUCTURE", "mRNA", 66999065, 67210057, ".", "+", ".", "transcript_id=ENST00000237247;effective_length=3997" ],
+#                      ["chr1", "AS_STRUCTURE", "mRNA", 66999274, 66999274, ".", "+", ".", "transcript_id=ENST00000371039;effective_length=4080" ], 
+#                      ["chr1", "AS_STRUCTURE", "mRNA", 66999297, 67145425, ".", "+", ".", "transcript_id=ENST00000424320;effective_length=951" ], 
+# 
+#        
+#        genes = build_transcript_data_bed(test, False)
+#        
+#        self.assertDictEqual(true_genes, genes, "mrna genes not equal")
+#        
+#        #tests pre-mrna 
+#        
+#        true_lengths = {"ENST00000237247" : 210992, "ENST00000371039" : 211494, "ENST00000424320" : 146128}
+#        genes = build_transcript_data_bed(test, True)
+#        
+#        self.assertDictEqual(true_genes, genes, "pre-mrna genes not equal")
+#        self.assertDictEqual(true_lengths, lengths, "pre-mrna lengths not equal")
+#        
     def test_build_geneinfo(self):
-        self.maxDiff = 10000000
+        
         """
     
         Performs unit testing on build_geneinfo
@@ -507,20 +498,29 @@ class Test(unittest.TestCase):
         self.assertRaises(ValueError, build_transcript_data, "bar", None, None, None, True)
         
         #tests hg19 to make sure its equal to logic
-        genes, lengths = build_transcript_data("test", None, None, None, True)
-        true_genes = build_geneinfo(clipper.data_file("test.AS.STRUCTURE_genes.BED.gz"))
-        true_lengths   = build_lengths(clipper.data_file("test.AS.STRUCTURE_premRNA.lengths"))
+        genes = build_transcript_data("test", None, None, None, True).sort()
+        true_genes = pybedtools.BedTool(
+                [["chr1", "AS_STRUCTURE", "mRNA", 173604911, 173606273, ".", "+", ".", "transcript_id=ENSG00000232113; effective_length=1147" ],
+                ["chr1", "AS_STRUCTURE", "mRNA", 10002980, 10010032, ".", "+", ".", "transcript_id=ENSG00000228150; effective_length=3088" ],
+                ["chr1", "AS_STRUCTURE", "mRNA", 69521580, 69650686, ".", "+", ".", "transcript_id=ENSG00000223883; effective_length=46051" ],
+                ["chr1", "AS_STRUCTURE", "mRNA", 233749749, 233808258, ".", "+", ".", "transcript_id=ENSG00000135750; effective_length=35997" ],
+                ["chr1", "AS_STRUCTURE", "mRNA", 145373053, 145375554, ".", "-", ".", "transcript_id=ENSG00000227280; effective_length=609" ]],
+                                        ).sort()
     
-        self.assertDictEqual(genes, true_genes)
-        self.assertDictEqual(lengths, true_lengths)
-        
+        self.assertEqual(str(genes), str(true_genes))
+                
         #tests hg19 on premrna lengths
-        genes, lengths = build_transcript_data("test", None, None, None, False)
-        true_genes = build_geneinfo(clipper.data_file("test.AS.STRUCTURE_genes.BED.gz"))
-        true_lengths  = build_lengths(clipper.data_file("test.AS.STRUCTURE_mRNA.lengths"))
-    
-        self.assertDictEqual(genes, true_genes)
-        self.assertDictEqual(lengths, true_lengths)
+        genes = build_transcript_data("test", None, None, None, False).sort()
+        
+        true_genes = pybedtools.BedTool(
+                [["chr1", "AS_STRUCTURE", "mRNA", 173604911, 173606273, ".", "+", ".", "transcript_id=ENSG00000232113; effective_length=384" ],
+                ["chr1", "AS_STRUCTURE", "mRNA", 10002980, 10010032, ".", "+", ".", "transcript_id=ENSG00000228150; effective_length=323" ],
+                ["chr1", "AS_STRUCTURE", "mRNA", 69521580, 69650686, ".", "+", ".", "transcript_id=ENSG00000223883; effective_length=437" ],
+                ["chr1", "AS_STRUCTURE", "mRNA", 233749749, 233808258, ".", "+", ".", "transcript_id=ENSG00000135750; effective_length=3141" ],
+                ["chr1", "AS_STRUCTURE", "mRNA", 145373053, 145375554, ".", "-", ".", "transcript_id=ENSG00000227280; effective_length=212" ]],
+                                        ).sort()
+        
+        self.assertEqual(str(genes), str(true_genes))
         
         #Test custom files 
         #this should all work, 
@@ -668,6 +668,47 @@ class Test(unittest.TestCase):
         result = count_transcriptome_reads(results)
         
         self.assertEqual(400, result)
+    
+    def test_build_transcript_data_gtf(self):
+        
+        """
+        
+        Tests build transcript data gtf, tests two genes, with some noise
+        
+        """
+        
+        #tests pre-mrna
+        genes = build_transcript_data_gtf(pybedtools.BedTool(clipper.test_file("data.gtf")), True).sort()
+        true_genes = pybedtools.BedTool(
+                [["chrI", "AS_STRUCTURE", "mRNA", 7741936, 7950951, ".", "+", ".", "gene_id=NR_070240; transcript_id=NR_070240; effective_length=209015" ],
+                ["chrI", "AS_STRUCTURE", "mRNA", 8378299, 8378421, ".", "-", ".", "gene_id=NM_001129046; transcript_id=NM_001129046; effective_length=122" ],]
+                ).sort()
+                
+        self.assertEqual(str(genes), str(true_genes))
+        
+        #tests mrna lengths
+        genes = build_transcript_data_gtf(pybedtools.BedTool(clipper.test_file("data.gtf")), False).sort()
+        true_genes = pybedtools.BedTool(
+                [["chrI", "AS_STRUCTURE", "mRNA", 7741936, 7950951, ".", "+", ".", "gene_id=NR_070240; transcript_id=NR_070240; effective_length=28" ],
+                ["chrI", "AS_STRUCTURE", "mRNA", 8378299, 8378421, ".", "-", ".", "gene_id=NM_001129046; transcript_id=NM_001129046; effective_length=122" ],]
+                ).sort()
+                
+        self.assertEqual(str(genes), str(true_genes))
+    
+    def test_build_transcript_data_gtf_longer(self):
+        
+        """
+        
+        Tests build transcript data, but makes sure it gets the longer of two transcripts with the same gene name
+        
+        """
+        
+        genes = build_transcript_data_gtf(pybedtools.BedTool(clipper.test_file("data.gtf")), False).sort()
+        true_genes = pybedtools.BedTool(
+                [["chrI", "AS_STRUCTURE", "mRNA", 7741936, 7950970, ".", "+", ".", "gene_id=NR_070240; transcript_id=NR_070240; effective_length=38" ]],
+                ).sort()
+                
+        self.assertEqual(str(genes), str(true_genes))
         
     def test_main(self):
         
@@ -683,42 +724,43 @@ class Test(unittest.TestCase):
     
     def tearDown(self):
         pass
-    
-    def test_mapper_premrna(self):
-        
-        """
-        
-        tests the mapper to make sure that its not breaking / outputs call_peaks results
-        
-        """
-        
-        args = ["-b", pkg_resources.resource_filename(__name__, "../test/allup_test.bam"),
-                 "-s", "hg19",
-                 "-g", "ENSG00000198901", 
-                 "--outfile=" + os.getcwd() + "/allup_peak_results.bed",
-                ]
 
-        (options, args) = self.parser.parse_args(args)
-        
-        mapper(options, "chr1    66999065    67210057    ENST00000237247    0    +    67000041    67208778    0    27    25,123,64,25,84,57,55,176,12,12,25,52,86,93,75,501,81,128,127,60,112,156,133,203,65,165,1302,    0,863,92464,99687,100697,106394,109427,110161,127130,134147,137612,138561,139898,143621,146295,148486,150724,155765,156807,162051,185911,195881,200365,205952,207275,207889,209690,")
-   
-    def test_mapper_mrna(self):
-        
-        """
-        
-        Tests the pre mrna mapper
-        
-        """
-        
-        args = ["-b", pkg_resources.resource_filename(__name__, "../test/allup_test.bam"),
-                 "-s", "hg19",
-                 "-g", "ENSG00000198901", 
-                 "--outfile=" + os.getcwd() + "/allup_peak_results.bed",
-                ]
-
-        (options, args) = self.parser.parse_args(args)
-        
-        mapper(options, "chr1    66999065    67210057    ENST00000237247    0    +    67000041    67208778    0    27    25,123,64,25,84,57,55,176,12,12,25,52,86,93,75,501,81,128,127,60,112,156,133,203,65,165,1302,    0,863,92464,99687,100697,106394,109427,110161,127130,134147,137612,138561,139898,143621,146295,148486,150724,155765,156807,162051,185911,195881,200365,205952,207275,207889,209690,")
+#tests for hadoop mapping, currently not used / not worth the time to fix
+#    def test_mapper_premrna(self):
+#        
+#        """
+#        
+#        tests the mapper to make sure that its not breaking / outputs call_peaks results
+#        
+#        """
+#        
+#        args = ["-b", pkg_resources.resource_filename(__name__, "../test/allup_test.bam"),
+#                 "-s", "hg19",
+#                 "-g", "ENSG00000198901", 
+#                 "--outfile=" + os.getcwd() + "/allup_peak_results.bed",
+#                ]
+#
+#        (options, args) = self.parser.parse_args(args)
+#        
+#        mapper(options, "chr1    66999065    67210057    ENST00000237247    0    +    67000041    67208778    0    27    25,123,64,25,84,57,55,176,12,12,25,52,86,93,75,501,81,128,127,60,112,156,133,203,65,165,1302,    0,863,92464,99687,100697,106394,109427,110161,127130,134147,137612,138561,139898,143621,146295,148486,150724,155765,156807,162051,185911,195881,200365,205952,207275,207889,209690,")
+#   
+#    def test_mapper_mrna(self):
+#        
+#        """
+#        
+#        Tests the pre mrna mapper
+#        
+#        """
+#        
+#        args = ["-b", pkg_resources.resource_filename(__name__, "../test/allup_test.bam"),
+#                 "-s", "hg19",
+#                 "-g", "ENSG00000198901", 
+#                 "--outfile=" + os.getcwd() + "/allup_peak_results.bed",
+#                ]
+#
+#        (options, args) = self.parser.parse_args(args)
+#        
+#        mapper(options, "chr1    66999065    67210057    ENST00000237247    0    +    67000041    67208778    0    27    25,123,64,25,84,57,55,176,12,12,25,52,86,93,75,501,81,128,127,60,112,156,133,203,65,165,1302,    0,863,92464,99687,100697,106394,109427,110161,127130,134147,137612,138561,139898,143621,146295,148486,150724,155765,156807,162051,185911,195881,200365,205952,207275,207889,209690,")
 
 if __name__ == '__main__':
     unittest.main()

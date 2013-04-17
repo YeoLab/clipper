@@ -22,11 +22,10 @@ setup(
     install_requires = ['setuptools', 
                         'pysam >= 0.6',
                         'numpy >= 1.5.1 ',
- #                       'scipy >= 0.8.0',
+                        'scipy >= 0.11.0',
                         'matplotlib >= 1.1.0',
-                        'pp >= 1.6.2',
                         'pybedtools >= 0.5',
-#                        'scikit-learn >= 0.12.1',
+                        'scikit-learn >= 0.13.0',
                         ],
       
     setup_requires = ["setuptools_git >= 0.3",],

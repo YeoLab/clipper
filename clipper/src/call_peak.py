@@ -792,7 +792,7 @@ def poissonP(reads_in_gene, reads_in_peak, gene_length, peak_length):
         logging.error(error)
         return 1
 
-def call_peaks(loc, gene_length, bam_fileobj=None, bam_file=None, 
+def call_peaks(interval, bam_file=None, 
                margin=25, fdr_alpha=0.05, user_threshold=None,
                minreads=20, poisson_cutoff=0.05, 
                plotit=False, w_cutoff=10, windowsize=1000, 
@@ -803,8 +803,7 @@ def call_peaks(loc, gene_length, bam_fileobj=None, bam_file=None,
 
     calls peaks for an individual gene 
     
-    loc - string of all gene location
-    gene_length - effective length of gene
+    interval - gtf interval describing the gene to query 
     takes bam file or bam file object.  Serial uses object parallel uses location (name)
     margin - space between sections for calling new peaks
     fdr_alpha - false discovery rate, p-value bonferoni correct from peaks script (called in setup)
@@ -827,27 +826,15 @@ def call_peaks(loc, gene_length, bam_fileobj=None, bam_file=None,
     if plotit:
         plt.rcParams['interactive']=True
         pass
-    #setup
-    chrom, gene_name, tx_start, tx_end, strand = loc
-    logging.error("running on gene %s" % (loc))
-    #logic reading bam files
-    if bam_file is None and bam_fileobj is None:
-        #using a file opbject is faster for serial processing 
-        #but doesn't work in parallel
+
+    logging.info("running on gene %s" % (str(interval)))
         
-        logging.error("""you have to pick either bam file or bam file 
-                        object, not both""")
-        exit()
-    elif bam_fileobj is None:
-        bam_fileobj = pysam.Samfile(bam_file, 'rb')
+    bam_fileobj = pysam.Samfile(bam_file, 'rb')
         
-    tx_start, tx_end = [int(x) for x in [tx_start, tx_end]]
-    subset_reads = bam_fileobj.fetch(reference=chrom, start=tx_start, end=tx_end)
+    subset_reads = bam_fileobj.fetch(reference=interval.chrom, start=interval.start, end=interval.stop)
 
     #need to document reads to wiggle
-    wiggle, jxns, pos_counts, lengths, allreads = readsToWiggle_pysam(subset_reads, tx_start, tx_end, strand, "center", False)
-
-    #wiggle, pos_counts, lengths = readsToWiggle_pysam(subset_reads, tx_start, tx_end, strand, "center", False)
+    wiggle, jxns, pos_counts, lengths, allreads = readsToWiggle_pysam(subset_reads, interval.start, interval.stop, interval.strand, "center", False)
 
     #TODO have a check to kill this if there aren't any reads in a region
         
@@ -859,7 +846,7 @@ def call_peaks(loc, gene_length, bam_fileobj=None, bam_file=None,
     
     return result
 
-def peaks_from_info(bam_fileobj, wiggle, pos_counts, lengths, loc, gene_length, 
+def peaks_from_info(bam_fileobj, wiggle, pos_counts, lengths, interval, 
                     margin=25, fdr_alpha=0.05, user_threshold=None,
                     minreads=20, poisson_cutoff=0.05, plotit=False, 
                     width_cutoff=10, windowsize=1000, SloP=False, 
@@ -878,7 +865,7 @@ def peaks_from_info(bam_fileobj, wiggle, pos_counts, lengths, loc, gene_length,
     calls peaks for an individual gene 
     
 
-    gene_length - effective length of gene
+    interval - gtf interval describing gene to query
     margin - space between sections for calling new peaks
     fdr_alpha - false discovery rate, p-value bonferoni correct from peaks script (called in setup)
     user_threshold - user defined FDR thershold (probably should be factored into fdr_alpha
@@ -893,24 +880,16 @@ def peaks_from_info(bam_fileobj, wiggle, pos_counts, lengths, loc, gene_length,
     algorithm - str the algorithm to run
     """
 
-    peak_dict = {}
-    
-    #all the information nessessary to record a genomic_center, used later, but declared outside of loops
-
-    
     #these are what is built in this dict, complicated enough that it might 
     #be worth turning into an object
-    #peak_dict['clusters'] = {}
-    #peak_dict['sections'] = {}
-    #peak_dict['nreads'] = int()
-    #peak_dict['threshold'] = int()
-    #peak_dict['loc'] = loc
+    peak_dict = {}
+    peak_dict['clusters'] = []
+    peak_dict['sections'] = {}
+    peak_dict['nreads'] = int(nreads_in_gene)
+    peak_dict['threshold'] = gene_threshold
+    peak_dict['loc'] = loc
     
-    #data munging
-    chrom, gene_name, tx_start, tx_end, strand = loc
-    tx_start, tx_end = [int(x) for x in [tx_start, tx_end]]    
-    
-    #used for poisson calclulation? 
+    #used for poisson calclulation?
     nreads_in_gene = sum(pos_counts)
     
     #decides FDR calcalation, maybe move getFRDcutoff mean into c code
@@ -926,11 +905,7 @@ def peaks_from_info(bam_fileobj, wiggle, pos_counts, lengths, loc, gene_length,
     if not isinstance(gene_threshold, int):
         raise TypeError
         
-    peak_dict['clusters'] = []
-    peak_dict['sections'] = {}
-    peak_dict['nreads'] = int(nreads_in_gene)
-    peak_dict['threshold'] = gene_threshold
-    peak_dict['loc'] = loc
+
     peak_number=1
 
  
@@ -1005,7 +980,7 @@ def peaks_from_info(bam_fileobj, wiggle, pos_counts, lengths, loc, gene_length,
             peak_definitions = fitter.peaks(threshold, plotit)
 
         except Exception as error:
-            logging.error(gene_name)
+            logging.error(interval.gene_name)
             raise error
             
         #subsections that are above threshold
@@ -1013,10 +988,10 @@ def peaks_from_info(bam_fileobj, wiggle, pos_counts, lengths, loc, gene_length,
         #occur, not the average of start and stop
         for peak_start, peak_stop, peak_center in peak_definitions: 
  
-             genomic_start = tx_start + sectstart + peak_start
-             genomic_stop = tx_start + sectstart + peak_stop
+             genomic_start = interval.start + sectstart + peak_start
+             genomic_stop = interval.start + sectstart + peak_stop
              
-             number_reads_in_peak = bam_fileobj.count(chrom, start=genomic_start, end=genomic_stop)
+             number_reads_in_peak = bam_fileobj.count(interval.chrom, start=genomic_start, end=genomic_stop)
              #sum(cts[peak_start:(peak_stop + 1)])
              logging.info("""Peak %d (%d - %d) has %d 
                               reads""" %(peak_number,                                             
@@ -1033,7 +1008,7 @@ def peaks_from_info(bam_fileobj, wiggle, pos_counts, lengths, loc, gene_length,
 
   
              #highest point in start stop
-             genomic_center = tx_start + sectstart + peak_center
+             genomic_center = interval.start + sectstart + peak_center
 
              #makes it thicker so we can see on the browser 
              thick_start = genomic_center - 2
@@ -1056,19 +1031,19 @@ def peaks_from_info(bam_fileobj, wiggle, pos_counts, lengths, loc, gene_length,
              #best_error check to make sure area is in area of gene
 
              #distance from gene start
-             if genomic_center - tx_start - windowsize < 0: 
+             if genomic_center - interval.start - windowsize < 0: 
                  area_start = 0
 
              #for super local gets area around genomic_center for calculation
              else:  
-                 area_start = genomic_center - tx_start - windowsize
+                 area_start = genomic_center - interval.start - windowsize
                  #area_start = sectstart
 
              #same thing except for end of gene instead of start
-             if genomic_center + windowsize > tx_end: #distance to gene stop
-                 area_stop = tx_start - tx_end + 1
+             if genomic_center + windowsize > interval.stop: #distance to gene stop
+                 area_stop = interval.start - interval.stop + 1
              else:
-                 area_stop = genomic_center - tx_start + windowsize
+                 area_stop = genomic_center - interval.start + windowsize
 
              #use area reads + 1/2 all other reads in gene: 
              #area_reads = sum(pos_counts[area_start:area_stop]) + 
@@ -1110,13 +1085,14 @@ def peaks_from_info(bam_fileobj, wiggle, pos_counts, lengths, loc, gene_length,
 
 
 
-             
-             peak_dict['clusters'].append(Peak(chrom, 
+             #TODO a peak object might just be a gtf file or
+             #bed file...
+             peak_dict['clusters'].append(Peak(interval.chrom, 
                                                genomic_start, 
                                                genomic_stop, 
-                                               gene_name, #need this is a unique id for later analysis
+                                               interval.gene_name, 
                                                slop_pois_p, 
-                                               strand,
+                                               interval.strand,
                                                thick_start,
                                                thick_stop,
                                                peak_number,

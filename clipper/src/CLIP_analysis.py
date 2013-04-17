@@ -292,10 +292,9 @@ def assign_to_regions(tool, clusters, speciesFA, regions_dir, regions,
         if no_overlapping_count == 0:
             break
     print "After assigning, I\'m left with %d un-categorized regions" %(len(remaining_clusters))
-    try:
+
+    if len(remaining_clusters) > 0:
         bed_dict['uncatagorized'] = remaining_clusters.sort()
-    except:
-        pass
 
     #Save results for the all section
  

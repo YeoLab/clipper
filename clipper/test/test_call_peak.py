@@ -14,20 +14,6 @@ import clipper
             
 class Test(unittest.TestCase):
 
-
-
-    def test_get_FDR_cutoff_mode(self):
-        
-        """
-    
-        Performs unit tests on get_FDR_cutoff_mode function
-        Function is currently deperacated, tests not done
-        
-        """
-        
-        pass
-    
-
     def test_get_FDR_cutoff_mean(self):
         
         """
@@ -74,37 +60,6 @@ class Test(unittest.TestCase):
         result = get_FDR_cutoff_mean(read_lengths, 100, mincut = 20)
         assert result == 20
         
-
-    def test_plotSpline(self):
-        
-        """
-    
-        Quality control function, not important to main running of program
-        Not tested
-        
-        """
-        
-        pass
-        #plotSections([5] * 10, ["1|5", "7|9"], 3)
-        #assert 1 == 0
-    
-
-    def test_plotSections(self):
-        
-        """
-    
-        tests plotSections function, appears to have computer specific issues
-        
-
-        Plots each section individually, I think
-        Wiggle is a list representing a wiggle track
-        sections is a list of strings of format "start|stop" where start and stop are both integers
-        threshold is an integer 
-
-        """     
-        
-        pass
-            
         
     def test_poissonP(self):
         
