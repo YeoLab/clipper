@@ -56,6 +56,7 @@ def parse_AS_STRUCTURE_dict(species, working_dir):
                 number_of_exons = int(number_of_exons)
                 info[gene] = {}
                 info[gene]['chrom'] = "chr" + str(chrom)
+                info[gene]['transcripts'] = transcripts
                 info[gene]['strand'] = signstrand
                 info[gene]['exons'] = {}
                 info[gene]['introns'] = {}
