@@ -96,8 +96,8 @@ def build_gene_distribution(ax, premRNA, mRNA):
     alt_ax = build_distribution(ax, premRNA, mRNA)
  
     ax.set_xlabel("Fraction of region")
-    ax.set_ylabel("pre-mRNA Location Frequency", color = 'blue')
-    alt_ax.set_ylabel("mRNA Location Frequency", color = 'red')
+    ax.set_ylabel("pre-mRNA Location Frequency", color = 'red')
+    alt_ax.set_ylabel("mRNA Location Frequency", color = 'blue')
 
 def build_exon_exon_distribution(ax, exon, intron):
     
@@ -117,8 +117,8 @@ def build_exon_exon_distribution(ax, exon, intron):
     alt_ax = build_distribution(ax, exon, intron)
     
     ax.set_xlabel("Fraction of region")
-    ax.set_ylabel("Exon Location Frequency", color='blue')
-    alt_ax.set_ylabel("Intron Location Frequency", color='red')
+    ax.set_ylabel("Exon Location Frequency", color='red')
+    alt_ax.set_ylabel("Intron Location Frequency", color='blue')
 
 
 def build_distribution(ax, dist1, dist2):
@@ -139,12 +139,9 @@ def build_distribution(ax, dist1, dist2):
 
     #error checking in case there is a null distribution for some reasion...
     if len(dist1) > 0:
-        count, bins, ignored = ax.hist(dist1, range=(0, 1.0), 
-            histtype="step", 
-            color="red", 
-            bins=100, 
-            normed=True,
-            visible = False)
+        count, bins, ignored = np.histogram(dist1, 
+                                            range=(0, 1.0), 
+                                            density=True)
         
         ax.plot([(bins[x] + bins[x+1]) / 2 for x in range(len(bins) - 1)], count, color="red")
         for tick in ax.get_yticklabels():
@@ -152,14 +149,11 @@ def build_distribution(ax, dist1, dist2):
 
 
     if len(dist2) > 0:
-        count, bins, ignored = alt_ax.hist(dist2, 
-                range=(0, 1.0), 
-                histtype="step", 
-                color="blue", 
-                bins=100, 
-                normed=True,
-                visible=False)
-        
+        count, bins, ignored = np.histogram(dist2, 
+                                            range=(0, 1.0), 
+                                            bins=100, 
+                                            density=True)
+                                    
         alt_ax.plot([(bins[x] + bins[x+1]) / 2 for x in range(len(bins) - 1)], count, color="blue")
         for tick in alt_ax.get_yticklabels():
             tick.set_color('red')

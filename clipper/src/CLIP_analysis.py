@@ -1100,7 +1100,7 @@ def main(options):
     out_dict["phast_values"] = phast_values
     out_dict["motif_distances"] = motif_distances
 
-    out_file = open(os.path.join(assigned_dir, "%s.pickle" %(clusters)), 'w')
+    out_file = open(os.path.join("%s.pickle" %(clusters)), 'w')
     pickle.dump(out_dict, file=out_file)
     
     with open(options.metrics, 'w') as outfile:
