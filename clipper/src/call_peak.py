@@ -48,7 +48,7 @@ def readsToWiggle_pysam(reads, tx_start, tx_end, keepstrand, usePos, fracional_i
         
         if read_start < tx_start or read_stop > tx_end:
             continue
-        lengths.append(len(read.positions))
+        #lengths.append(len(read.positions))
         
         if usePos == "center":
             pos_counts[(((read_stop + read_start) / 2) - tx_start)] += 1
@@ -63,7 +63,7 @@ def readsToWiggle_pysam(reads, tx_start, tx_end, keepstrand, usePos, fracional_i
              else: 
                 pos_counts[read_stop - tx_start] += 1
         
-        all_reads.add((read_start, read_stop))
+        #all_reads.add((read_start, read_stop))
         
         for cur_pos, next_pos in izip(read.positions, read.positions[1:]):
             #if cur is not next to the next position than its a junction
