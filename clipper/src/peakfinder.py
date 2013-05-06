@@ -13,7 +13,7 @@ import clipper
 from clipper import data_dir
 from clipper.src.call_peak import call_peaks, poissonP
 import logging
-#logging.captureWarnings(True)
+logging.captureWarnings(True)
     
 def trim_reads(bamfile):
     
