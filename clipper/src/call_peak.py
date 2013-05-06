@@ -935,7 +935,7 @@ def peaks_from_info(bam_fileobj, wiggle, pos_counts, lengths, loc, gene_length,
     gene_threshold = 0
     
     if user_threshold is None:    
-        if method is "Binomial":        #5/5/2013 JM - Uses binomial distribution to calculate height threshold                       
+        if method is "Binomial":        #5/6/2013 JM - Uses binomial distribution to calculate height threshold                       
             gene_threshold = get_Binom_cutoff(lengths,gene_length,binom_alpha)
         else:
             gene_threshold = get_FDR_cutoff_mean(lengths, gene_length,iterations=100, alpha=fdr_alpha)
