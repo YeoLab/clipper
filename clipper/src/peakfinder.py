@@ -13,7 +13,7 @@ import clipper
 from clipper import data_dir
 from clipper.src.call_peak import call_peaks, poissonP
 import logging
-logging.captureWarnings(True)
+#logging.captureWarnings(True)
     
 def trim_reads(bamfile):
     
@@ -496,7 +496,7 @@ def main(options):
     transcriptome_size = sum(length_list)
     #do the parralization
     tasks =  [(gene, length, None, bamfile, margin, options.FDR_alpha, 
-               options.threshold, minreads, poisson_cutoff, 
+               options.threshold, options.binom, options.method,minreads, poisson_cutoff,
                options.plotit, 10, 1000, options.SloP, False,
                options.max_width, options.min_width, options.max_gap,
                options.algorithm)
@@ -590,6 +590,8 @@ def call_main():
     parser.add_option("--poisson-cutoff", dest="poisson_cutoff", type="float", help="p-value cutoff for poisson test, Default:%default", default=0.05, metavar="P")
     parser.add_option("--disable_global_cutoff", dest="use_global_cutoff", action="store_false", help="disables global transcriptome level cutoff to CLIP-seq peaks, Default:On", default=True, metavar="P")
     parser.add_option("--FDR", dest="FDR_alpha", type="float", default=0.05, help="FDR cutoff for significant height estimation, default=%default")
+    parser.add_option("--threshold-method", dest="method", default="Randomization", help="Method used for determining height threshold, Can use default=Randomization or Binomial")
+    parser.add_option("--binomial", dest="binom", type="float", default=0.001, help ="Alpha significance threshold for using Binomial distribution for determining height threshold, default=%default")
     parser.add_option("--threshold", dest="threshold", type="int", default=None, help="Skip FDR calculation and set a threshold yourself")
     parser.add_option("--maxgenes", dest="maxgenes", default=None, help="stop computation after this many genes, for testing", metavar="NGENES")
     parser.add_option("--processors", dest="np", default="autodetect", help="Number of processors to use. Default: All processors on machine", type="str", metavar="NP")
