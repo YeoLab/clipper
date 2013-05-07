@@ -943,8 +943,6 @@ def peaks_from_info(bam_fileobj, wiggle, pos_counts, lengths, loc, gene_length,
         logging.info("using user threshold")
         gene_threshold = user_threshold
         
-        
-    print "T="+str(gene_threshold)
     
     if not isinstance(gene_threshold, int):
         raise TypeError
