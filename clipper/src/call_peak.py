@@ -811,7 +811,7 @@ def poissonP(reads_in_gene, reads_in_peak, gene_length, peak_length):
         return 1
 
 def call_peaks(loc, gene_length, bam_fileobj=None, bam_file=None, 
-               margin=25, fdr_alpha=0.05, user_threshold=None, binom_alpha=0.001, method="Randomization",
+               margin=25, fdr_alpha=0.05, user_threshold=None,
                minreads=20, poisson_cutoff=0.05, 
                plotit=False, w_cutoff=10, windowsize=1000, 
                SloP=False, correct_p=False, max_width=None, min_width=None,
@@ -870,7 +870,7 @@ def call_peaks(loc, gene_length, bam_fileobj=None, bam_file=None,
     #TODO have a check to kill this if there aren't any reads in a region
         
     result = peaks_from_info(bam_fileobj, list(wiggle), pos_counts, lengths, 
-                             loc, gene_length, margin, fdr_alpha, binom_alpha, method,
+                             loc, gene_length, margin, fdr_alpha,
                              user_threshold, minreads, poisson_cutoff, 
                              plotit, w_cutoff, windowsize, SloP, correct_p,
                              max_width, min_width, max_gap)
@@ -878,7 +878,7 @@ def call_peaks(loc, gene_length, bam_fileobj=None, bam_file=None,
     return result
 
 def peaks_from_info(bam_fileobj, wiggle, pos_counts, lengths, loc, gene_length, 
-                    margin=25, fdr_alpha=0.05, binom_alpha=0.001, method="Randomization",user_threshold=None,
+                    margin=25, fdr_alpha=0.05, user_threshold=None,
                     minreads=20, poisson_cutoff=0.05, plotit=False, 
                     width_cutoff=10, windowsize=1000, SloP=False, 
                     correct_p=False, max_width=None, min_width=None, 
@@ -935,10 +935,9 @@ def peaks_from_info(bam_fileobj, wiggle, pos_counts, lengths, loc, gene_length,
     gene_threshold = 0
     
     if user_threshold is None:    
-        if method is "Binomial":        #5/6/2013 JM - Uses binomial distribution to calculate height threshold                       
-            gene_threshold = get_Binom_cutoff(lengths,gene_length,binom_alpha)
-        else:
-            gene_threshold = get_FDR_cutoff_mean(lengths, gene_length,iterations=100, alpha=fdr_alpha)
+       #5/6/2013 JM - Uses binomial distribution to calculate height threshold                       
+        gene_threshold = get_Binom_cutoff(lengths,gene_length,binom_alpha)
+        #gene_threshold = get_FDR_cutoff_mean(lengths, gene_length,iterations=100, alpha=fdr_alpha)
         
     else:
         logging.info("using user threshold")
