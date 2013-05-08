@@ -1,11 +1,14 @@
-from setuptools import setup, find_packages, Extension
+from setuptools import setup
+from setuptools import find_packages
 
+from distutils.extension import Extension
+from Cython.Distutils import build_ext
 peaks = Extension("clipper.src.peaks", sources = ['clipper/src/peaksmodule.cc'],
 #for debugging
 #                  extra_compile_args = ['-O0'] 
 )                 
 
-
+readsToWiggle = Extension("clipper.src.readsToWiggle", sources = ['clipper/src/readsToWiggle.pyx'])
 with open("README") as file:
     long_description = file.read()
 
@@ -14,7 +17,8 @@ setup(
     long_description = long_description,
     version = "0.1.1",
     packages = find_packages(),
-    ext_modules = [peaks],
+    ext_modules = [peaks, readsToWiggle],
+    cmdclass = {'build_ext' : build_ext},
     package_data = {
         '' : ['*.lengths', '*.gz', '*.bam', '*.bai', 'gff']
         },

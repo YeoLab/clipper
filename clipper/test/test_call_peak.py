@@ -5,7 +5,8 @@ Created on Jul 25, 2012
 '''
 import unittest
 from clipper.src.call_peak import *
-from clipper.src.peaks import *
+from clipper.src.peaks import shuffle, find_sections
+from clipper.src.readsToWiggle import readsToWiggle_pysam
 from numpy import *
 from numpy.testing import *
 from scipy import interpolate

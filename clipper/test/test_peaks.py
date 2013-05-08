@@ -5,7 +5,8 @@ Created on Jul 17, 2012
 '''
 
 import unittest
-from clipper.src.peaks import find_sections, readsToWiggle_pysam, shuffle
+from clipper.src.peaks import find_sections, shuffle #readsToWiggle_pysam
+from clipper.src.readsToWiggle import readsToWiggle_pysam
 from numpy import ones
 import pysam
 import clipper
@@ -181,7 +182,7 @@ class Test(unittest.TestCase):
     """
     def test_readsToWiggle_pysam_jxnsOnly(self):
         pass
-        #reads2 = pysam.Samfile(pkg_resources.resource_filename(__name__, "../test/jxns.bam"))
+        #reads2 = pysam.Samfile(clipper.test_file("jxns.bam"))
         #reads2 = reads2.fetch(region="chr1:183806493-183836600")
         ### things to check with a new bam file: strand, make sure that the reads fall completely within the range supplied
         #wiggle, jxns, pos_counts, lengths, allreads = readsToWiggle_pysam(reads2, 183806490, 183838475, '+', 'center')
@@ -213,14 +214,23 @@ class Test(unittest.TestCase):
         
         assert lengths == [33, 33, 33, 33, 33, 33, 33, 33, 33, 33, 33]
         
+    def test_readsToWiggle_pysam_wiggles(self):
+        
+        """
+            
+        Tests the ability of reads to wiggle to generate correct wiggle files
+        
+        """
+            
         reads = pysam.Samfile(os.path.join(clipper.test_dir(), "allup_test.bam"))      
         reads = reads.fetch(region="chr15:91536649-91537641")
         wiggle, jxns, pos_counts, lengths, allreads = readsToWiggle_pysam(reads, 91537632, 91537675, '-', 'center', True)
-        #wiggle, pos_counts, lengths = readsToWiggle_pysam(reads, 91537632, 91537675, '-', 'center', True)
 
         wiggle_true = [0.06060606060606061, 0.06060606060606061, 0.06060606060606061, 0.06060606060606061, 0.06060606060606061, 0.06060606060606061, 0.06060606060606061, 0.06060606060606061, 0.33333333333333326, 0.33333333333333326, 0.33333333333333326, 0.33333333333333326, 0.33333333333333326, 0.33333333333333326, 0.33333333333333326, 0.33333333333333326, 0.33333333333333326, 0.33333333333333326, 0.33333333333333326, 0.33333333333333326, 0.33333333333333326, 0.33333333333333326, 0.33333333333333326, 0.33333333333333326, 0.33333333333333326, 0.33333333333333326, 0.33333333333333326, 0.33333333333333326, 0.33333333333333326, 0.33333333333333326, 0.33333333333333326, 0.33333333333333326, 0.33333333333333326, 0.2727272727272727, 0.2727272727272727, 0.2727272727272727, 0.2727272727272727, 0.2727272727272727, 0.2727272727272727, 0.2727272727272727, 0.2727272727272727, 0.0, 0.0, 0.0]
+        print wiggle_true
+        print wiggle
         for true, test in zip(wiggle_true, wiggle):
-            self.assertEqual(test, true)
+            self.assertAlmostEqual(test, true, 4)
             
     def test_readsToWiggle_paysam_none(self):
         

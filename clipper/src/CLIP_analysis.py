@@ -731,7 +731,8 @@ def calculate_kmer_diff(kmer_list, regions, clusters, fasta_dir):
         
         for k in kmer_list:
             try:
-                kmer_results[region][k] = kmer_diff(real_fa, rand_fa, k)
+                kmers, n1, n2 = kmer_diff(real_fa, rand_fa, k)
+                kmer_results[region][k] = kmers
             except IOError as e:
                 print e
                 print "Ignoring: %s" % (region)

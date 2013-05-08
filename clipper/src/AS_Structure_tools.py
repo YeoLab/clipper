@@ -53,7 +53,6 @@ def parse_AS_STRUCTURE_dict(species, working_dir):
                 signstrand = "-"
                 if int(strand) == 1:
                     signstrand = "+"
-                number_of_exons = int(number_of_exons)
                 info[gene] = {}
                 info[gene]['chrom'] = "chr" + str(chrom)
                 info[gene]['transcripts'] = transcripts
@@ -64,13 +63,13 @@ def parse_AS_STRUCTURE_dict(species, working_dir):
                 exons = exonloc.split("|")
                 introns = intronloc.split("|")
                 types = asType.split("|")
-                info[gene]['numEx'] = number_of_exons
+                info[gene]['numEx'] = int(number_of_exons)
                 info[gene]['mRNA_length'] = 0
                 info[gene]['premRNA_length'] = 0
                 tx_start = np.Inf
                 tx_stop  = np.NINF
                 for i, exon in enumerate(exons):
-                    if i == number_of_exons: #last exon is empty
+                    if i == info[gene]['numEx']: #last exon is empty
                         continue
                 
                     info[gene]['exons'][i] = exon
@@ -84,7 +83,7 @@ def parse_AS_STRUCTURE_dict(species, working_dir):
                     info[gene]['mRNA_length'] += exstop-exstart+1
                     info[gene]['premRNA_length'] += exstop-exstart+1                
                 for i, intron in enumerate(introns):
-                    if i == number_of_exons-1: #only number_of_exons-1 introns
+                    if i == info[gene]['numEx']-1: #only number_of_exons-1 introns
                         continue
                     info[gene]['introns'][i] = intron
                     intstart, intstop = [int(x) for x in intron.split("-")]
@@ -97,6 +96,7 @@ def parse_AS_STRUCTURE_dict(species, working_dir):
     return info, pybedtools.BedTool(bed_string, from_string=True)
 
 def parse_AS_STRUCTURE_COMPILED(species, working_dir):
+    
     """
     
     species - acceptable species to parse

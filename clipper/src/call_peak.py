@@ -8,7 +8,8 @@ from numpy import Inf
 import numpy as np
 import sys
 import pysam
-from clipper.src.peaks import shuffle, find_sections #readsToWiggle_pysam
+from clipper.src.peaks import shuffle, find_sections
+from clipper.src.readsToWiggle import readsToWiggle_pysam
 from scipy import optimize
 from collections import namedtuple, defaultdict
 from itertools import izip
@@ -28,58 +29,6 @@ from random import sample as rs
 import math
 import logging
 #pylab.rcParams['interactive']=True
-
-
-def readsToWiggle_pysam(reads, tx_start, tx_end, keepstrand, usePos, fracional_input):
-    
-    lengths = []
-    wiggle = np.zeros(tx_end - tx_start + 1)
-    pos_counts = np.zeros(tx_end - tx_start + 1)
-    all_reads = set([])
-    junctions = defaultdict(int)
-    for read in reads:
-        if read.is_reverse and keepstrand == "+":
-            continue
-        elif not read.is_reverse and keepstrand == "-":
-            continue
-            
-        read_start = read.positions[0]
-        read_stop = read.positions[-1]
-        
-        if read_start < tx_start or read_stop > tx_end:
-            continue
-        #lengths.append(len(read.positions))
-        
-        if usePos == "center":
-            pos_counts[(((read_stop + read_start) / 2) - tx_start)] += 1
-        elif usePos == "start":
-            if keepstrand == "+":
-                pos_counts[read_start - tx_start] += 1
-            else: 
-                pos_counts[read_stop - tx_start] += 1
-        elif usePos == "end":
-             if keepstrand == "-":
-                pos_counts[read_start - tx_start] += 1
-             else: 
-                pos_counts[read_stop - tx_start] += 1
-        
-        #all_reads.add((read_start, read_stop))
-        
-        for cur_pos, next_pos in izip(read.positions, read.positions[1:]):
-            #if cur is not next to the next position than its a junction
-            if cur_pos + 1 != next_pos:
-                junctions[(cur_pos, next_pos)] += 1
-                
-        for cur_pos in read.positions:
-            
-            wig_index = cur_pos - tx_start
-
-            if fracional_input:
-                wiggle[wig_index] += 1.0 / len(read.positions)
-            else: 
-                wiggle[wig_index] += 1
-                
-    return wiggle, junctions, pos_counts, lengths, all_reads
 
 class Peak(namedtuple('Peak', ['chrom', 
                                'genomic_start', 

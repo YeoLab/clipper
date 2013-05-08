@@ -139,9 +139,10 @@ def build_distribution(ax, dist1, dist2):
 
     #error checking in case there is a null distribution for some reasion...
     if len(dist1) > 0:
-        count, bins, ignored = np.histogram(dist1, 
-                                            range=(0, 1.0), 
-                                            density=True)
+        count, bins = np.histogram(dist1, 
+                                   bins=100,
+                                   range=(0, 1.0), 
+                                   normed=True)
         
         ax.plot([(bins[x] + bins[x+1]) / 2 for x in range(len(bins) - 1)], count, color="red")
         for tick in ax.get_yticklabels():
@@ -149,10 +150,10 @@ def build_distribution(ax, dist1, dist2):
 
 
     if len(dist2) > 0:
-        count, bins, ignored = np.histogram(dist2, 
-                                            range=(0, 1.0), 
-                                            bins=100, 
-                                            density=True)
+        count, bins = np.histogram(dist2, 
+                                   range=(0, 1.0), 
+                                   bins=100, 
+                                   normed=True)
                                     
         alt_ax.plot([(bins[x] + bins[x+1]) / 2 for x in range(len(bins) - 1)], count, color="blue")
         for tick in alt_ax.get_yticklabels():
@@ -370,6 +371,128 @@ def build_phastcons_values(ax, phastcons_values, regions):
     ax.set_xticklabels([regions[region] for region in list(intersecting_regions)])
     ax.set_ylabel("PhastCons Score")
 
+def build_motif_boxplots(ax, kmer_results, highlight_motifs, regions):
+
+    """
+    
+    Make bake boxplots of motif z-scores. you must get kmer z-scores first with run_kmerdiff.  up to 11 motifs can be highlighted
+    pass a pylab subplot instance to the kwarg \"subplot\" to attach this to a figure, otherwise it will make its own figure
+
+    kmer_results - dict[region][k][kmer] = motif (motif object defined in kmerdirr) the results of calculate_kmer_diff
+    highlight_motifs - list[str] motifs to plot
+
+    I'll come back to this, in a way its alrgiht...
+    """
+    
+    colorcycle = ["red", "orange", "green", "blue", "purple", "brown", "black", "pink", "gray", "cyan", "magenta"]
+ 
+    
+    
+    kmers = {}
+    all_kmers = set()
+
+    #might consider converting into pandas data frame
+    for region in kmer_results:
+        kmers[region] = {}
+        
+        #loads all kmers into the allmers set and into a dict 
+        #print kmer_results
+        for k in kmer_results[region].keys():
+            for kmer in kmer_results[region][k]:
+                for kmer, motif_data in kmer_results[region][k].items():
+                    all_kmers.add(kmer)
+                    kmers[region][kmer] = float(motif_data.delta)
+
+    for i, m in enumerate(highlight_motifs):
+        #hash the motifs, convert to DNA letters
+        highlight_motifs[i] = m.lower().replace("u", "t")
+        
+    #creates an ndarray to load all kmer values into
+    ak = np.ndarray(shape=(len(all_kmers), len(kmer_results.keys())))
+
+    for i, kmer in enumerate(all_kmers):
+        for j, region in enumerate(kmer_results.keys()):
+            try:            
+                ak[i,j] = kmers[region][kmer]
+            except: #if kmer doesn't exist in specified region its value is zero
+                ak[i,j] = 0
+                
+
+    #loads everything up and only showed the motifs that are highlighted...
+    ax.boxplot(ak, vert=False, notch=1, sym='k.',  whis=2)
+    ax.set_yticklabels([regions[region] for region in kmer_results.keys()])
+    for i, motif in enumerate(highlight_motifs):
+        indices= list()
+        for ind, k in enumerate(all_kmers):
+            if motif in k:
+                indices.append(ind)
+        y = map(lambda x: x+1, range(len(kmer_results.keys())))
+        for m, ind in enumerate(indices):
+            if m ==0:
+                label=motif
+            else:
+                label=None
+            ax.plot(ak[ind,:], y, 'o', color=colorcycle[i], label=label, markersize=10)
+    ax.set_xscale('symlog', linthreshx=10)
+    ax.axvline(x=-4)
+    ax.axvline(x=4)
+    
+    ax.legend(frameon=False,loc=0, numpoints=1)
+    
+    ax.set_xlabel("Z-score")
+
+def plot_motifs(motif_distances):
+    
+    """
+    
+    Plots all motifs given in motif distances returns the figure for saving
+    motif_distances - list of results from calculate_motif_distance
+    
+    """
+    
+    fig = plt.figure(figsize=(8.5, 11))
+    colors = ["red", "orange", "green", "blue", "purple", "brown", "black", "pink", "gray", "cyan", "magenta"]
+
+    for i, motif in enumerate(motif_distances):
+        plot_motifs(motif, fig, color = colors[i], species=species, slopsize=200)
+    
+    return fig
+
+def plot_motif_dist(motif_distances, figure, color = "red", label=None, scale='linear'):
+    
+    """
+    
+    Plots distances of motifs from clusters, data structure generated by calculate_motif_distance
+    
+    assigned_clusters - dict clusters assigned to specific genic regions + random assignments 
+    motifFILE - precompiled bed12 /w transcriptome locations for given motif  
+    figure - output location
+
+   
+    
+    dict{region : {'real': {'size' : int, 'dist' : list[int (distance to motif)},
+                   'rand': {'size' : int, 'dist' : list[int (distance to motif)}}
+
+    """
+   
+    subplot_number = 320
+    for region in motif_distances:
+        subplot_number += 1
+        ax_region = figure.add_subplot(subplot_number, title=region)
+        ax_region.set_yscale(scale)
+
+        region_hist, region_edges = np.histogram(motif_distances['all']['real']['dist'], bins=50, range=(-150, 150))
+        region_hist = region_hist/(motif_distances['all']['real']['size']/1000.)        
+        
+        region_rand_hist, region_edges_rand = np.histogram(motif_distances['all']['rand']['dist'], bins=50, range=(-150, 150))
+        region_rand_hist = region_rand_hist/(motif_distances['all']['rand']['size']/1000.)
+        
+        #plots all motifs on same canvis 
+        ax_region.plot(region_edges[:-1], region_hist, c=color, linestyle='solid', label=label)
+        ax_region.hold(True)
+        ax_region.plot(region_edges_rand[:-1], region_rand_hist, linestyle='dashed', c=color, label="_nolegend_")
+
+
 def CLIP_QC_figure(reads_in_clusters, reads_out_clusters, cluster_lengths, 
                    reads_per_cluster, premRNA, mRNA, exondist, introndist, 
                    genomic_locs, clusters_locs, genomic_types, clusters_types,
@@ -468,125 +591,3 @@ def CLIP_QC_figure(reads_in_clusters, reads_out_clusters, cluster_lengths,
         build_motif_boxplots(ax_hist_zscores, kmer_results, motifs, regions)
     plt.tight_layout()
     return fig
-
-def plot_motifs(motif_distances):
-    
-    """
-    
-    Plots all motifs given in motif distances returns the figure for saving
-    motif_distances - list of results from calculate_motif_distance
-    
-    """
-    
-    fig = plt.figure(figsize=(8.5, 11))
-    colors = ["red", "orange", "green", "blue", "purple", "brown", "black", "pink", "gray", "cyan", "magenta"]
-
-    for i, motif in enumerate(motif_distances):
-        plot_motifs(motif, fig, color = colors[i], species=species, slopsize=200)
-    
-    return fig
-
-def plot_motif_dist(motif_distances, figure, color = "red", label=None, scale='linear'):
-    
-    """
-    
-    Plots distances of motifs from clusters, data structure generated by calculate_motif_distance
-    
-    assigned_clusters - dict clusters assigned to specific genic regions + random assignments 
-    motifFILE - precompiled bed12 /w transcriptome locations for given motif  
-    figure - output location
-
-   
-    
-    dict{region : {'real': {'size' : int, 'dist' : list[int (distance to motif)},
-                   'rand': {'size' : int, 'dist' : list[int (distance to motif)}}
-
-    """
-   
-    subplot_number = 320
-    for region in motif_distances:
-        subplot_number += 1
-        ax_region = figure.add_subplot(subplot_number, title=region)
-        ax_region.set_yscale(scale)
-
-        region_hist, region_edges = np.histogram(motif_distances['all']['real']['dist'], bins=50, range=(-150, 150))
-        region_hist = region_hist/(motif_distances['all']['real']['size']/1000.)        
-        
-        region_rand_hist, region_edges_rand = np.histogram(motif_distances['all']['rand']['dist'], bins=50, range=(-150, 150))
-        region_rand_hist = region_rand_hist/(motif_distances['all']['rand']['size']/1000.)
-        
-        #plots all motifs on same canvis 
-        ax_region.plot(region_edges[:-1], region_hist, c=color, linestyle='solid', label=label)
-        ax_region.hold(True)
-        ax_region.plot(region_edges_rand[:-1], region_rand_hist, linestyle='dashed', c=color, label="_nolegend_")
-
-def build_motif_boxplots(ax, kmer_results, highlight_motifs, regions):
-
-    """
-    
-    Make bake boxplots of motif z-scores. you must get kmer z-scores first with run_kmerdiff.  up to 11 motifs can be highlighted
-    pass a pylab subplot instance to the kwarg \"subplot\" to attach this to a figure, otherwise it will make its own figure
-
-    kmer_results - dict[region][k][kmer] = motif (motif object defined in kmerdirr) the results of calculate_kmer_diff
-    highlight_motifs - list[str] motifs to plot
-
-    I'll come back to this, in a way its alrgiht...
-    """
-    
-    colorcycle = ["red", "orange", "green", "blue", "purple", "brown", "black", "pink", "gray", "cyan", "magenta"]
- 
-    
-    
-    kmers = {}
-    all_kmers = set()
-
-    #might consider converting into pandas data frame
-    for region in kmer_results:
-        kmers[region] = {}
-        
-        #loads all kmers into the allmers set and into a dict 
-        #print kmer_results
-        for k in kmer_results[region].keys():
-            for kmer in kmer_results[region][k]:
-                for kmer, motif_data in kmer_results[region][k][0].items():
-                    all_kmers.add(kmer)
-                    kmers[region][kmer] = float(motif_data.delta)
-
-    for i, m in enumerate(highlight_motifs):
-        #hash the motifs, convert to DNA letters
-        highlight_motifs[i] = m.lower().replace("u", "t")
-        
-    #creates an ndarray to load all kmer values into
-    ak = np.ndarray(shape=(len(all_kmers), len(kmer_results.keys())))
-    all_kmers = list(all_kmers)
-
-    for i, kmer in enumerate(all_kmers):
-        for j, region in enumerate(kmer_results.keys()):
-            try:            
-                ak[i,j] = kmers[region][kmer]
-            except: #if kmer doesn't exist in specified region its value is zero
-                ak[i,j] = 0
-                
-
-    #loads everything up and only showed the motifs that are highlighted...
-    ax.boxplot(ak, vert=False, notch=1, sym='k.',  whis=2)
-    ax.set_yticklabels([regions[region] for region in kmer_results.keys()])
-    for i, motif in enumerate(highlight_motifs):
-        indices= list()
-        for ind, k in enumerate(all_kmers):
-            if motif in k:
-                indices.append(ind)
-        y = map(lambda x: x+1, range(len(kmer_results.keys())))
-        for m, ind in enumerate(indices):
-            if m ==0:
-                label=motif
-            else:
-                label=None
-            ax.plot(ak[ind,:], y, 'o', color=colorcycle[i], label=label, markersize=10)
-    ax.set_xscale('symlog', linthreshx=10)
-    ax.axvline(x=-4)
-    ax.axvline(x=4)
-    
-    ax.legend(frameon=False,loc=0, numpoints=1)
-    
-    ax.set_xlabel("Z-score")
