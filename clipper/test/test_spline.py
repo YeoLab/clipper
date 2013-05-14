@@ -173,9 +173,10 @@ class Test(unittest.TestCase):
         initial_smoothing_value = 162
 
         fitter = SmoothingSpline(xvals, data, initial_smoothing_value,
-                            lossFunction="get_norm_penalized_residuals")
+                            lossFunction="get_norm_penalized_residuals",
+                            threshold=32)
         
-        starts_and_stops = fitter.peaks(32, False)
+        starts_and_stops = fitter.peaks( False)
         print starts_and_stops
         self.assertListEqual([(0, 8, 0), (67, 148, 114)], starts_and_stops) 
          

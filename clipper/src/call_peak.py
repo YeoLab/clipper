@@ -188,7 +188,8 @@ class SmoothingSpline(PeakGenerator):
     """Class to fit data to a smooth curve"""
     
     def __init__(self, xRange, yData, smoothingFactor=None,
-                 lossFunction = "get_turn_penalized_residuals"):
+                 lossFunction = "get_turn_penalized_residuals",
+                 threshold = 0):
         
         """
         
@@ -207,7 +208,8 @@ class SmoothingSpline(PeakGenerator):
         self.k = 3 #degree of spline (cubic)
         self.smoothingFactor = smoothingFactor
         self.spline = None
-
+        self.threshold = threshold
+        
         #Sets loss function
         if lossFunction == "get_turn_penalized_residuals":
             self.lossFunction = self.get_turn_penalized_residuals
@@ -571,7 +573,7 @@ class SmoothingSpline(PeakGenerator):
             optimizedSpline = self.optimize_fit(s_estimate=bestSmoothingEstimate)
             self.spline = optimizedSpline
             if plotit:
-                self.plot(title = "optimized spline", threshold=threshold)
+                self.plot(title = "optimized spline", threshold=self.threshold)
 
         except Exception as error:
             logging.error("failed spline fitting optimization at section (major crash)")
@@ -583,9 +585,9 @@ class SmoothingSpline(PeakGenerator):
     
         if plotit is True:
 
-            self.plot(title="A fit", threshold=threshold)       
+            self.plot(title="A fit", threshold=self.threshold)       
         
-        starts_and_stops, starts, stops = self.get_regions_above_threshold(threshold, 
+        starts_and_stops, starts, stops = self.get_regions_above_threshold(self.threshold, 
                                                                       spline_values)
         peak_definitions = []
         for peak_start, peak_stop in starts_and_stops: 
@@ -613,8 +615,9 @@ class Classic(PeakGenerator):
         self.max_width = max_width
         self.min_width = min_width
         self.max_gap = max_gap
-        
-    def peaks(self):
+    
+    #hackety hack, factor to init when you aren't lazy
+    def peaks(self, plotit):
         peak_definitions = []
         
         in_peak = False
@@ -845,7 +848,7 @@ def call_peaks(interval, bam_file=None,
                              interval, margin, fdr_alpha, 
                              user_threshold, minreads, poisson_cutoff, 
                              plotit, w_cutoff, windowsize, SloP, correct_p,
-                             max_width, min_width, max_gap)
+                             max_width, min_width, max_gap, algorithm=algorithm)
     
     return result
 
@@ -973,7 +976,8 @@ def peaks_from_info(bam_fileobj, wiggle, pos_counts, lengths, interval,
             
             initial_smoothing_value = (sectstop - sectstart + 1)
             fitter = SmoothingSpline(xvals, data, initial_smoothing_value,
-                            lossFunction="get_norm_penalized_residuals")
+                            lossFunction="get_norm_penalized_residuals",
+                            threshold=threshold)
             
         elif algorithm == "gaussian":
             fitter = GaussMix(xvals, data)
@@ -981,10 +985,10 @@ def peaks_from_info(bam_fileobj, wiggle, pos_counts, lengths, interval,
         elif algorithm == "classic":
             fitter = Classic(xvals, data, max_width, min_width, max_gap)
         try:
-            peak_definitions = fitter.peaks(threshold, plotit)
+            peak_definitions = fitter.peaks(plotit)
 
         except Exception as error:
-            logging.error(interval.gene_name)
+            logging.error(interval.name)
             raise error
             
         #subsections that are above threshold
