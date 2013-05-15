@@ -795,11 +795,11 @@ def poissonP(reads_in_gene, reads_in_peak, gene_length, peak_length):
         return 1
 
 def call_peaks(interval, bam_file=None, 
-               margin=25, fdr_alpha=0.05, user_threshold=None,
+               max_gap=25, fdr_alpha=0.05, user_threshold=None,
                minreads=20, poisson_cutoff=0.05, 
                plotit=False, w_cutoff=10, windowsize=1000, 
                SloP=False, correct_p=False, max_width=None, min_width=None,
-               max_gap=None, algorithm="spline"):
+               algorithm="spline"):
     
     """
 
@@ -807,7 +807,7 @@ def call_peaks(interval, bam_file=None,
     
     interval - gtf interval describing the gene to query 
     takes bam file or bam file object.  Serial uses object parallel uses location (name)
-    margin - space between sections for calling new peaks
+    max_gap - space between sections for calling new peaks
     fdr_alpha - false discovery rate, p-value bonferoni correct from peaks script (called in setup)
     user_threshold - user defined FDR thershold (probably should be factored into fdr_alpha
 
@@ -845,19 +845,19 @@ def call_peaks(interval, bam_file=None,
     #TODO have a check to kill this if there aren't any reads in a region
         
     result = peaks_from_info(bam_fileobj, list(wiggle), pos_counts, lengths, 
-                             interval, margin, fdr_alpha, 
+                             interval, max_gap, fdr_alpha, 
                              user_threshold, minreads, poisson_cutoff, 
                              plotit, w_cutoff, windowsize, SloP, correct_p,
-                             max_width, min_width, max_gap, algorithm=algorithm)
+                             max_width, min_width, algorithm=algorithm)
     
     return result
 
 def peaks_from_info(bam_fileobj, wiggle, pos_counts, lengths, interval, 
-                    margin=25, fdr_alpha=0.05, user_threshold=None,
+                    max_gap=25, fdr_alpha=0.05, user_threshold=None,
                     minreads=20, poisson_cutoff=0.05, plotit=False, 
                     width_cutoff=10, windowsize=1000, SloP=False, 
                     correct_p=False, max_width=None, min_width=None, 
-                    max_gap=None, algorithm="spline", stastical_test = "poisson"):
+                    algorithm="spline", stastical_test = "poisson"):
 
     """
     
@@ -872,7 +872,7 @@ def peaks_from_info(bam_fileobj, wiggle, pos_counts, lengths, interval,
     
 
     interval - gtf interval describing gene to query
-    margin - space between sections for calling new peaks
+    max_gap - space between sections for calling new peaks
     fdr_alpha - false discovery rate, p-value bonferoni correct from peaks script (called in setup)
     user_threshold - user defined FDR thershold (probably should be factored into fdr_alpha
     minreads - min reads in section to try and call peaks
@@ -916,7 +916,7 @@ def peaks_from_info(bam_fileobj, wiggle, pos_counts, lengths, interval,
     peak_number=1
 
  
-    sections = find_sections(wiggle, margin)
+    sections = find_sections(wiggle, max_gap)
     if plotit is True:      
         plot_sections(wiggle, sections, gene_threshold)
 

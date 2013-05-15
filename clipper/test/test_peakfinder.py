@@ -38,7 +38,6 @@ class Test(unittest.TestCase):
         self.parser.add_option("--quiet", "-q", dest="quiet", action="store_true", help="suppress notifications")
     
         self.parser.add_option("--minreads", dest="minreads", help="minimum reads required for a section to start the fitting process.  Default:%default", default=3, type="int", metavar="NREADS")
-        self.parser.add_option("--margin", dest="margin", type="int", help="find sections of genes within M bases that have genes and perform fitting. Default:%default", default=15, metavar="NBASES")
         self.parser.add_option("--trim", dest="trim", action="store_true", default=False, help="Trim reads with the same start/stop to count as 1")
         self.parser.add_option("--premRNA", dest="premRNA", action="store_true", help="use premRNA length cutoff, default:%default", default=False)
         self.parser.add_option("--poisson-cutoff", dest="poisson_cutoff", type="float", help="p-value cutoff for poisson test, Default:%default", default=0.05, metavar="P")
@@ -590,7 +589,7 @@ class Test(unittest.TestCase):
         transcriptome_size = 10000
         transcriptome_reads = 100000
         
-        result = filter_results(results, .07, transcriptome_size, transcriptome_reads, False, False)
+        result = filter_results(results, .07, transcriptome_size, transcriptome_reads, False, False, "foo")
         self.assertSetEqual(set(['chr15\t1\t10\tENSG1_1_52\t0.04\t-\t50\t60', 'chr15\t200\t300\tENSG2_2_239\t0.06\t-\t140\t160']), result)
        
         
@@ -618,7 +617,7 @@ class Test(unittest.TestCase):
         transcriptome_reads = 100000
         
         #I had my mental model of how the global cutoff was should have worked wrong the entire time...
-        result = filter_results(results, .07, transcriptome_size, transcriptome_reads, True, False)
+        result = filter_results(results, .07, transcriptome_size, transcriptome_reads, True, False, "foo")
         self.assertSetEqual(set(['chr15\t1\t10\tENSG1_1_52\t0.04\t-\t50\t60', 'chr15\t200\t300\tENSG2_2_239\t0.06\t-\t140\t160']), result)
     
     def test_bonferroni_correct_filter_results(self):

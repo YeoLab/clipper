@@ -410,7 +410,9 @@ def count_transcriptome_reads(results):
     
     return transcriptome_reads
 
-def filter_results(results, poisson_cutoff, transcriptome_size, transcriptome_reads, use_global_cutoff, bonferroni_correct):
+def filter_results(results, poisson_cutoff, transcriptome_size, 
+                   transcriptome_reads, use_global_cutoff, 
+                   bonferroni_correct, algorithm = "spline"):
     
     """
     
@@ -444,11 +446,12 @@ def filter_results(results, poisson_cutoff, transcriptome_size, transcriptome_re
                                                        transcriptome_size, 
                                                        transcriptome_reads,  
                                                        cluster)
-                print global_pval
-                print cluster.gene_poisson_p
-                print cluster.super_local_poisson_p
-                print 
-                min_pval = min([cluster.super_local_poisson_p, 
+                if algorithm == "classic":
+                    min_pval = max([cluster.super_local_poisson_p, 
+                                cluster.gene_poisson_p, 
+                                global_pval])
+                else:
+                    min_pval = min([cluster.super_local_poisson_p, 
                                 cluster.gene_poisson_p, 
                                 global_pval])
                 
@@ -494,7 +497,7 @@ def mapper(options, line):
         length = sum([int(x) for x in bedline[10][:-1].strip().split(",")]) #Just gets the lengths of the exons (although no mention of cds or not... not important)
     
     print call_peaks([bedline.chrom, bedline.name, bedline.start, bedline.stop,
-                      bedline.strand], length, options.bam, int(options.margin), 
+                      bedline.strand], length, options.bam, int(options.max_gap), 
                       options.FDR_alpha, options.threshold, 
                       int(options.minreads), options.poisson_cutoff, 
                       options.plotit, 10, 1000, options.SloP, False)
@@ -553,10 +556,10 @@ def main(options):
        
     transcriptome_size = sum(int(x.attrs['effective_length']) if "effective_length" in x.attrs else x.length for x in gene_tool)
     #do the parralization
-    tasks =  [(gene, bamfile, options.margin, options.FDR_alpha, 
+    tasks =  [(gene, bamfile, options.max_gap, options.FDR_alpha, 
                options.threshold, options.minreads, options.poisson_cutoff, 
                options.plotit, 10, 1000, options.SloP, False,
-               options.max_width, options.min_width, options.max_gap,
+               options.max_width, options.min_width,
                options.algorithm)
               for gene in gene_tool]
     
@@ -596,7 +599,8 @@ def main(options):
                               transcriptome_size,  
                               transcriptome_reads, 
                               options.use_global_cutoff,
-                              options.bonferroni_correct)
+                              options.bonferroni_correct,
+                              options.algorithm)
             
     outbed = options.outfile
 
@@ -630,7 +634,6 @@ def call_main():
     parser.add_option("--outfile", "-o", dest="outfile", default="fitted_clusters", help="a bed file output, default:%default")
     parser.add_option("--gene", "-g", dest="gene", action="append", help="A specific gene you'd like try", metavar="GENENAME")
     parser.add_option("--minreads", dest="minreads", help="minimum reads required for a section to start the fitting process.  Default:%default", default=3, type="int", metavar="NREADS")
-    parser.add_option("--margin", dest="margin", type="int", help="find sections of genes within M bases that have genes and perform fitting. Default:%default", default=15, metavar="NBASES")
     parser.add_option("--premRNA", dest="premRNA", action="store_true", help="use premRNA length cutoff, default:%default", default=False)
     parser.add_option("--poisson-cutoff", dest="poisson_cutoff", type="float", help="p-value cutoff for poisson test, Default:%default", default=0.05, metavar="P")
     parser.add_option("--disable_global_cutoff", dest="use_global_cutoff", action="store_false", help="disables global transcriptome level cutoff to CLIP-seq peaks, Default:On", default=True, metavar="P")
@@ -645,7 +648,7 @@ def call_main():
     parser.add_option("--debug", dest="debug", default=False, action="store_true", help="disables multipcoressing in order to get proper error tracebacks")
     parser.add_option("--max_width", dest="max_width", type="int", default=75, help="Defines max width for classic algorithm, default: %default")
     parser.add_option("--min_width", dest="min_width", type="int", default=50, help="Defines min width for classic algorithm, default: %default")
-    parser.add_option("--max_gap", dest="max_gap",type="int", default=10, help="defines min gap for classic algorithm, default: %default")
+    parser.add_option("--max_gap", dest="max_gap",type="int", default=15, help="defines maximum gap between reads before calling a region a new section, default: %default")
     parser.add_option("--bonferroni", dest="bonferroni_correct",action="store_true", default=False, help="Perform Bonferroni on data before filtering")
     parser.add_option("--algorithm", dest="algorithm",default="spline", help="Defines algorithm to run, currently spline, classic, gaussian")
     #parser.add_option("--hadoop", dest="hadoop",default=False, action="store_true", help="Run in hadoop mode")
