@@ -791,7 +791,7 @@ def poissonP(reads_in_gene, reads_in_peak, gene_length, peak_length):
         return cum_p
     
     except Exception as error:
-        logging.error(error)
+        logging.error("Poisson cutoff failled", error)
         return 1
 
 def call_peaks(interval, bam_file=None, 
@@ -988,7 +988,7 @@ def peaks_from_info(bam_fileobj, wiggle, pos_counts, lengths, interval,
             peak_definitions = fitter.peaks(plotit)
 
         except Exception as error:
-            logging.error(interval.name)
+            logging.error("peak finding failled:, %s, %s" % (interval.name, error))
             raise error
             
         #subsections that are above threshold

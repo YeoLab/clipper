@@ -370,13 +370,7 @@ def transcriptome_filter(poisson_cutoff, transcriptome_size, transcriptome_reads
                                       'p'
                                       ])
     """
-    
-    print transcriptome_reads
-    print cluster.number_reads_in_peak
-    print transcriptome_size
-    print cluster.size
-    print
-    
+        
     transcriptome_p = poissonP(transcriptome_reads, 
                                cluster.number_reads_in_peak, 
                                transcriptome_size, 
@@ -579,7 +573,7 @@ def main(options):
             try:
                 results.append(job.get(timeout=360))
             except Exception as error:
-                logging.error(error)
+                logging.error("transcript timed out %s" % (error))
         
     pool.close()
     
