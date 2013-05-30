@@ -6,18 +6,22 @@ Analizes CLIP data given a bed file and a bam file
 Michael Lovci and Gabriel Pratt
 
 """
-import pybedtools
-import numpy as np
+
+from collections import Counter, OrderedDict
+from itertools import izip_longest
 from optparse import OptionParser
 import os
 import pickle
+from random import sample
 import subprocess
+
 from bx.bbi.bigwig_file import BigWigFile
+import numpy as np
+import pybedtools
+
+from AS_Structure_tools import parse_AS_STRUCTURE_dict
 from clipper.src import CLIP_analysis_display
 from clipper.src.kmerdiff import kmer_diff
-from collections import Counter, OrderedDict
-from random import sample
-from AS_Structure_tools import parse_AS_STRUCTURE_dict
 
 def intersection(A, B=None):
     
@@ -397,97 +401,85 @@ def get_offsets_bed12(tool):
 
 
     
-def RNA_position(bedline, as_structure_dict):
+def RNA_position(interval, location_dict):
     
     """
     
-    makes mrna and pre-mrna position figure 
-    bedline - single bedline
+    makes mrna and pre-mrna peak_center figure 
+    interval - single interval
+    
+    location_dict = dict{gene_id : {strand : "+/-", regions : list((start,stop)
     as_structure_dict - from build AS structure dict 
     
+    will return distribution across entire region + just across specific region
     Might be able to use my ribo-seq stuff for genic -> transcriptomic location conversion
     
+    this is based off as structure, which provides sequences ordered with first exon being the first exon on the gene, not 
+    first in the chromosome (like gff does) THIS WILL NOT WORK WITH RAW GFF DATA
+    
     """
     
-    mRNA_pos = 0
-    pre_pos = 0
-    exon_frac = None
-    intron_frac = None
-    nearest_type= None
-    chrom, start, stop, name, score, strand, thickstart, thickstop = str(bedline).strip().split("\t")
-    thickstart, thickstop = [int(x) for x in (thickstart, thickstop)]
-    position = int((thickstart + thickstop)/2)
-    
-
-    
+    #think about turning the location_dict into a gff file
+    #gets thickstart and stop
+    peak_center = (int(interval[6]) + int(interval[7])) / 2
+        
     try:
-        gene = name.split("_")[0]
+        gene = interval.name.split("_")[0]
     except:
         #takes first gene if there are multiple overlapping 
-        gene = name.split(";")[0].split("_")[0]
+        gene = interval.name.split(";")[0].split("_")[0]
     
-    if gene not in as_structure_dict:
+    if gene not in location_dict:
         raise KeyError(gene + " not in current as stucture dict ignoring cluster ")
     
-    for exN in range(as_structure_dict[gene]['numEx']):
-        exstart, exstop = map(int, as_structure_dict[gene]['exons'][exN].split("-"))
-        exlen = exstop-exstart+1
-        if position >= exstart and position <= exstop:
-            if strand == "+":
-                mRNA_pos += position - exstart
-                exon_frac = np.round(((position-exstart)/float(exlen)), 3)
-                pre_pos += position - exstart                
+    if not interval.strand == location_dict[gene]['strand']:
+        raise ValueError("strands not the same, there is some issue with gene annotations")
+    
+    total_length = float(sum(stop - start for start, stop in location_dict[gene]['regions']))
+    
+    running_length = 0
+    
+    #reverses list if negative strand so running count can work
+    #if location_dict[gene]['strand'] == "-":
+    #    location_dict[gene]['regions'].reverse()
+        
+    for start, stop in location_dict[gene]['regions']:
+        length = float(stop - start) 
+        
+        if peak_center >= start and peak_center <= stop:
+            if interval.strand == "+":
+                total_location = running_length + (peak_center - start)
+                total_fraction = np.round((total_location / total_length), 3)
+
+                individual_fraction = (peak_center - start) / length
+
+            elif interval.strand == "-":
+                total_location = running_length + (stop - peak_center)
+                total_fraction = total_location / total_length
+
+                individual_fraction = (stop - peak_center) / length
+                
             else:
-                mRNA_pos += exstop - position
-                exon_frac = np.round(((exstop - position)/float(exlen)), 3)
-                pre_pos += exstop - position
+                raise ValueError("Strand not correct strand is %s" % interval.strand)
 
-            mRNA_frac = np.round((mRNA_pos/float(as_structure_dict[gene]['mRNA_length'])), 3)
-            premRNA_frac = np.round((pre_pos/float(as_structure_dict[gene]['premRNA_length'])), 3)
+            #probably not nessessary
+            if total_fraction < 0 or total_fraction > 1:
+                raise ValueError("total_fraction is bad: %f, gene %s, total_length: %s, total_location: %s" % (total_fraction, 
+                                                                                                               gene, 
+                                                                                                              total_length,
+                                                                                                               total_location))
+            return individual_fraction, total_fraction
+        
+        running_length += length
+        
+    return None, None #clusters fall outside of regions integrated 
 
-            if mRNA_frac < 0 or mRNA_frac > 1:
-                print "mRNA_frac is bad: %f, gene %s" %(mRNA_frac, gene)
-
-            if premRNA_frac < 0 or premRNA_frac > 1:
-                print "premRNA_frac is bad: %f, gene %s" %(premRNA_frac, gene)
-
-            nearest_type = as_structure_dict[gene]['types'][exN]
-            return mRNA_frac, premRNA_frac, exon_frac, None, nearest_type
-        else:
-            mRNA_pos += exlen
-            pre_pos += exlen
-            if exN < as_structure_dict[gene]['numEx']: #there are only exN - 1 introns
-                intstart, intstop = map(int, as_structure_dict[gene]['introns'][exN].split("-"))
-                intlen = intstop-intstart+1
-                if position >= intstart and position <= intstop:
-                    mRNA_pos = None                
-                    if strand == "+":
-                        pre_pos += position - intstart
-                        intron_frac = np.round(((position-intstart)/float(intlen)), 3)
-                    else:
-                        pre_pos += intstop - position
-                        intron_frac = np.round(((intstop - position)/float(intlen)), 3)
-                    premRNA_frac = np.round((pre_pos/float(as_structure_dict[gene]['premRNA_length'])), 3)
-                    if premRNA_frac > 0.5:
-                        nearest_type=as_structure_dict[gene]['types'][exN+1]
-                    else:
-                        nearest_type=as_structure_dict[gene]['types'][exN]
-
-
-                    if premRNA_frac < 0 or premRNA_frac > 1:
-                        print "premRNA_frac is bad: %f, gene %s" %(premRNA_frac, gene)
-
-
-            
-                    return None, premRNA_frac, None, intron_frac, nearest_type
-                else:
-                    pre_pos += intlen
-                    
-    raise ValueError("Clusters fall outside gene")
-
-def calculate_peak_locations(clusters, genes):
+def calculate_peak_locations(bedtool, genes):
     
     """
+    
+    bedtool - bedtool of peaks (only works with clipper defined peaks)
+    genes - as_structure dictionary 
     
     Counts peak locations returns mRNA, pre mRNA, exon and intron positions
     and the nearest type of exon (CE SE ect...)
@@ -495,32 +487,70 @@ def calculate_peak_locations(clusters, genes):
     cluster_regions - bedtool describing locations of peaks / clusters
     
     """
-    types = Counter()
-    print "locating clusters within genes"
-##This should be abstracted to some sort output_file list or something...
-#figures 5 and 6, builds pre-mrna, mrna exon and intron distributions
+    
     mRNA_positions = []
     premRNA_positions = []
     intron_positions = []
     exon_positions = []
+    
+    #I should factor out this building logic...
+    exons_dict = {}
+    for gene in genes:
+        exons_dict[gene] = {}
+        exons_dict[gene]["strand"] = genes[gene]['strand']
+        exons_dict[gene]['regions'] = [map(int, region.split("-")) for region in genes[gene]['exons'].values()]
+        
+    introns_dict = {}
+    for gene in genes:
+        introns_dict[gene] = {}
+        introns_dict[gene]["strand"] = genes[gene]['strand']
+        introns_dict[gene]['regions'] = [map(int, region.split("-")) for region in genes[gene]['introns'].values()]
+    
+    #might as well stitch them both together to get pre-mRNA distribution
+    premRNA_dict = {}
+    for gene in genes:
+        premRNA_dict[gene] = {}
+        premRNA_dict[gene]['regions'] = []
+        premRNA_dict[gene]['strand'] = genes[gene]['strand']
+        for exon, intron in izip_longest(genes[gene]['exons'].values(), genes[gene]['introns'].values()):
+            premRNA_dict[gene]['regions'].append(map(int, exon.split("-")))
+            if intron is not None:
+                premRNA_dict[gene]['regions'].append(map(int, intron.split("-")))
+
 #counts nearest exon to peak and gets RNA
 #gets rna positon for every line as well
-    for line in clusters:
-        try:
-            mRNA_frac, premRNA_frac, exon_frac, intron_frac, nearest_type = RNA_position(line, genes)
+    #make nearest types bed file (custom format for closest bed parsing
+
+    #need to generate CDS lists
+    #need to make nearest type function
+    for interval in bedtool:
+  
+        exon_frac, mRNA_frac = RNA_position(interval, exons_dict)
+        intron_frac, no_meaning = RNA_position(interval, introns_dict)
+        total_frac, premRNA_frac = RNA_position(interval, premRNA_dict)
         
-            if mRNA_frac is not None:
-                mRNA_positions.append(mRNA_frac)
-            if exon_frac is not None:
-                exon_positions.append(exon_frac)
-            if premRNA_frac is not None:
-                premRNA_positions.append(premRNA_frac)
-            if intron_frac is not None:
-                intron_positions.append(intron_frac)
-            if nearest_type is not None:
-                types[nearest_type] += 1
-        except KeyError:
-            print "ignoring: " + str(line)
+        if mRNA_frac is not None:
+            mRNA_positions.append(mRNA_frac)
+        if exon_frac is not None:
+            exon_positions.append(exon_frac)
+        if premRNA_frac is not None:
+            premRNA_positions.append(premRNA_frac)
+        if intron_frac is not None:
+            intron_positions.append(intron_frac)
+
+
+    #get closest features to peaks
+    bedtool_list = []
+    for name, gene in genes.items():
+        for exon, type in zip(gene['exons'].values(), gene['types'].values()):
+            start, stop = map(int, exon.split("-"))
+            bedtool_list.append([gene['chrom'], start, stop, name, 0, gene['strand'], type])
+    
+    feature_tool = pybedtools.BedTool(bedtool_list)
+    
+    #gets and counts closest features to each peak
+    #this doesn't take into account badly placed peaks, we'll know if this is a problem if there a lot of ignoring error messages
+    types = Counter([interval[-1] for interval in bedtool.closest(feature_tool, s=True)])
     
     return types, premRNA_positions, mRNA_positions, exon_positions, intron_positions
 
@@ -1029,6 +1059,8 @@ def main(options):
     
     #also builds figure 10 (exon distances)
     genomic_types = count_genomic_types(genes_dict)
+    
+    #figures 5 and 6, builds pre-mrna, mrna exon and intron distributions
     types, premRNA_positions, mRNA_positions, exon_positions, intron_positions = calculate_peak_locations(cluster_regions['all']['real'], genes_dict)
         
     #gtypes is total genomic content 

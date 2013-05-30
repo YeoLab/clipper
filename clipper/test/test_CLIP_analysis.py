@@ -3,18 +3,21 @@ Created on Sep 10, 2012
 
 @author: gabrielp
 '''
-import unittest
-import CLIP_analysis 
-from CLIP_analysis import *
-from AS_Structure_tools import *
+
+from collections import OrderedDict
+import pkg_resources       
 from optparse import OptionParser, SUPPRESS_HELP 
 import os
-import pkg_resources       
-import clipper
-import pybedtools
+import unittest
+
 from numpy.testing import *
 from numpy import array
-from collections import OrderedDict
+import pybedtools
+
+import clipper
+from clipper.src.CLIP_analysis import *
+from clipper.src.AS_Structure_tools import *
+
 
 class Test(unittest.TestCase):
     
@@ -61,7 +64,7 @@ class Test(unittest.TestCase):
         args = ["--clusters", clipper.test_file("clip_analysis_test_peak_results.bed"),
                 "-s", "mm9",
                 "--bam", clipper.test_file("allup_test.bam"),
-                "--AS_Structure", "/home/gabrielp/bioinformatics/Yeo_Lab/clip_analysis_metadata/mm9data4",
+                "--AS_Structure", "/home/gabrielp/bioinformatics/Yeo_Lab/clip_analysis_metadata/hg19data4",
                 '--genome_location', '/home/gabrielp/bioinformatics/Yeo_Lab/clip_analysis_metadata/mm9/mm9.fa', 
                 #'--regions_location', clipper.test_file("knownGene_sample.gtf"),
                 "--regions_location", '/home/gabrielp/bioinformatics/Yeo_Lab/clip_analysis_metadata/regions',
@@ -73,7 +76,8 @@ class Test(unittest.TestCase):
                 
                 ]    
         (options, args) = self.parser.parse_args(args)
-        CLIP_analysis.main(options)
+        #self.assertTrue(False, "allup test is slow and has been removed for now")
+        main(options)
     
    
     def test_CLIP_figure(self):
@@ -287,8 +291,108 @@ class Test(unittest.TestCase):
     def plot_motif_dist(self):
         pass
     
-    def test_RNA_position(self):
-        pass
+    def test_RNA_position_failaure(self):
+        
+        """
+        
+        Tests faialaure state if gene is not found within location_dict
+        
+        """
+        
+        tool = pybedtools.create_interval_from_list("chr1    50    60    ENSMUSG1_1_83;ENSMUSG1_6_83    0    -    50    50".split())
+        location_dict = {"ENSMUSG2" : {"strand" : "+", "regions" : [(30, 40),
+                                                                    (10,20)
+                                                                    ] 
+                                       }
+                         }
+        self.assertRaises(KeyError, RNA_position, tool, location_dict)
+        
+    def test_RNA_position_strand_equality(self):
+        
+        """
+        
+        Tests failaure mode if strands aren't equal
+        
+        """
+        
+        tool = pybedtools.create_interval_from_list("chr1    50    60    ENSMUSG1_1_83;ENSMUSG1_6_83    0    -    60    60".split())
+        location_dict = {"ENSMUSG1" : {"strand" : "+", "regions" : [(0,100),
+                                                                    ] 
+                                       }
+                         }
+        
+        self.assertRaises(ValueError, RNA_position, tool, location_dict)
+        
+    def test_RNA_position_placement(self):
+        
+        """
+        
+        Makes sure that the placement within a region or list of regions is correct
+        
+        """
+        
+    
+        tool = pybedtools.create_interval_from_list("chr1    50    60    ENSMUSG1_1_83;ENSMUSG1_6_83    0    +    60    60".split())
+        location_dict = {"ENSMUSG1" : {"strand" : "+", "regions" : [(0,100),
+                                                                    ] 
+                                       }
+                         }
+        
+        self.assertEqual(RNA_position(tool, location_dict), (.60, .60))
+        
+        tool = pybedtools.create_interval_from_list("chr1    50    60    ENSMUSG1_1_83;ENSMUSG1_6_83    0    -    60    60".split())
+        location_dict = {"ENSMUSG1" : {"strand" : "-", "regions" : [(0,100),
+                                                                    ] 
+                                       }
+                         }
+        
+        #individual_fraction, total_fraction
+        self.assertEqual(RNA_position(tool, location_dict), (.4, .4))
+    
+    def test_RNA_position_placement_split(self):    
+        
+        """
+        
+        Makes sure that lists of regions works for both positive and negative strands
+        
+        """
+        
+        tool = pybedtools.create_interval_from_list("chr1    50    60    ENSMUSG1_1_83;ENSMUSG1_6_83    0    +    125    125".split())
+        location_dict = {"ENSMUSG1" : {"strand" : "+", "regions" : [(0, 50),
+                                                                    (100, 150),
+                                                                    ] 
+                                       }
+                         }
+        
+        self.assertEqual(RNA_position(tool, location_dict), (.50, .75) )
+        
+        tool = pybedtools.create_interval_from_list("chr1    50    60    ENSMUSG1_1_83;ENSMUSG1_6_83    0    -    25    25".split())
+        location_dict = {"ENSMUSG1" : {"strand" : "-", "regions" : [(100, 150),
+                                                                    (0, 50),
+                                                                    ] 
+                                       }
+                         }
+        
+        self.assertEqual(RNA_position(tool, location_dict), (.50, .75))
+    
+    def test_RNA_position_fail(self):
+        
+        """ Various attempts to break RNA position and make sure that error are caught """
+                
+        tool = pybedtools.create_interval_from_list("chr1    50    60    ENSMUSG1_1_83;ENSMUSG1_6_83    0    -    10    10".split())
+        location_dict = {"ENSMUSG1" : {"strand" : "-", "regions" : [(100, 150),
+                                                                    (25,50),
+                                                                    ] 
+                                       }
+                         }
+        
+        self.assertEqual(RNA_position(tool, location_dict), (None, None))
+        
+        tool = pybedtools.create_interval_from_list("chr1    50    60    ENSMUSG1_1_83;ENSMUSG1_6_83    0    -    175    175".split())
+        
+        self.assertEqual(RNA_position(tool, location_dict), (None, None))
+        
+        
     
     def test_run_kmerdiff(self):
         pass
