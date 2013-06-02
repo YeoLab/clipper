@@ -1,20 +1,24 @@
-from optparse import OptionParser, SUPPRESS_HELP
-import os
-import sys
-from subprocess import call
-import pickle
-import time
-import pybedtools
+
+from collections import defaultdict
 import gzip
+import logging
 import math
 import multiprocessing 
+import numpy as np
+from optparse import OptionParser, SUPPRESS_HELP
+import os
+import pickle
+import random
+import sys
+from subprocess import call
+import time
+
+import pybedtools
+
 import clipper
 from clipper import data_dir
 from clipper.src.call_peak import call_peaks, poissonP
-import logging
-import numpy as np
-import random
-from collections import defaultdict
+
 logging.captureWarnings(True)
     
 #TODO add in pre-trim step 
@@ -550,8 +554,9 @@ def main(options):
        
     transcriptome_size = sum(int(x.attrs['effective_length']) if "effective_length" in x.attrs else x.length for x in gene_tool)
     #do the parralization
-    tasks =  [(gene, bamfile, options.max_gap, options.FDR_alpha, 
-               options.threshold, options.minreads, options.poisson_cutoff, 
+
+    tasks =  [(gene, length, None, bamfile, margin, options.FDR_alpha, 
+               options.threshold, options.binom, options.method,minreads, poisson_cutoff,
                options.plotit, 10, 1000, options.SloP, False,
                options.max_width, options.min_width,
                options.algorithm)
@@ -632,6 +637,8 @@ def call_main():
     parser.add_option("--poisson-cutoff", dest="poisson_cutoff", type="float", help="p-value cutoff for poisson test, Default:%default", default=0.05, metavar="P")
     parser.add_option("--disable_global_cutoff", dest="use_global_cutoff", action="store_false", help="disables global transcriptome level cutoff to CLIP-seq peaks, Default:On", default=True, metavar="P")
     parser.add_option("--FDR", dest="FDR_alpha", type="float", default=0.05, help="FDR cutoff for significant height estimation, default=%default")
+    parser.add_option("--threshold-method", dest="method", default="Randomization", help="Method used for determining height threshold, Can use default=Randomization or Binomial")
+    parser.add_option("--binomial", dest="binom", type="float", default=0.001, help ="Alpha significance threshold for using Binomial distribution for determining height threshold, default=%default")
     parser.add_option("--threshold", dest="threshold", type="int", default=None, help="Skip FDR calculation and set a threshold yourself")
     parser.add_option("--maxgenes", dest="maxgenes", default=None, type="int", help="stop computation after this many genes, for testing", metavar="NGENES")
     parser.add_option("--processors", dest="np", default="autodetect", help="Number of processors to use. Default: All processors on machine", type="str", metavar="NP")

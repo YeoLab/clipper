@@ -4,30 +4,29 @@ Created on Jul 25, 2012
 @author: gabrielp
 '''
 
-from numpy import Inf
-import numpy as np
-import sys
-import pysam
-from clipper.src.peaks import shuffle, find_sections
-from clipper.src.readsToWiggle import readsToWiggle_pysam
-from scipy import optimize
 from collections import namedtuple, defaultdict
 from itertools import izip
-#import pylab
+import logging
+import math
+from random import sample as rs
+import sys
 
 import matplotlib
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
-from numpy import diff, sign, append, array, arange, r_, empty, argmin
-
-from math import sqrt
-from scipy import interpolate
 from matplotlib.path import Path
-
+from math import sqrt
+import numpy
+from numpy import diff, sign, append, array, arange, r_, empty, argmin, Inf
+import numpy as np
+import pysam
 from scipy import stats
-from random import sample as rs
-import math
-import logging
+from scipy import optimize, interpolate
+from scipy.stats import binom
+
+from clipper.src.peaks import shuffle, find_sections
+from clipper.src.readsToWiggle import readsToWiggle_pysam
+
 #pylab.rcParams['interactive']=True
 
 class Peak(namedtuple('Peak', ['chrom', 
@@ -44,6 +43,24 @@ class Peak(namedtuple('Peak', ['chrom',
                                'size',
                                'p'])):
     pass
+   
+#Determines height threshold for transcript using binomial distribution
+#n=num reads, p=mean readlength/transcript length
+def get_Binom_cutoff(readlengths,genelength,alpha, mincut=2):
+    NR=len(readlengths)
+    if NR==0:
+        return mincut
+    else:
+        RL=numpy.array(readlengths)
+        Mean_RL=numpy.mean(RL)
+        Prob=float(Mean_RL)/float(genelength)
+        
+        k=int(binom.ppf(1-(alpha),NR, Prob))
+        if k < mincut:
+            return mincut
+        else:
+            return k
+    
     
 def get_FDR_cutoff_mode(readlengths, 
                         genelength, 
@@ -794,8 +811,9 @@ def poissonP(reads_in_gene, reads_in_peak, gene_length, peak_length):
         logging.error("Poisson cutoff failled", error)
         return 1
 
-def call_peaks(interval, bam_file=None, 
-               max_gap=25, fdr_alpha=0.05, user_threshold=None,
+
+def call_peaks(loc, gene_length, bam_fileobj=None, bam_file=None, 
+               margin=25, fdr_alpha=0.05, user_threshold=None, binom_alpha=0.001, method="Randomization",
                minreads=20, poisson_cutoff=0.05, 
                plotit=False, w_cutoff=10, windowsize=1000, 
                SloP=False, correct_p=False, max_width=None, min_width=None,
@@ -845,15 +863,14 @@ def call_peaks(interval, bam_file=None,
     #TODO have a check to kill this if there aren't any reads in a region
         
     result = peaks_from_info(bam_fileobj, list(wiggle), pos_counts, lengths, 
-                             interval, max_gap, fdr_alpha, 
                              user_threshold, minreads, poisson_cutoff, 
                              plotit, w_cutoff, windowsize, SloP, correct_p,
                              max_width, min_width, algorithm=algorithm)
     
     return result
 
-def peaks_from_info(bam_fileobj, wiggle, pos_counts, lengths, interval, 
-                    max_gap=25, fdr_alpha=0.05, user_threshold=None,
+def peaks_from_info(bam_fileobj, wiggle, pos_counts, lengths, loc, gene_length, 
+                    margin=25, fdr_alpha=0.05, binom_alpha=0.001, method="Randomization" ,user_threshold=None,
                     minreads=20, poisson_cutoff=0.05, plotit=False, 
                     width_cutoff=10, windowsize=1000, SloP=False, 
                     correct_p=False, max_width=None, min_width=None, 
@@ -888,18 +905,20 @@ def peaks_from_info(bam_fileobj, wiggle, pos_counts, lengths, interval,
 
     #used for poisson calclulation?
     nreads_in_gene = sum(pos_counts)
-    
-
 
     #decides FDR calcalation, maybe move getFRDcutoff mean into c code
     gene_threshold = 0
-    if user_threshold is None:
-        gene_threshold = get_FDR_cutoff_mean(lengths, 
-                                             int(interval.attrs['effective_length']), 
-                                             alpha=fdr_alpha)
+    
+    if user_threshold is None:    
+        if method == "Binomial":  #Uses Binomial Distribution to get cutoff if specified by user                             
+            gene_threshold = get_Binom_cutoff(lengths,gene_length,binom_alpha)
+        else:
+            gene_threshold = get_FDR_cutoff_mean(lengths, gene_length,alpha=fdr_alpha)     
     else:
         logging.info("using user threshold")
         gene_threshold = user_threshold
+        
+        
     
     if not isinstance(gene_threshold, int):
         raise TypeError
