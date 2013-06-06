@@ -171,18 +171,23 @@ def build_transcript_data_gtf_as_structure(species, pre_mrna):
     results = []
     x = clipper.data_file(species + ".AS.STRUCTURE.COMPILED.gff")
     gtf_file = pybedtools.BedTool(x)
-    
     for gene in gtf_file:
-        effective_length = gene.attrs['premrna_length'] if pre_mrna else gene.attrs['mrna_length']  
-        results.append(pybedtools.create_interval_from_list([gene['chrom'], 
+        #try:
+            effective_length = gene.attrs['premrna_length'] if pre_mrna else gene.attrs['mrna_length']  
+            results.append(pybedtools.create_interval_from_list(map(str, [gene['chrom'], 
                                         "AS_STRUCTURE", 
                                         "mRNA", 
-                                        str(gene.start), 
-                                        str(gene.stop),
+                                        str(gene.start + 1), 
+                                        str(gene.stop + 1),
                                         "0", 
                                         gene['strand'], 
                                         ".",
-                                        "gene_id=" + gene['gene_id'] + "; transcript_ids=" + gene.attrs['transcript_ids'] + "; effective_length=" + str(effective_length)]))
+                                        "gene_id=%s; transcript_ids=%s; effective_length=%s" % (gene['gene_id'], 
+                                                                                                gene.attrs['transcript_ids'], 
+                                                                                                str(effective_length) )])))
+        #except:
+        #    print gene
+            
     return pybedtools.BedTool(results)
 
 def build_transcript_data_gtf(gtf_file, pre_mrna):
