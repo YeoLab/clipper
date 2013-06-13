@@ -8,7 +8,8 @@ peaks = Extension("clipper.src.peaks", sources = ['clipper/src/peaksmodule.cc'],
 #                  extra_compile_args = ['-O0'] 
 )                 
 
-readsToWiggle = Extension("clipper.src.readsToWiggle", sources = ['clipper/src/readsToWiggle.pyx'])
+readsToWiggle = Extension("clipper.src.readsToWiggle", ['clipper/src/readsToWiggle.pyx'])
+
 with open("README") as file:
     long_description = file.read()
 
@@ -17,8 +18,9 @@ setup(
     long_description = long_description,
     version = "0.1.1",
     packages = find_packages(),
-    ext_modules = [peaks, readsToWiggle],
     cmdclass = {'build_ext' : build_ext},
+    ext_modules = [readsToWiggle, peaks],
+
     package_data = {
         '' : ['*.lengths', '*.gz', '*.bam', '*.bai', 'gff']
         },

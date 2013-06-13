@@ -335,7 +335,6 @@ extern "C" PyObject *peaks_readsToWiggle_pysam(PyObject *self, PyObject *args) {
     
     //skips reads on the wrong strand
     PyObject *is_reverse = PyObject_GetAttrString(item, "is_reverse");
-    //Py_INCREF(is_reverse); 
     
     if (is_reverse == Py_True && !strcmp(keepstrand, "+")) {
       continue;
@@ -350,8 +349,6 @@ extern "C" PyObject *peaks_readsToWiggle_pysam(PyObject *self, PyObject *args) {
     
     int positions_size = PyList_Size(aligned_positions);
     
-
-    //long read_start = PyLong_AsLong(Pyread_statrtPyList_GetItem(aligned_positions, 0)); //possible bug here
     PyObject *Pyread_start = PyList_GetItem(aligned_positions, 0);
     PyObject *Pyread_stop = PyList_GetItem(aligned_positions, positions_size - 1);
 
