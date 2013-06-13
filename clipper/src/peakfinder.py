@@ -182,7 +182,7 @@ def build_transcript_data_gtf_as_structure(species, pre_mrna):
                                         "0", 
                                         gene['strand'], 
                                         ".",
-                                        "gene_id=%s; transcript_ids=%s; effective_length=%s" % (gene['gene_id'], 
+                                        "gene_id=%s; transcript_ids=%s; effective_length=%s" % (gene.attrs['gene_id'], 
                                                                                                 gene.attrs['transcript_ids'], 
                                                                                                 str(effective_length) )])))
         #except:

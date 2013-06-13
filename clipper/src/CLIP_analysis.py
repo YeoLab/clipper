@@ -133,7 +133,7 @@ def count_genomic_region_sizes(regions_dir, regions, species="hg19"):
     """
     
     genomic_region_sizes = {}
-    
+    #TODO update this to work of GFF file, because something isn't matching up...
     for region in regions:
         region_tool = pybedtools.BedTool(os.path.join(regions_dir, region + "_" + species + "_frea_sorted.withscore"))
         genomic_region_sizes[region] = region_tool.total_coverage()
@@ -446,7 +446,7 @@ def RNA_position(interval, location_dict):
     for start, stop in location_dict[gene]['regions']:
         length = float(stop - start) 
         
-        if peak_center >= start and peak_center <= stop:
+        if peak_center >= int(start) and peak_center <= int(stop):
             if interval.strand == "+":
                 total_location = running_length + (peak_center - start)
                 total_fraction = np.round((total_location / total_length), 3)
