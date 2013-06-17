@@ -335,7 +335,6 @@ extern "C" PyObject *peaks_readsToWiggle_pysam(PyObject *self, PyObject *args) {
     
     //skips reads on the wrong strand
     PyObject *is_reverse = PyObject_GetAttrString(item, "is_reverse");
-    //Py_INCREF(is_reverse); 
     
     if (is_reverse == Py_True && !strcmp(keepstrand, "+")) {
       continue;
@@ -350,8 +349,6 @@ extern "C" PyObject *peaks_readsToWiggle_pysam(PyObject *self, PyObject *args) {
     
     int positions_size = PyList_Size(aligned_positions);
     
-
-    //long read_start = PyLong_AsLong(Pyread_statrtPyList_GetItem(aligned_positions, 0)); //possible bug here
     PyObject *Pyread_start = PyList_GetItem(aligned_positions, 0);
     PyObject *Pyread_stop = PyList_GetItem(aligned_positions, positions_size - 1);
 
@@ -497,7 +494,7 @@ static PyMethodDef peaks_methods[] = {
     {"find_sections", peaks_find_sections, METH_VARARGS,
     "finds sections given a list and a margin"},
     {"readsToWiggle_pysam", peaks_readsToWiggle_pysam, METH_VARARGS,
-    "converts pysam to a wiggle vector and some other stuff.\ninput: ((bamfile.fetch obj), tx_start, tx_end, strand, readPos, trim\n      bamfile.fetch obj is from pyasm.Samfile().fetch\n      tx_start is the genome coordinate of the start position of the window you care about\n      tx_stop is genome stop\n      strand is \"+\" or \"-\" to indicate which strand to create a wiggle from\n      readPos is the position you'll be calling the read cover from one of: [\"center\", \"start\", \"end\"]\noutput: wiggle array, jxns, positional counts (cover), read lengths, read locations\n"},
+    "converts pysam to a wiggle vector and some other stuff.\ninput: ((bamfile.fetch obj), tx_start, tx_end, strand, readPos, trim\n      bamfile.fetch obj is from pyasm.Samfile().fetch\n      tx_start is the genome coordinate of the start position of the window you care about\n      tx_stop is genome stop\n      strand is \"+\" or \"-\" to indicate which strand to create a wiggle from\n      readPos is the position you'll be calling the read cover from one of: [\"center\", \"start\", \"end\"]\n fractional: boolean output fractional results instead of integers\n output: wiggle array, jxns, positional counts (cover), read lengths, read locations\n"},
 
     {NULL, NULL, 0, NULL}           /* sentinel */
 };

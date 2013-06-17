@@ -18,9 +18,9 @@ def test_dir():
 
 def data_file(fn):
     fn = os.path.join(data_dir(), fn)
-    
+
     if not os.path.exists(fn):
-        raise ValueError("%s does not exist")
+        raise ValueError("%s does not exist" % (fn))
     return fn
 
 def test_file(fn):

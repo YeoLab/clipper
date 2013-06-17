@@ -3,33 +3,31 @@ Created on Jul 25, 2012
 @author: mlovci
 @author: gabrielp
 '''
-import numpy
-from numpy import Inf
+
+from collections import namedtuple, defaultdict
+from itertools import izip
+import logging
+import math
+from random import sample as rs
 import sys
-import pysam
-from clipper.src.peaks import readsToWiggle_pysam, shuffle, find_sections
-from scipy import optimize
-from scipy.stats import binom
-from collections import namedtuple
-#import pylab
 
 import matplotlib
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
-from numpy import diff, sign, append, array, arange, r_, empty, argmin
-
-from math import sqrt
-from scipy import interpolate
 from matplotlib.path import Path
-
+from math import sqrt
+import numpy
+from numpy import diff, sign, append, array, arange, r_, empty, argmin, Inf
+import numpy as np
+import pysam
 from scipy import stats
-from random import sample as rs
-import math
-import logging
+from scipy import optimize, interpolate
+from scipy.stats import binom
+
+from clipper.src.peaks import shuffle, find_sections
+from clipper.src.readsToWiggle import readsToWiggle_pysam
+
 #pylab.rcParams['interactive']=True
-
-
-
 
 class Peak(namedtuple('Peak', ['chrom', 
                                'genomic_start', 
@@ -207,7 +205,8 @@ class SmoothingSpline(PeakGenerator):
     """Class to fit data to a smooth curve"""
     
     def __init__(self, xRange, yData, smoothingFactor=None,
-                 lossFunction = "get_turn_penalized_residuals"):
+                 lossFunction = "get_turn_penalized_residuals",
+                 threshold = 0):
         
         """
         
@@ -226,7 +225,8 @@ class SmoothingSpline(PeakGenerator):
         self.k = 3 #degree of spline (cubic)
         self.smoothingFactor = smoothingFactor
         self.spline = None
-
+        self.threshold = threshold
+        
         #Sets loss function
         if lossFunction == "get_turn_penalized_residuals":
             self.lossFunction = self.get_turn_penalized_residuals
@@ -590,7 +590,7 @@ class SmoothingSpline(PeakGenerator):
             optimizedSpline = self.optimize_fit(s_estimate=bestSmoothingEstimate)
             self.spline = optimizedSpline
             if plotit:
-                self.plot(title = "optimized spline", threshold=threshold)
+                self.plot(title = "optimized spline", threshold=self.threshold)
 
         except Exception as error:
             logging.error("failed spline fitting optimization at section (major crash)")
@@ -602,9 +602,9 @@ class SmoothingSpline(PeakGenerator):
     
         if plotit is True:
 
-            self.plot(title="A fit", threshold=threshold)       
+            self.plot(title="A fit", threshold=self.threshold)       
         
-        starts_and_stops, starts, stops = self.get_regions_above_threshold(threshold, 
+        starts_and_stops, starts, stops = self.get_regions_above_threshold(self.threshold, 
                                                                       spline_values)
         peak_definitions = []
         for peak_start, peak_stop in starts_and_stops: 
@@ -632,8 +632,9 @@ class Classic(PeakGenerator):
         self.max_width = max_width
         self.min_width = min_width
         self.max_gap = max_gap
-        
-    def peaks(self):
+    
+    #hackety hack, factor to init when you aren't lazy
+    def peaks(self, plotit):
         peak_definitions = []
         
         in_peak = False
@@ -802,38 +803,38 @@ def poissonP(reads_in_gene, reads_in_peak, gene_length, peak_length):
         #gets multipled by the peak 
         #length as an estimator of the mean
         
-        lam = 1 + ((float(reads_in_gene) / (gene_length)) * (peak_length)) #expect at least one read.
+        lam = 1 + ((float(reads_in_gene) / float(gene_length)) * float(peak_length)) #expect at least one read.
 
-        cum_p = 1 - stats.poisson.cdf(reads_in_peak, int(lam))
+        cum_p = 1 - stats.poisson.cdf(reads_in_peak, lam)
 
         return cum_p
     
     except Exception as error:
-        logging.error(error)
+        logging.error("Poisson cutoff failled", error)
         return 1
+
 
 def call_peaks(loc, gene_length, bam_fileobj=None, bam_file=None, 
                margin=25, fdr_alpha=0.05, user_threshold=None, binom_alpha=0.001, method="Randomization",
                minreads=20, poisson_cutoff=0.05, 
                plotit=False, w_cutoff=10, windowsize=1000, 
                SloP=False, correct_p=False, max_width=None, min_width=None,
-               max_gap=None, algorithm="spline"):
+               algorithm="spline"):
     
     """
 
     calls peaks for an individual gene 
     
-    loc - string of all gene location
-    gene_length - effective length of gene
+    interval - gtf interval describing the gene to query 
     takes bam file or bam file object.  Serial uses object parallel uses location (name)
-    margin - space between sections for calling new peaks
+    max_gap - space between sections for calling new peaks
     fdr_alpha - false discovery rate, p-value bonferoni correct from peaks script (called in setup)
     user_threshold - user defined FDR thershold (probably should be factored into fdr_alpha
 
     minreads - min reads in section to try and call peaks
     poisson_cutoff - p-value for signifance cut off for number of reads in peak that gets called - might want to use ashifted distribution
     plotit - makes figures 
-    
+
     w_cutoff - width cutoff, peaks narrower than this are discarted 
     windowssize - for super local calculation distance left and right to look 
     SloP - super local p-value instead of gene-wide p-value
@@ -847,35 +848,26 @@ def call_peaks(loc, gene_length, bam_fileobj=None, bam_file=None,
     if plotit:
         plt.rcParams['interactive']=True
         pass
-    #setup
-    chrom, gene_name, tx_start, tx_end, strand = loc
-    logging.error("running on gene %s" % (loc))
-    #logic reading bam files
-    if bam_file is None and bam_fileobj is None:
-        #using a file opbject is faster for serial processing 
-        #but doesn't work in parallel
+
+    logging.info("running on gene %s" % (str(interval)))
         
-        logging.error("""you have to pick either bam file or bam file 
-                        object, not both""")
-        exit()
-    elif bam_fileobj is None:
-        bam_fileobj = pysam.Samfile(bam_file, 'rb')
+    bam_fileobj = pysam.Samfile(bam_file, 'rb')
+    
+    #fixes non-standard chrom file names (without the chr)
+    if not interval.chrom.startswith("chr"):
+        interval.chrom = "chr" + interval.chrom
         
-    tx_start, tx_end = [int(x) for x in [tx_start, tx_end]]
-    subset_reads = bam_fileobj.fetch(reference=chrom, start=tx_start, end=tx_end)
+    subset_reads = bam_fileobj.fetch(reference=interval.chrom, start=interval.start, end=interval.stop)
 
     #need to document reads to wiggle
-    wiggle, jxns, pos_counts, lengths, allreads = readsToWiggle_pysam(subset_reads, tx_start, tx_end, strand, "center", False)
-
-    #wiggle, pos_counts, lengths = readsToWiggle_pysam(subset_reads, tx_start, tx_end, strand, "center", False)
+    wiggle, jxns, pos_counts, lengths, allreads = readsToWiggle_pysam(subset_reads, interval.start, interval.stop, interval.strand, "center", False)
 
     #TODO have a check to kill this if there aren't any reads in a region
         
     result = peaks_from_info(bam_fileobj, list(wiggle), pos_counts, lengths, 
-                             loc, gene_length, margin, fdr_alpha, binom_alpha, method,
                              user_threshold, minreads, poisson_cutoff, 
                              plotit, w_cutoff, windowsize, SloP, correct_p,
-                             max_width, min_width, max_gap)
+                             max_width, min_width, algorithm=algorithm)
     
     return result
 
@@ -884,7 +876,7 @@ def peaks_from_info(bam_fileobj, wiggle, pos_counts, lengths, loc, gene_length,
                     minreads=20, poisson_cutoff=0.05, plotit=False, 
                     width_cutoff=10, windowsize=1000, SloP=False, 
                     correct_p=False, max_width=None, min_width=None, 
-                    max_gap=None, algorithm="spline"):
+                    algorithm="spline", stastical_test = "poisson"):
 
     """
     
@@ -898,8 +890,8 @@ def peaks_from_info(bam_fileobj, wiggle, pos_counts, lengths, loc, gene_length,
     calls peaks for an individual gene 
     
 
-    gene_length - effective length of gene
-    margin - space between sections for calling new peaks
+    interval - gtf interval describing gene to query
+    max_gap - space between sections for calling new peaks
     fdr_alpha - false discovery rate, p-value bonferoni correct from peaks script (called in setup)
     user_threshold - user defined FDR thershold (probably should be factored into fdr_alpha
     minreads - min reads in section to try and call peaks
@@ -913,24 +905,7 @@ def peaks_from_info(bam_fileobj, wiggle, pos_counts, lengths, loc, gene_length,
     algorithm - str the algorithm to run
     """
 
-    peak_dict = {}
-    
-    #all the information nessessary to record a genomic_center, used later, but declared outside of loops
-
-    
-    #these are what is built in this dict, complicated enough that it might 
-    #be worth turning into an object
-    #peak_dict['clusters'] = {}
-    #peak_dict['sections'] = {}
-    #peak_dict['nreads'] = int()
-    #peak_dict['threshold'] = int()
-    #peak_dict['loc'] = loc
-    
-    #data munging
-    chrom, gene_name, tx_start, tx_end, strand = loc
-    tx_start, tx_end = [int(x) for x in [tx_start, tx_end]]    
-    
-    #used for poisson calclulation? 
+    #used for poisson calclulation?
     nreads_in_gene = sum(pos_counts)
 
     #decides FDR calcalation, maybe move getFRDcutoff mean into c code
@@ -950,15 +925,19 @@ def peaks_from_info(bam_fileobj, wiggle, pos_counts, lengths, loc, gene_length,
     if not isinstance(gene_threshold, int):
         raise TypeError
         
+    #these are what is built in this dict, complicated enough that it might 
+    #be worth turning into an object
+    peak_dict = {}
     peak_dict['clusters'] = []
     peak_dict['sections'] = {}
     peak_dict['nreads'] = int(nreads_in_gene)
     peak_dict['threshold'] = gene_threshold
-    peak_dict['loc'] = loc
+    peak_dict['loc'] = interval 
+
     peak_number=1
 
  
-    sections = find_sections(wiggle, margin)
+    sections = find_sections(wiggle, max_gap)
     if plotit is True:      
         plot_sections(wiggle, sections, gene_threshold)
 
@@ -1018,7 +997,8 @@ def peaks_from_info(bam_fileobj, wiggle, pos_counts, lengths, loc, gene_length,
             
             initial_smoothing_value = (sectstop - sectstart + 1)
             fitter = SmoothingSpline(xvals, data, initial_smoothing_value,
-                            lossFunction="get_norm_penalized_residuals")
+                            lossFunction="get_norm_penalized_residuals",
+                            threshold=threshold)
             
         elif algorithm == "gaussian":
             fitter = GaussMix(xvals, data)
@@ -1026,10 +1006,10 @@ def peaks_from_info(bam_fileobj, wiggle, pos_counts, lengths, loc, gene_length,
         elif algorithm == "classic":
             fitter = Classic(xvals, data, max_width, min_width, max_gap)
         try:
-            peak_definitions = fitter.peaks(threshold, plotit)
+            peak_definitions = fitter.peaks(plotit)
 
         except Exception as error:
-            logging.error(gene_name)
+            logging.error("peak finding failled:, %s, %s" % (interval.name, error))
             raise error
             
         #subsections that are above threshold
@@ -1037,10 +1017,10 @@ def peaks_from_info(bam_fileobj, wiggle, pos_counts, lengths, loc, gene_length,
         #occur, not the average of start and stop
         for peak_start, peak_stop, peak_center in peak_definitions: 
  
-             genomic_start = tx_start + sectstart + peak_start
-             genomic_stop = tx_start + sectstart + peak_stop
+             genomic_start = interval.start + sectstart + peak_start
+             genomic_stop = interval.start + sectstart + peak_stop
              
-             number_reads_in_peak = bam_fileobj.count(chrom, start=genomic_start, end=genomic_stop)
+             number_reads_in_peak = bam_fileobj.count(interval.chrom, start=genomic_start, end=genomic_stop)
              #sum(cts[peak_start:(peak_stop + 1)])
              logging.info("""Peak %d (%d - %d) has %d 
                               reads""" %(peak_number,                                             
@@ -1057,7 +1037,7 @@ def peaks_from_info(bam_fileobj, wiggle, pos_counts, lengths, loc, gene_length,
 
   
              #highest point in start stop
-             genomic_center = tx_start + sectstart + peak_center
+             genomic_center = interval.start + sectstart + peak_center
 
              #makes it thicker so we can see on the browser 
              thick_start = genomic_center - 2
@@ -1080,20 +1060,19 @@ def peaks_from_info(bam_fileobj, wiggle, pos_counts, lengths, loc, gene_length,
              #best_error check to make sure area is in area of gene
 
              #distance from gene start
-             if genomic_center - tx_start - windowsize < 0: 
+             if genomic_center - interval.start - windowsize < 0: 
                  area_start = 0
 
              #for super local gets area around genomic_center for calculation
              else:  
-                 area_start = genomic_center - tx_start - windowsize
+                 area_start = genomic_center - interval.start - windowsize
                  #area_start = sectstart
 
              #same thing except for end of gene instead of start
-             if genomic_center + windowsize > tx_end: #distance to gene stop
-                 area_stop = tx_start - tx_end + 1
+             if genomic_center + windowsize > interval.stop: #distance to gene stop
+                 area_stop = interval.start - interval.stop + 1
              else:
-                 area_stop = genomic_center - tx_start + windowsize
-                 #area_stop = sectstop
+                 area_stop = genomic_center - interval.start + windowsize
 
              #use area reads + 1/2 all other reads in gene: 
              #area_reads = sum(pos_counts[area_start:area_stop]) + 
@@ -1110,37 +1089,39 @@ def peaks_from_info(bam_fileobj, wiggle, pos_counts, lengths, loc, gene_length,
              #calcluates poisson based of whole gene vs genomic_center
              if algorithm == "classic" and peak_length < min_width:
                  peak_length = min_width
-                 
-             gene_pois_p = poissonP(nreads_in_gene, 
+            
+             if stastical_test == "poisson":
+                gene_pois_p = poissonP(nreads_in_gene, 
                                     number_reads_in_peak, 
-                                    gene_length, 
+                                    int(interval.attrs['effective_length']), 
                                     peak_length)
+             elif stastical_test == "negative_binomial":
+                 pass
+             
+             #set SloP
              if SloP is True:
                  #same thing except for based on super local p-value
-                 slop_pois_p = poissonP(area_reads, 
+                 if stastical_test == "poisson":
+                    slop_pois_p = poissonP(area_reads, 
                                        number_reads_in_peak, 
                                        area_size, 
                                        peak_length)
+                 if math.isnan(slop_pois_p):
+                     slop_pois_p = np.Inf
 
-             #makes sure spop_poisP is defined, even if its 
-             #just normal, something to be removed later,
-             #slop should only be used when defined as true
              else:
-                 slop_pois_p = gene_pois_p
+                 slop_pois_p = np.Inf
 
 
-             if math.isnan(slop_pois_p):
-                 slop_pois_p = 1
 
-             #defines the bedline of a genomic_center for returning
-             #TODO This should be abstracted out for now... seperate model from view
-             
-             peak_dict['clusters'].append(Peak(chrom, 
+             #TODO a peak object might just be a gtf file or
+             #bed file...
+             peak_dict['clusters'].append(Peak(interval.chrom, 
                                                genomic_start, 
                                                genomic_stop, 
-                                               gene_name, #need this is a unique id for later analysis
+                                               interval.attrs['gene_id'], 
                                                slop_pois_p, 
-                                               strand,
+                                               interval.strand,
                                                thick_start,
                                                thick_stop,
                                                peak_number,
@@ -1154,14 +1135,6 @@ def peaks_from_info(bam_fileobj, wiggle, pos_counts, lengths, loc, gene_length,
              peak_number += 1
              peak_dict['sections'][sect]['nPeaks'] +=1
            
-    #inflate p-values based on # of comparisons #bonferroni corrected
-    if correct_p is True:
-        #best I can tell this never executes...            
-        for genomic_center in peak_dict['clusters']:
-            genomic_center.p = genomic_center.p * peak_number  #bonferroni correct p-value for MHT
-        
-        
-
     peak_dict['Nclusters'] = peak_number
     if plotit:
         import sys

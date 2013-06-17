@@ -1,10 +1,14 @@
-from setuptools import setup, find_packages, Extension
+from setuptools import setup
+from setuptools import find_packages
 
+from distutils.extension import Extension
+from Cython.Distutils import build_ext
 peaks = Extension("clipper.src.peaks", sources = ['clipper/src/peaksmodule.cc'],
 #for debugging
 #                  extra_compile_args = ['-O0'] 
 )                 
 
+readsToWiggle = Extension("clipper.src.readsToWiggle", ['clipper/src/readsToWiggle.pyx'])
 
 with open("README") as file:
     long_description = file.read()
@@ -14,26 +18,28 @@ setup(
     long_description = long_description,
     version = "0.1.1",
     packages = find_packages(),
-    ext_modules = [peaks],
+    cmdclass = {'build_ext' : build_ext},
+    ext_modules = [readsToWiggle, peaks],
+
     package_data = {
-        '' : ['*.lengths', '*.gz', '*.bam', '*.bai']
+        '' : ['*.lengths', '*.gz', '*.bam', '*.bai', 'gff']
         },
     
     install_requires = ['setuptools', 
                         'pysam >= 0.6',
                         'numpy >= 1.5.1 ',
- #                       'scipy >= 0.8.0',
+                        'scipy >= 0.11.0',
                         'matplotlib >= 1.1.0',
-                        'pp >= 1.6.2',
                         'pybedtools >= 0.5',
-#                        'scikit-learn >= 0.12.1',
+                        'scikit-learn >= 0.13.0',
                         ],
       
     setup_requires = ["setuptools_git >= 0.3",],
     
     entry_points = {
                     'console_scripts': [
-                                        'clipper = clipper.src.peakfinder:call_main',],
+                                        'clipper = clipper.src.peakfinder:call_main',
+                                        'clip_analysis = clipper.src.CLIP_analysis:call_main',],
                     },
 
     #metadata for upload to PyPI

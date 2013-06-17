@@ -24,7 +24,7 @@ class Test(unittest.TestCase):
         fitter = Classic(xvals, data, max_width=20, min_width=3, max_gap=10)
                          
         
-        starts_and_stops = fitter.peaks()
+        starts_and_stops = fitter.peaks(False)
         self.assertListEqual(starts_and_stops, [(0,10, 5)])
         
     def test_large_peaks(self):
@@ -42,7 +42,7 @@ class Test(unittest.TestCase):
         fitter = Classic(xvals, data, max_width=5, min_width=3, max_gap=10)
                          
         
-        starts_and_stops = fitter.peaks()
+        starts_and_stops = fitter.peaks(False)
         self.assertListEqual(starts_and_stops, [(0,5, 2), (5,10, 5)])
     
     def test_large_and_small_peaks(self):
@@ -58,7 +58,7 @@ class Test(unittest.TestCase):
         fitter = Classic(xvals, data, max_width=5, min_width=3, max_gap=10)
                          
         
-        starts_and_stops = fitter.peaks()
+        starts_and_stops = fitter.peaks(False)
         self.assertListEqual(starts_and_stops, [(0,5, 0), (5,10, 5), (10, 13, 10 )])
     def test_small_peak(self):
         
@@ -73,7 +73,7 @@ class Test(unittest.TestCase):
         
         fitter = Classic(xvals, data, max_width=20, min_width=15, max_gap=10)
                          
-        starts_and_stops = fitter.peaks()
+        starts_and_stops = fitter.peaks(False)
         self.assertListEqual(starts_and_stops, [(0,15, 0)])
         
     def test_gap_peaks(self):
@@ -89,7 +89,7 @@ class Test(unittest.TestCase):
         
         fitter = Classic(xvals, data, max_width=20, min_width=1, max_gap=1)
                          
-        starts_and_stops = fitter.peaks()
+        starts_and_stops = fitter.peaks(False)
         self.assertListEqual(starts_and_stops, [(0,4, 0), (6,10, 6)])
     
     def test_gap_and_small_peak(self):
@@ -105,7 +105,7 @@ class Test(unittest.TestCase):
         
         fitter = Classic(xvals, data, max_width=20, min_width=4, max_gap=1)
                          
-        starts_and_stops = fitter.peaks()
+        starts_and_stops = fitter.peaks(False)
         self.assertListEqual(starts_and_stops, [(0,4,0), (6,10,6)])
     
     def test_gap_and_small_peak(self):
@@ -121,7 +121,7 @@ class Test(unittest.TestCase):
         
         fitter = Classic(xvals, data, max_width=20, min_width=1, max_gap=0)
                          
-        starts_and_stops = fitter.peaks()
+        starts_and_stops = fitter.peaks(False)
         self.assertListEqual(starts_and_stops, [(0,2,0), (3,5,3), (6,10,6)])
     
     def test_leading_zero(self):
@@ -137,7 +137,7 @@ class Test(unittest.TestCase):
         
         fitter = Classic(xvals, data, max_width=20, min_width=1, max_gap=1)
                          
-        starts_and_stops = fitter.peaks()
+        starts_and_stops = fitter.peaks(False)
         self.assertListEqual(starts_and_stops, [(2,10, 2)])
     
     def test_traling_zero(self):
@@ -153,7 +153,7 @@ class Test(unittest.TestCase):
         
         fitter = Classic(xvals, data, max_width=20, min_width=1, max_gap=1)
                          
-        starts_and_stops = fitter.peaks()
+        starts_and_stops = fitter.peaks(False)
         self.assertListEqual(starts_and_stops, [(0,8, 0)])  
         
     def test_gap_and_small_peaks(self):
@@ -169,7 +169,7 @@ class Test(unittest.TestCase):
         
         fitter = Classic(xvals, data, max_width=5, min_width=5, max_gap=1)
                          
-        starts_and_stops = fitter.peaks()
+        starts_and_stops = fitter.peaks(False)
         self.assertListEqual(starts_and_stops, [(0,3,0), (6,11,6)])
         
 if __name__ == "__main__":
