@@ -676,7 +676,7 @@ class Classic(PeakGenerator):
         
         return peak_definitions
     
-class GaussMix(object):
+class GaussMix(PeakGenerator):
     from sklearn import mixture as mix
     
     def __init__(self, xvals, data):
@@ -704,8 +704,10 @@ class GaussMix(object):
         self.GMM = models[best]
         self.AIC = AIC[best]
         
-    def predict(self):
-        pass
+    def peaks(threshold, plotit=False):
+        if plotit:
+            raise NotImplementedError("Plot functionality is not ready for gaussian mixture model")
+        self.fit()
 
 def plot_sections(wiggle, sections, threshold):
     
