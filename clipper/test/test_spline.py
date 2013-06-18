@@ -204,7 +204,7 @@ class Test(unittest.TestCase):
         
         
         #here the final math result
-        self.assertEqual(74590259.948699772, result)
+        self.assertAlmostEqual(74590259.948699772, result, 4)
     def test_get_turn_penalized_residuals(self):
         
         """
@@ -232,7 +232,7 @@ class Test(unittest.TestCase):
         turns = sum(abs(diff(sign(diff(expected(xvals)))))) / 2
         self.assertEqual(1, turns, "turn calculation is wrong")
         
-        self.assertEqual(2.235811645548004, smoothing_spline.get_turn_penalized_residuals(expected))
+        self.assertAlmostEqual(2.235811645548004, smoothing_spline.get_turn_penalized_residuals(expected), 4) 
    
         
     def test_fit_univariate_spline(self):

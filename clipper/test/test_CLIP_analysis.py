@@ -64,16 +64,15 @@ class Test(unittest.TestCase):
         args = ["--clusters", clipper.test_file("clip_analysis_test_peak_results.bed"),
                 "-s", "mm9",
                 "--bam", clipper.test_file("allup_test.bam"),
-                "--AS_Structure", "/home/gabrielp/bioinformatics/Yeo_Lab/clip_analysis_metadata/hg19data4",
+                "--AS_Structure", os.path.join(clipper.test_dir(), "hg19data4"),
                 '--genome_location', '/home/gabrielp/bioinformatics/Yeo_Lab/clip_analysis_metadata/mm9/mm9.fa', 
                 #'--regions_location', clipper.test_file("knownGene_sample.gtf"),
-                "--regions_location", '/home/gabrielp/bioinformatics/Yeo_Lab/clip_analysis_metadata/regions',
-                '--phastcons_location', '/home/gabrielp/bioinformatics/Yeo_Lab/clip_analysis_metadata/phastcons/mm9_phastcons.bw',
+                "--regions_location", os.path.join(clipper.test_dir(), "regions"),
+                '--phastcons_location', clipper.test_file("allup_test.bam"),
                 '--motifs', 'AAAAAA',
                 '--nrand', '1',
                 '--runPhast',
                 '--runMotif'
-                
                 ]    
         (options, args) = self.parser.parse_args(args)
         #self.assertTrue(False, "allup test is slow and has been removed for now")

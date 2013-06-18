@@ -475,7 +475,7 @@ class Test(unittest.TestCase):
         
         #just a quick test to make sure it works, probably need to fix this
         #later
-        self.assertSetEqual(result, set(["test", "hg19", "mm9", "hg18"]))
+        self.assertSetEqual(result, set(["test", "hg19", "mm9", "hg18", "ce10"]))
     
       
     def test_build_transcript_data(self):
