@@ -44,24 +44,25 @@ class Peak(namedtuple('Peak', ['chrom',
                                'p'])):
     pass
    
-#Determines height threshold for transcript using binomial distribution
-#n=num reads, p=mean readlength/transcript length
-def get_Binom_cutoff(readlengths,genelength,alpha, mincut=2):
-    NR=len(readlengths)
-    if NR==0:
+def get_FDR_cutoff_binom(readlengths, genelength, alpha, mincut = 2):
+    number_reads = len(readlengths)
+    
+    if number_reads == 0:
         return mincut
     else:
-        RL=numpy.array(readlengths)
-        Mean_RL=numpy.mean(RL)
-        Prob=float(Mean_RL)/float(genelength)
+        read_length = numpy.array(readlengths)
+        mean_read_length = numpy.mean(read_length)
+        prob = float(mean_read_length) / float(genelength)
+        try:
+            k = int(binom.ppf(1 - (alpha), number_reads, prob))
+            if k < mincut:
+                return mincut
+            else:
+                return k
+        except:
+            print read_length, mean_read_length, prob, alpha, number_reads
+            raise
         
-        k=int(binom.ppf(1-(alpha),NR, Prob))
-        if k < mincut:
-            return mincut
-        else:
-            return k
-    
-    
 def get_FDR_cutoff_mode(readlengths, 
                         genelength, 
                         iterations=1000, 
@@ -128,12 +129,15 @@ def get_FDR_cutoff_mean(readlengths,
     TODO: double check math on this
     
     """
+
+    
     
     #if you have very few reads on a gene, don't waste time 
     #trying to find a cutoff        
     if len(readlengths) < 20:
         return mincut
-    results = shuffle(genelength, iterations, 0, .05, readlengths) 
+    
+    results = shuffle(int(genelength), int(iterations), 0, .05, readlengths) 
     total = 0
 
     
@@ -808,12 +812,12 @@ def poissonP(reads_in_gene, reads_in_peak, gene_length, peak_length):
         return cum_p
     
     except Exception as error:
-        logging.error("Poisson cutoff failled", error)
+        logging.error("Poisson cutoff failled %s " % (error))
         return 1
 
 
-def call_peaks(loc, gene_length, bam_fileobj=None, bam_file=None, 
-               margin=25, fdr_alpha=0.05, user_threshold=None, binom_alpha=0.001, method="Randomization",
+def call_peaks(interval, gene_length, bam_fileobj=None, bam_file=None, 
+               max_gap=25, fdr_alpha=0.05, user_threshold=None, binom_alpha=0.001, method="random",
                minreads=20, poisson_cutoff=0.05, 
                plotit=False, w_cutoff=10, windowsize=1000, 
                SloP=False, correct_p=False, max_width=None, min_width=None,
@@ -841,7 +845,7 @@ def call_peaks(loc, gene_length, bam_fileobj=None, bam_file=None,
     min_width - int min width of classic peak calling algorithm peak
     max_gap   - int max gap of classic peak calling algorithm peak
     """
-    
+    print interval
     #sys.stderr.write("plotit foo" + str(plotit))
     if plotit:
         plt.rcParams['interactive']=True
@@ -858,19 +862,36 @@ def call_peaks(loc, gene_length, bam_fileobj=None, bam_file=None,
     subset_reads = bam_fileobj.fetch(reference=interval.chrom, start=interval.start, end=interval.stop)
 
     #need to document reads to wiggle
-    wiggle, jxns, pos_counts, lengths, allreads = readsToWiggle_pysam(subset_reads, interval.start, interval.stop, interval.strand, "center", False)
+    wiggle, jxns, pos_counts, read_lengths, allreads = readsToWiggle_pysam(subset_reads, interval.start, interval.stop, interval.strand, "center", False)
 
     #TODO have a check to kill this if there aren't any reads in a region
         
-    result = peaks_from_info(bam_fileobj, list(wiggle), pos_counts, lengths, 
-                             user_threshold, minreads, poisson_cutoff, 
-                             plotit, w_cutoff, windowsize, SloP, correct_p,
-                             max_width, min_width, algorithm=algorithm)
+    result = peaks_from_info(bam_fileobj= bam_fileobj,
+                             wiggle=list(wiggle),
+                             pos_counts=pos_counts,
+                             lengths=read_lengths,
+                             interval=interval,
+                             gene_length=gene_length,
+                             max_gap=max_gap,
+                             fdr_alpha=fdr_alpha,
+                             binom_alpha=binom_alpha,
+                             method=method,
+                             user_threshold=user_threshold,
+                             minreads=minreads,
+                             poisson_cutoff=poisson_cutoff, 
+                             plotit=plotit,
+                             width_cutoff=w_cutoff,
+                             windowsize=windowsize,
+                             SloP=SloP,
+                             correct_p=correct_p,
+                             max_width=max_width,
+                             min_width= min_width,
+                             algorithm=algorithm)
     
     return result
 
-def peaks_from_info(bam_fileobj, wiggle, pos_counts, lengths, loc, gene_length, 
-                    margin=25, fdr_alpha=0.05, binom_alpha=0.001, method="Randomization" ,user_threshold=None,
+def peaks_from_info(bam_fileobj, wiggle, pos_counts, lengths, interval, gene_length, 
+                    max_gap=25, fdr_alpha=0.05, binom_alpha=0.001, method="random" ,user_threshold=None,
                     minreads=20, poisson_cutoff=0.05, plotit=False, 
                     width_cutoff=10, windowsize=1000, SloP=False, 
                     correct_p=False, max_width=None, min_width=None, 
@@ -908,12 +929,19 @@ def peaks_from_info(bam_fileobj, wiggle, pos_counts, lengths, loc, gene_length,
 
     #decides FDR calcalation, maybe move getFRDcutoff mean into c code
     gene_threshold = 0
+
     
     if user_threshold is None:    
-        if method == "Binomial":  #Uses Binomial Distribution to get cutoff if specified by user                             
-            gene_threshold = get_Binom_cutoff(lengths,gene_length,binom_alpha)
+        if method == "binomial":  #Uses Binomial Distribution to get cutoff if specified by user                             
+            
+            gene_threshold = get_FDR_cutoff_binom(lengths, gene_length, binom_alpha)
+        elif method == "random":
+            
+            gene_threshold = get_FDR_cutoff_mean(readlengths = lengths,
+                                                 genelength = gene_length,
+                                                 alpha = fdr_alpha)
         else:
-            gene_threshold = get_FDR_cutoff_mean(lengths, gene_length,alpha=fdr_alpha)     
+            raise ValueError("Method %s does not exist" % (method))
     else:
         logging.info("using user threshold")
         gene_threshold = user_threshold
@@ -971,9 +999,17 @@ def peaks_from_info(bam_fileobj, wiggle, pos_counts, lengths, loc, gene_length,
                 sect_read_lengths = rs(lengths, Nreads) 
                 
                 #use the minimum FDR cutoff between superlocal and gene-wide calculations
-                threshold = min(gene_threshold, get_FDR_cutoff_mean(sect_read_lengths, 
-                                                sect_length, 
-                                                alpha=fdr_alpha))
+
+                if method == "binomial":  #Uses Binomial Distribution to get cutoff if specified by user                             
+                    
+                    threshold = min(gene_threshold, get_FDR_cutoff_binom(lengths, gene_length, binom_alpha))
+                elif method == "random":
+                    
+                    threshold = min(gene_threshold, get_FDR_cutoff_mean(readlengths = lengths,
+                                                 genelength = gene_length,
+                                                 alpha = fdr_alpha))
+                else:
+                    raise ValueError("Method %s does not exist" % (method))
                 logging.info("Using super-local threshold %d" %(threshold))
                 
             else:

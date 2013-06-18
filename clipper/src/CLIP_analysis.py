@@ -445,7 +445,7 @@ def RNA_position(interval, location_dict):
         
     for start, stop in location_dict[gene]['regions']:
         length = float(stop - start) 
-        
+
         if peak_center >= int(start) and peak_center <= int(stop):
             if interval.strand == "+":
                 total_location = running_length + (peak_center - start)
