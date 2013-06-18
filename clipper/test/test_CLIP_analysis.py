@@ -64,7 +64,7 @@ class Test(unittest.TestCase):
         args = ["--clusters", clipper.test_file("clip_analysis_test_peak_results.bed"),
                 "-s", "mm9",
                 "--bam", clipper.test_file("allup_test.bam"),
-                "--AS_Structure", os.path.join(clipper.test_dir(), "hg19data4"),
+                "--AS_Structure", os.path.join(clipper.test_dir(), "mm9data4"),
                 '--genome_location', '/home/gabrielp/bioinformatics/Yeo_Lab/clip_analysis_metadata/mm9/mm9.fa', 
                 #'--regions_location', clipper.test_file("knownGene_sample.gtf"),
                 "--regions_location", os.path.join(clipper.test_dir(), "regions"),

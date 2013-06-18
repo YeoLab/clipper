@@ -33,7 +33,7 @@ class Test(unittest.TestCase):
         self.parser.add_option("--outdir", dest="prefix", default=os.getcwd(), help="output directory, default=cwd")    
         self.parser.add_option("--outfile", dest="outfile", default="fitted_clusters", help="a bed file output, default:%default")
 
-        self.parser.add_option("--threshold-method", dest="method", default="Randomization", help="Method used for determining height th\
+        self.parser.add_option("--threshold-method", dest="method", default="random", help="Method used for determining height th\
         reshold, Can use default=Randomization or Binomial")
         self.parser.add_option("--binomial", dest="binom", type="float", default=0.001, help ="Alpha significance threshold for using Bi")  
         self.parser.add_option("--gene", "-g", dest="gene", action="append", help="A specific gene you'd like try", metavar="GENENAME")

@@ -1,0 +1,3 @@
+use warnings;
+
+open(FI, "<".$ARGV[0]);
