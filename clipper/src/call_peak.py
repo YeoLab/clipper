@@ -224,7 +224,7 @@ class SmoothingSpline(PeakGenerator):
         super(SmoothingSpline,self).__init__(xRange, yData)
         
         if smoothingFactor is None:
-            smoothingFactor = len(xRange)
+            smoothingFactor = 0.25 * numpy.sum(yData) #len(xRange)
         
         self.k = 3 #degree of spline (cubic)
         self.smoothingFactor = smoothingFactor
@@ -680,37 +680,96 @@ class Classic(PeakGenerator):
             peak_definitions.append((peak_start, peak_stop, peak_center))
         
         return peak_definitions
+
+from sklearn import mixture as mix
+sklearnGMM = mix.GMM
+
+class myGMM(sklearnGMM):
+
+    def bic(self, X, scoreWeight = 2, complexityWeight=4):
+        return (-scoreWeight * self.score(X).sum() +
+                complexityWeight * (self._n_parameters() * np.log(X.shape[0])))
+
+class GaussMix(PeakGenerator):
     
-class GaussMix(object):
-    from sklearn import mixture as mix
-    
-    def __init__(self, xvals, data):
+    def __init__(self, xvals, cover):
         #data should count one "base" per read (not one point for each position)
         #initialize the fitter
-        #transform data
+
         Tdata = list()
-        for x, n in zip(xvals, data):
-            for i in range(n):
+        self.xvals = xvals
+        self.cover = cover
+        for x, n in izip(xvals, cover):
+            for i in xrange(int(n)):
                 Tdata.append(x)
-        self.data = Tdata #transformed to x-value frequency
-
-    def fit(self):
-        #try multiple numbers of components
-        tryThisMany = 20
-        models = [None for i in range(1,tryThisMany)]
-
-        for nComponents in range(1, tryThisMany):
-            #test fits for many possible numbers of components
-            models[nComponents] = mix.GMM(nComponents, covariance_type='full').fit(self.data)
-        #BIC = [m.bic(d) for m in models]
-        AIC = [m.aic(d) for m in models]
-        best = np.argmin(AIC)
-        self.nComponents = best + 1
-        self.GMM = models[best]
-        self.AIC = AIC[best]
+        self.data = np.array(Tdata) #transformed to x-value frequency
+        self.hasBeenFit = False
+        self.fit()
         
-    def predict(self):
-        pass
+    def fit(self, tryUpToThisMany=50, backCheck = 5):
+        
+    
+        #try multiple numbers of components, stop checking when you've been gradient-ascending too long
+        
+        self.models = []
+        self.BIC = []
+        #self.AIC = []
+        
+        for c in xrange(tryUpToThisMany):
+            try:
+                m = myGMM(c+1, covariance_type='full').fit(self.data)
+            except:
+                import code
+                code.interact(local=locals())
+            self.models.append(m)
+            self.BIC.append(m.bic(self.data))
+            #self.AIC.append(m.aic(self.data))
+            backCheckt = -backCheck - 1
+            if (c > backCheck) :
+                if np.all(self.BIC[-1] > self.BIC[backCheckt:-1]): 
+                #if this bic is bigger than last "backCheck"-many tries, stop trying
+                    break
+
+        best = np.argmin(self.BIC)
+        self.nComponents = best + 1
+        self.best_GMM = self.models[best]
+        #self.best_AIC = self.AIC[best]
+        self.best_BIC = self.BIC[best]
+        bnds = 2 * np.sqrt(self.best_GMM.covars_).ravel()   # I think this is 2 sigma (stdev) (99% confidence?)
+        self.centers = self.best_GMM.means_.ravel()
+        self.upperBnds = np.add(self.best_GMM.means_.ravel(), bnds) 
+        self.lowerBnds = np.subtract(self.best_GMM.means_.ravel(), bnds )
+        self.hasBeenFit = True
+
+    def peaks(self, plotit=False):
+        
+        if plotit:
+            raise NotImplementedError("Plot functionality is not ready for gaussian mixture model")
+        if not self.hasBeenFit:
+            self.fit()
+        xv = np.array(self.xvals)
+        #return [(x,y,m) for (x, y, m) in zip(self.lowerBnds, self.upperBnds, self.centers)]
+        peaks = []
+        for prob, x,y,m in zip((self.best_GMM.eval(xv)[1] > 0.8).T, self.lowerBnds, self.upperBnds, self.centers):
+            #clean up peaks, remove overlapping portions, keep peaks within xrange
+            try:
+                lowProbBnd = np.min(xv[prob])
+            except:
+                lowProbBnd = 0
+            try:
+                highProbBnd = np.max(xv[prob])
+            except:
+                highProbBnd = np.max(xv)
+            newX = np.max([0, lowProbBnd, x])#, (m - 5)])
+            
+            newY = np.min([np.max(xv), highProbBnd, y])#, (m + 5)])        
+            #assert newX < m < newY
+            newX = int(math.floor(newX))
+            newY = int(math.floor(newY))
+            m = int(np.round(m, 0))
+            peaks.append((newX, newY, m))
+            
+        return peaks
 
 def plot_sections(wiggle, sections, threshold):
     
@@ -971,6 +1030,7 @@ def peaks_from_info(bam_fileobj, wiggle, pos_counts, lengths, interval, gene_len
         sectstart, sectstop = sect
         sect_length = sectstop - sectstart + 1
         data = wiggle[sectstart:(sectstop + 1)]
+
         
         #this cts is alright because we know the reads are bounded
         cts = pos_counts[sectstart:(sectstop + 1)]
@@ -1035,7 +1095,7 @@ def peaks_from_info(bam_fileobj, wiggle, pos_counts, lengths, interval, gene_len
                             threshold=threshold)
             
         elif algorithm == "gaussian":
-            fitter = GaussMix(xvals, data)
+            fitter = GaussMix(xvals, cts)
             
         elif algorithm == "classic":
             fitter = Classic(xvals, data, max_width, min_width, max_gap)
