@@ -904,7 +904,7 @@ def call_peaks(interval, gene_length, bam_fileobj=None, bam_file=None,
     min_width - int min width of classic peak calling algorithm peak
     max_gap   - int max gap of classic peak calling algorithm peak
     """
-    print interval
+    
     #sys.stderr.write("plotit foo" + str(plotit))
     if plotit:
         plt.rcParams['interactive']=True
