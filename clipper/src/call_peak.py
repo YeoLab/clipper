@@ -224,7 +224,8 @@ class SmoothingSpline(PeakGenerator):
         super(SmoothingSpline,self).__init__(xRange, yData)
         
         if smoothingFactor is None:
-            smoothingFactor = 0.25 * numpy.sum(yData) #len(xRange)
+            #smoothingFactor = 0.25 * numpy.sum(yData) #
+            smoothingFactor = len(xRange)
         
         self.k = 3 #degree of spline (cubic)
         self.smoothingFactor = smoothingFactor
@@ -718,9 +719,11 @@ class GaussMix(PeakGenerator):
         for c in xrange(tryUpToThisMany):
             try:
                 m = myGMM(c+1, covariance_type='full').fit(self.data)
-            except:
-                import code
-                code.interact(local=locals())
+            except Exception as e:
+                print e
+                
+                #import code
+                #code.interact(local=locals())
             self.models.append(m)
             self.BIC.append(m.bic(self.data))
             #self.AIC.append(m.aic(self.data))
