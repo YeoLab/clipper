@@ -242,7 +242,7 @@ class Test(unittest.TestCase):
         regions["UTR5"] = "5' UTR"
         regions["proxintron500"] = "Proximal\nIntron"
         regions["distintron500"] = "Distal\nIntron"
-        results = count_genomic_region_sizes('/home/gabrielp/bioinformatics/Yeo_Lab/clip_analysis_metadata/regions', regions, "mm9")
+        results = count_genomic_region_sizes(os.path.join(clipper.test_dir(), "regions"), regions, "mm9")
         
     def test_assign_to_regions(self):
         
@@ -257,7 +257,7 @@ class Test(unittest.TestCase):
         assign_to_regions(tool=tool, 
                           clusters="test", 
                           speciesFA="/home/gabrielp/bioinformatics/Yeo_Lab/clip_analysis_metadata/mm9/mm9.fa", 
-                          regions_dir="/home/gabrielp/bioinformatics/Yeo_Lab/clip_analysis_metadata/regions", 
+                          regions_dir=os.path.join(clipper.test_dir(), "regions"), 
                           regions={"exon" : "Exon", "UTR3" : "3' UTR", 
                                     "UTR5" : "5' UTR", "proxintron500" : "Proximal Intron", 
                                     "distintron500" : "Distal Intron"} ,
