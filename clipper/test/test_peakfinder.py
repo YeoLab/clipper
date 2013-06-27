@@ -32,7 +32,10 @@ class Test(unittest.TestCase):
 
         self.parser.add_option("--outdir", dest="prefix", default=os.getcwd(), help="output directory, default=cwd")    
         self.parser.add_option("--outfile", dest="outfile", default="fitted_clusters", help="a bed file output, default:%default")
-    
+
+        self.parser.add_option("--threshold-method", dest="method", default="random", help="Method used for determining height th\
+        reshold, Can use default=Randomization or Binomial")
+        self.parser.add_option("--binomial", dest="binom", type="float", default=0.001, help ="Alpha significance threshold for using Bi")  
         self.parser.add_option("--gene", "-g", dest="gene", action="append", help="A specific gene you'd like try", metavar="GENENAME")
         self.parser.add_option("--plot", "-p", dest="plotit", action="store_true", help="make figures of the fits", default=False)
         self.parser.add_option("--quiet", "-q", dest="quiet", action="store_true", help="suppress notifications")
@@ -475,7 +478,7 @@ class Test(unittest.TestCase):
         
         #just a quick test to make sure it works, probably need to fix this
         #later
-        self.assertSetEqual(result, set(["test", "hg19", "mm9", "hg18"]))
+        self.assertSetEqual(result, set(["test", "hg19", "mm9", "hg18", "ce10"]))
     
       
     def test_build_transcript_data(self):

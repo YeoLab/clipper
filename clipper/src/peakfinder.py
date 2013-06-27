@@ -176,21 +176,24 @@ def build_transcript_data_gtf_as_structure(species, pre_mrna):
     x = clipper.data_file(species + ".AS.STRUCTURE.COMPILED.gff")
     gtf_file = pybedtools.BedTool(x)
     for gene in gtf_file:
-        #try:
-            effective_length = gene.attrs['premrna_length'] if pre_mrna else gene.attrs['mrna_length']  
-            results.append(pybedtools.create_interval_from_list(map(str, [gene['chrom'], 
-                                        "AS_STRUCTURE", 
-                                        "mRNA", 
-                                        str(gene.start + 1), 
-                                        str(gene.stop + 1),
-                                        "0", 
-                                        gene['strand'], 
-                                        ".",
-                                        "gene_id=%s; transcript_ids=%s; effective_length=%s" % (gene['gene_id'], 
-                                                                                                gene.attrs['transcript_ids'], 
-                                                                                                str(effective_length) )])))
-        #except:
-        #    print gene
+        
+        effective_length = gene.attrs['premrna_length'] if pre_mrna else gene.attrs['mrna_length']
+        attrs = "gene_id=%s;" % (gene.attrs['gene_id'])
+        if "transcript_ids" in gene.attrs:
+            attrs += "transcript_ids=%s;" % (gene.attrs['transcript_ids']) 
+        attrs += "effective_length=%s" % (str(effective_length)) 
+        
+        results.append(pybedtools.create_interval_from_list(map(str, [gene['chrom'], 
+                                                                      "AS_STRUCTURE", 
+                                                                      "mRNA", 
+                                                                      str(gene.start + 1), 
+                                                                      str(gene.stop + 1),
+                                                                      "0", 
+                                                                      gene['strand'], 
+                                                                      ".",
+                                                                      attrs
+                                                                      ])))
+        
             
     return pybedtools.BedTool(results)
 
@@ -537,10 +540,10 @@ def main(options):
         raise IOError
     
     if options.gtfFile:
-        gene_tool = build_transcript_data_gtf(pybedtools.BedTool(options.gtfFile), options.premRNA)
+        gene_tool = build_transcript_data_gtf(pybedtools.BedTool(options.gtfFile), options.premRNA).saveas()
     else:
         gene_tool = build_transcript_data_gtf_as_structure(options.species, 
-                                                           options.premRNA)
+                                                           options.premRNA).saveas()
         #gene_tool = build_transcript_data(options.species, 
         #                                       options.geneBEDfile, 
         #                                       options.geneMRNAfile, 
@@ -553,15 +556,19 @@ def main(options):
 
     #truncates for max gene_tool
     if options.maxgenes:
-        gene_tool = gene_tool.random_subset(maxgenes)
+        print len(gene_tool)
+        print options.maxgenes
+        print type(options.maxgenes)
+        gene_tool = gene_tool.random_subset(int(options.maxgenes))
     
     gene_tool = gene_tool.saveas()
-       
+    
+
     transcriptome_size = sum(int(x.attrs['effective_length']) if "effective_length" in x.attrs else x.length for x in gene_tool)
     #do the parralization
 
-    tasks =  [(gene, length, None, bamfile, margin, options.FDR_alpha, 
-               options.threshold, options.binom, options.method,minreads, poisson_cutoff,
+    tasks =  [(gene, gene.attrs['effective_length'], None, bamfile, options.max_gap, options.FDR_alpha, 
+               options.threshold, options.binom, options.method, options.minreads, options.poisson_cutoff,
                options.plotit, 10, 1000, options.SloP, False,
                options.max_width, options.min_width,
                options.algorithm)
@@ -642,7 +649,7 @@ def call_main():
     parser.add_option("--poisson-cutoff", dest="poisson_cutoff", type="float", help="p-value cutoff for poisson test, Default:%default", default=0.05, metavar="P")
     parser.add_option("--disable_global_cutoff", dest="use_global_cutoff", action="store_false", help="disables global transcriptome level cutoff to CLIP-seq peaks, Default:On", default=True, metavar="P")
     parser.add_option("--FDR", dest="FDR_alpha", type="float", default=0.05, help="FDR cutoff for significant height estimation, default=%default")
-    parser.add_option("--threshold-method", dest="method", default="Randomization", help="Method used for determining height threshold, Can use default=Randomization or Binomial")
+    parser.add_option("--threshold-method", dest="method", default="random", help="Method used for determining height threshold, Can use default=random or binomial")
     parser.add_option("--binomial", dest="binom", type="float", default=0.001, help ="Alpha significance threshold for using Binomial distribution for determining height threshold, default=%default")
     parser.add_option("--threshold", dest="threshold", type="int", default=None, help="Skip FDR calculation and set a threshold yourself")
     parser.add_option("--maxgenes", dest="maxgenes", default=None, type="int", help="stop computation after this many genes, for testing", metavar="NGENES")
@@ -663,7 +670,7 @@ def call_main():
  
     if options.plotit:
         options.debug=True
-    
+
     #enforces required usage    
     if not (options.bam and ((options.species) or (options.gtfFile))): 
     #(options.geneBEDfile and options.geneMRNAfile and options.genePREMRNAfile)

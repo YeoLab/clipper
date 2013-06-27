@@ -133,7 +133,7 @@ def count_genomic_region_sizes(regions_dir, regions, species="hg19"):
     """
     
     genomic_region_sizes = {}
-    
+    #TODO update this to work of GFF file, because something isn't matching up...
     for region in regions:
         region_tool = pybedtools.BedTool(os.path.join(regions_dir, region + "_" + species + "_frea_sorted.withscore"))
         genomic_region_sizes[region] = region_tool.total_coverage()
@@ -445,8 +445,8 @@ def RNA_position(interval, location_dict):
         
     for start, stop in location_dict[gene]['regions']:
         length = float(stop - start) 
-        
-        if peak_center >= start and peak_center <= stop:
+
+        if peak_center >= int(start) and peak_center <= int(stop):
             if interval.strand == "+":
                 total_location = running_length + (peak_center - start)
                 total_fraction = np.round((total_location / total_length), 3)
@@ -524,11 +524,19 @@ def calculate_peak_locations(bedtool, genes):
     #need to generate CDS lists
     #need to make nearest type function
     for interval in bedtool:
-  
-        exon_frac, mRNA_frac = RNA_position(interval, exons_dict)
-        intron_frac, no_meaning = RNA_position(interval, introns_dict)
-        total_frac, premRNA_frac = RNA_position(interval, premRNA_dict)
-        
+        try:
+            exon_frac, mRNA_frac = RNA_position(interval, exons_dict)
+        except:
+            exon_frac, mRNA_frac = None, None
+        try:
+            intron_frac, no_meaning = RNA_position(interval, introns_dict)
+        except:
+            intron_frac, no_meaning = None, None
+        try:
+            total_frac, premRNA_frac = RNA_position(interval, premRNA_dict)
+        except:
+            total_frac, premRNA_frac = None, None
+
         if mRNA_frac is not None:
             mRNA_positions.append(mRNA_frac)
         if exon_frac is not None:

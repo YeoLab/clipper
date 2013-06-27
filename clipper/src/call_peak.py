@@ -44,24 +44,25 @@ class Peak(namedtuple('Peak', ['chrom',
                                'p'])):
     pass
    
-#Determines height threshold for transcript using binomial distribution
-#n=num reads, p=mean readlength/transcript length
-def get_Binom_cutoff(readlengths,genelength,alpha, mincut=2):
-    NR=len(readlengths)
-    if NR==0:
+def get_FDR_cutoff_binom(readlengths, genelength, alpha, mincut = 2):
+    number_reads = len(readlengths)
+    
+    if number_reads == 0:
         return mincut
     else:
-        RL=numpy.array(readlengths)
-        Mean_RL=numpy.mean(RL)
-        Prob=float(Mean_RL)/float(genelength)
+        read_length = numpy.array(readlengths)
+        mean_read_length = numpy.mean(read_length)
+        prob = float(mean_read_length) / float(genelength)
+        try:
+            k = int(binom.ppf(1 - (alpha), number_reads, prob))
+            if k < mincut:
+                return mincut
+            else:
+                return k
+        except:
+            print read_length, mean_read_length, prob, alpha, number_reads
+            raise
         
-        k=int(binom.ppf(1-(alpha),NR, Prob))
-        if k < mincut:
-            return mincut
-        else:
-            return k
-    
-    
 def get_FDR_cutoff_mode(readlengths, 
                         genelength, 
                         iterations=1000, 
@@ -128,12 +129,15 @@ def get_FDR_cutoff_mean(readlengths,
     TODO: double check math on this
     
     """
+
+    
     
     #if you have very few reads on a gene, don't waste time 
     #trying to find a cutoff        
     if len(readlengths) < 20:
         return mincut
-    results = shuffle(genelength, iterations, 0, .05, readlengths) 
+    
+    results = shuffle(int(genelength), int(iterations), 0, .05, readlengths) 
     total = 0
 
     
@@ -220,6 +224,7 @@ class SmoothingSpline(PeakGenerator):
         super(SmoothingSpline,self).__init__(xRange, yData)
         
         if smoothingFactor is None:
+            #smoothingFactor = 0.25 * numpy.sum(yData) #
             smoothingFactor = len(xRange)
         
         self.k = 3 #degree of spline (cubic)
@@ -676,39 +681,99 @@ class Classic(PeakGenerator):
             peak_definitions.append((peak_start, peak_stop, peak_center))
         
         return peak_definitions
-    
+
+from sklearn import mixture as mix
+sklearnGMM = mix.GMM
+
+class myGMM(sklearnGMM):
+
+    def bic(self, X, scoreWeight = 2, complexityWeight=4):
+        return (-scoreWeight * self.score(X).sum() +
+                complexityWeight * (self._n_parameters() * np.log(X.shape[0])))
+
 class GaussMix(PeakGenerator):
-    from sklearn import mixture as mix
     
-    def __init__(self, xvals, data):
+    def __init__(self, xvals, cover):
+
         #data should count one "base" per read (not one point for each position)
         #initialize the fitter
-        #transform data
+
         Tdata = list()
-        for x, n in zip(xvals, data):
-            for i in range(n):
+        self.xvals = xvals
+        self.cover = cover
+        for x, n in izip(xvals, cover):
+            for i in xrange(int(n)):
                 Tdata.append(x)
-        self.data = Tdata #transformed to x-value frequency
-
-    def fit(self):
-        #try multiple numbers of components
-        tryThisMany = 20
-        models = [None for i in range(1,tryThisMany)]
-
-        for nComponents in range(1, tryThisMany):
-            #test fits for many possible numbers of components
-            models[nComponents] = mix.GMM(nComponents, covariance_type='full').fit(self.data)
-        #BIC = [m.bic(d) for m in models]
-        AIC = [m.aic(d) for m in models]
-        best = np.argmin(AIC)
-        self.nComponents = best + 1
-        self.GMM = models[best]
-        self.AIC = AIC[best]
+        self.data = np.array(Tdata) #transformed to x-value frequency
+        self.hasBeenFit = False
+        self.fit()
         
-    def peaks(threshold, plotit=False):
+    def fit(self, tryUpToThisMany=50, backCheck = 5):
+        
+    
+        #try multiple numbers of components, stop checking when you've been gradient-ascending too long
+        
+        self.models = []
+        self.BIC = []
+        #self.AIC = []
+        
+        for c in xrange(tryUpToThisMany):
+            try:
+                m = myGMM(c+1, covariance_type='full').fit(self.data)
+            except Exception as e:
+                print e
+                
+                #import code
+                #code.interact(local=locals())
+            self.models.append(m)
+            self.BIC.append(m.bic(self.data))
+            #self.AIC.append(m.aic(self.data))
+            backCheckt = -backCheck - 1
+            if (c > backCheck) :
+                if np.all(self.BIC[-1] > self.BIC[backCheckt:-1]): 
+                #if this bic is bigger than last "backCheck"-many tries, stop trying
+                    break
+
+        best = np.argmin(self.BIC)
+        self.nComponents = best + 1
+        self.best_GMM = self.models[best]
+        #self.best_AIC = self.AIC[best]
+        self.best_BIC = self.BIC[best]
+        bnds = 2 * np.sqrt(self.best_GMM.covars_).ravel()   # I think this is 2 sigma (stdev) (99% confidence?)
+        self.centers = self.best_GMM.means_.ravel()
+        self.upperBnds = np.add(self.best_GMM.means_.ravel(), bnds) 
+        self.lowerBnds = np.subtract(self.best_GMM.means_.ravel(), bnds )
+        self.hasBeenFit = True
+
+    def peaks(self, plotit=False):
+        
         if plotit:
             raise NotImplementedError("Plot functionality is not ready for gaussian mixture model")
-        self.fit()
+        if not self.hasBeenFit:
+            self.fit()
+        xv = np.array(self.xvals)
+        #return [(x,y,m) for (x, y, m) in zip(self.lowerBnds, self.upperBnds, self.centers)]
+        peaks = []
+        for prob, x,y,m in zip((self.best_GMM.eval(xv)[1] > 0.8).T, self.lowerBnds, self.upperBnds, self.centers):
+            #clean up peaks, remove overlapping portions, keep peaks within xrange
+            try:
+                lowProbBnd = np.min(xv[prob])
+            except:
+                lowProbBnd = 0
+            try:
+                highProbBnd = np.max(xv[prob])
+            except:
+                highProbBnd = np.max(xv)
+            newX = np.max([0, lowProbBnd, x])#, (m - 5)])
+            
+            newY = np.min([np.max(xv), highProbBnd, y])#, (m + 5)])        
+            #assert newX < m < newY
+            newX = int(math.floor(newX))
+            newY = int(math.floor(newY))
+            m = int(np.round(m, 0))
+            peaks.append((newX, newY, m))
+            
+        return peaks
 
 def plot_sections(wiggle, sections, threshold):
     
@@ -810,12 +875,12 @@ def poissonP(reads_in_gene, reads_in_peak, gene_length, peak_length):
         return cum_p
     
     except Exception as error:
-        logging.error("Poisson cutoff failled", error)
+        logging.error("Poisson cutoff failled %s " % (error))
         return 1
 
 
-def call_peaks(loc, gene_length, bam_fileobj=None, bam_file=None, 
-               margin=25, fdr_alpha=0.05, user_threshold=None, binom_alpha=0.001, method="Randomization",
+def call_peaks(interval, gene_length, bam_fileobj=None, bam_file=None, 
+               max_gap=25, fdr_alpha=0.05, user_threshold=None, binom_alpha=0.001, method="random",
                minreads=20, poisson_cutoff=0.05, 
                plotit=False, w_cutoff=10, windowsize=1000, 
                SloP=False, correct_p=False, max_width=None, min_width=None,
@@ -860,19 +925,36 @@ def call_peaks(loc, gene_length, bam_fileobj=None, bam_file=None,
     subset_reads = bam_fileobj.fetch(reference=interval.chrom, start=interval.start, end=interval.stop)
 
     #need to document reads to wiggle
-    wiggle, jxns, pos_counts, lengths, allreads = readsToWiggle_pysam(subset_reads, interval.start, interval.stop, interval.strand, "center", False)
+    wiggle, jxns, pos_counts, read_lengths, allreads = readsToWiggle_pysam(subset_reads, interval.start, interval.stop, interval.strand, "center", False)
 
     #TODO have a check to kill this if there aren't any reads in a region
         
-    result = peaks_from_info(bam_fileobj, list(wiggle), pos_counts, lengths, 
-                             user_threshold, minreads, poisson_cutoff, 
-                             plotit, w_cutoff, windowsize, SloP, correct_p,
-                             max_width, min_width, algorithm=algorithm)
+    result = peaks_from_info(bam_fileobj= bam_fileobj,
+                             wiggle=list(wiggle),
+                             pos_counts=pos_counts,
+                             lengths=read_lengths,
+                             interval=interval,
+                             gene_length=gene_length,
+                             max_gap=max_gap,
+                             fdr_alpha=fdr_alpha,
+                             binom_alpha=binom_alpha,
+                             method=method,
+                             user_threshold=user_threshold,
+                             minreads=minreads,
+                             poisson_cutoff=poisson_cutoff, 
+                             plotit=plotit,
+                             width_cutoff=w_cutoff,
+                             windowsize=windowsize,
+                             SloP=SloP,
+                             correct_p=correct_p,
+                             max_width=max_width,
+                             min_width= min_width,
+                             algorithm=algorithm)
     
     return result
 
-def peaks_from_info(bam_fileobj, wiggle, pos_counts, lengths, loc, gene_length, 
-                    margin=25, fdr_alpha=0.05, binom_alpha=0.001, method="Randomization" ,user_threshold=None,
+def peaks_from_info(bam_fileobj, wiggle, pos_counts, lengths, interval, gene_length, 
+                    max_gap=25, fdr_alpha=0.05, binom_alpha=0.001, method="random" ,user_threshold=None,
                     minreads=20, poisson_cutoff=0.05, plotit=False, 
                     width_cutoff=10, windowsize=1000, SloP=False, 
                     correct_p=False, max_width=None, min_width=None, 
@@ -910,12 +992,19 @@ def peaks_from_info(bam_fileobj, wiggle, pos_counts, lengths, loc, gene_length,
 
     #decides FDR calcalation, maybe move getFRDcutoff mean into c code
     gene_threshold = 0
+
     
     if user_threshold is None:    
-        if method == "Binomial":  #Uses Binomial Distribution to get cutoff if specified by user                             
-            gene_threshold = get_Binom_cutoff(lengths,gene_length,binom_alpha)
+        if method == "binomial":  #Uses Binomial Distribution to get cutoff if specified by user                             
+            
+            gene_threshold = get_FDR_cutoff_binom(lengths, gene_length, binom_alpha)
+        elif method == "random":
+            
+            gene_threshold = get_FDR_cutoff_mean(readlengths = lengths,
+                                                 genelength = gene_length,
+                                                 alpha = fdr_alpha)
         else:
-            gene_threshold = get_FDR_cutoff_mean(lengths, gene_length,alpha=fdr_alpha)     
+            raise ValueError("Method %s does not exist" % (method))
     else:
         logging.info("using user threshold")
         gene_threshold = user_threshold
@@ -945,6 +1034,7 @@ def peaks_from_info(bam_fileobj, wiggle, pos_counts, lengths, loc, gene_length,
         sectstart, sectstop = sect
         sect_length = sectstop - sectstart + 1
         data = wiggle[sectstart:(sectstop + 1)]
+
         
         #this cts is alright because we know the reads are bounded
         cts = pos_counts[sectstart:(sectstop + 1)]
@@ -973,9 +1063,17 @@ def peaks_from_info(bam_fileobj, wiggle, pos_counts, lengths, loc, gene_length,
                 sect_read_lengths = rs(lengths, Nreads) 
                 
                 #use the minimum FDR cutoff between superlocal and gene-wide calculations
-                threshold = min(gene_threshold, get_FDR_cutoff_mean(sect_read_lengths, 
-                                                sect_length, 
-                                                alpha=fdr_alpha))
+
+                if method == "binomial":  #Uses Binomial Distribution to get cutoff if specified by user                             
+                    
+                    threshold = min(gene_threshold, get_FDR_cutoff_binom(lengths, gene_length, binom_alpha))
+                elif method == "random":
+                    
+                    threshold = min(gene_threshold, get_FDR_cutoff_mean(readlengths = lengths,
+                                                 genelength = gene_length,
+                                                 alpha = fdr_alpha))
+                else:
+                    raise ValueError("Method %s does not exist" % (method))
                 logging.info("Using super-local threshold %d" %(threshold))
                 
             else:
@@ -1001,7 +1099,7 @@ def peaks_from_info(bam_fileobj, wiggle, pos_counts, lengths, loc, gene_length,
                             threshold=threshold)
             
         elif algorithm == "gaussian":
-            fitter = GaussMix(xvals, data)
+            fitter = GaussMix(xvals, cts)
             
         elif algorithm == "classic":
             fitter = Classic(xvals, data, max_width, min_width, max_gap)
