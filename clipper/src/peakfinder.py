@@ -176,24 +176,24 @@ def build_transcript_data_gtf_as_structure(species, pre_mrna):
     x = clipper.data_file(species + ".AS.STRUCTURE.COMPILED.gff")
     gtf_file = pybedtools.BedTool(x)
     for gene in gtf_file:
-        #try:
-            effective_length = gene.attrs['premrna_length'] if pre_mrna else gene.attrs['mrna_length']
-            attrs = "gene_id=%s;" % (gene.attrs['gene_id'])
-            attrs += "transcript_ids=%s;" % (gene.attrs['transcript_ids']) if "transcript_ids" in gene.attrs else ""
-            attrs += "effective_length=%s" % (str(effective_length)) 
-              
-            results.append(pybedtools.create_interval_from_list(map(str, [gene['chrom'], 
-                                        "AS_STRUCTURE", 
-                                        "mRNA", 
-                                        str(gene.start + 1), 
-                                        str(gene.stop + 1),
-                                        "0", 
-                                        gene['strand'], 
-                                        ".",
-                                        attrs
-                                        ])))
-        #except:
-        #    print gene
+        
+        effective_length = gene.attrs['premrna_length'] if pre_mrna else gene.attrs['mrna_length']
+        attrs = "gene_id=%s;" % (gene.attrs['gene_id'])
+        if "transcript_ids" in gene.attrs:
+            attrs += "transcript_ids=%s;" % (gene.attrs['transcript_ids']) 
+        attrs += "effective_length=%s" % (str(effective_length)) 
+        
+        results.append(pybedtools.create_interval_from_list(map(str, [gene['chrom'], 
+                                                                      "AS_STRUCTURE", 
+                                                                      "mRNA", 
+                                                                      str(gene.start + 1), 
+                                                                      str(gene.stop + 1),
+                                                                      "0", 
+                                                                      gene['strand'], 
+                                                                      ".",
+                                                                      attrs
+                                                                      ])))
+        
             
     return pybedtools.BedTool(results)
 

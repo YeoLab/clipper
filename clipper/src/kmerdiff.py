@@ -69,6 +69,10 @@ def kmer_diff(file1, file2, k):
     
     #call compseq
     with open(os.devnull, 'w') as fnull:
+        print "\t".join(['compseq', 
+                     '-word', str(k), 
+                     '-sequence', file1,
+                     '-outfile', file1 + ".compseq"])
         subprocess.call(['compseq', 
                      '-word', str(k), 
                      '-sequence', file1,
