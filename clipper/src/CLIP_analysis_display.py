@@ -50,7 +50,7 @@ def build_reads_per_cluster(ax_nreads, reads_per_cluster):
                    bins=50, 
                    facecolor='#C8D2B0', 
                    log=True, 
-                   range=(10, np.max(reads_per_cluster)))
+                   range=(10, max(11, np.max(reads_per_cluster))))
     
     ax_nreads.set_xscale('log')
     ax_nreads.set_xlabel("log10(N reads)")

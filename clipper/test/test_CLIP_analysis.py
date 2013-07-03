@@ -65,7 +65,7 @@ class Test(unittest.TestCase):
                 "-s", "mm9",
                 "--bam", clipper.test_file("allup_test.bam"),
                 "--AS_Structure", os.path.join(clipper.test_dir(), "mm9data4"),
-                '--genome_location', '/home/gabrielp/bioinformatics/Yeo_Lab/clip_analysis_metadata/mm9/mm9.fa', 
+                '--genome_location', clipper.test_file('mm9.fa'), 
                 #'--regions_location', clipper.test_file("knownGene_sample.gtf"),
                 "--regions_location", os.path.join(clipper.test_dir(), "regions"),
                 '--phastcons_location', clipper.test_file("allup_test.bam"),
@@ -256,7 +256,7 @@ class Test(unittest.TestCase):
         
         assign_to_regions(tool=tool, 
                           clusters="test", 
-                          speciesFA="/home/gabrielp/bioinformatics/Yeo_Lab/clip_analysis_metadata/mm9/mm9.fa", 
+                          speciesFA= clipper.test_file("mm9.fa"), 
                           regions_dir=os.path.join(clipper.test_dir(), "regions"), 
                           regions={"exon" : "Exon", "UTR3" : "3' UTR", 
                                     "UTR5" : "5' UTR", "proxintron500" : "Proximal Intron", 
@@ -478,7 +478,7 @@ class Test(unittest.TestCase):
         
         """
         
-        result = calculate_kmer_diff([3,4], ['all'], "clip_analysis_test_peak_results.bed", "/home/gabrielp/bioinformatics/Yeo_Lab/clipper/clipper/test")
+        result = calculate_kmer_diff([3,4], ['all'], "clip_analysis_test_peak_results.bed", os.path.join(clipper.test_dir(), "test"))
         self.assertListEqual(result.keys(), ["all"])
         self.assertListEqual(result['all'].keys(), [3,4])
     
@@ -490,7 +490,7 @@ class Test(unittest.TestCase):
         
         """
         
-        phastcons = '/home/gabrielp/bioinformatics/Yeo_Lab/clip_analysis_metadata/phastcons/mm9_phastcons.bw'
+        phastcons = clipper.test_file("mm9_phastcons.bw")
         tool = pybedtools.BedTool("chr15    91512755    91512836    ENSG00000198901_1_147    0    -", from_string=True)
         result = get_mean_phastcons(tool, phastcons)
         
@@ -512,7 +512,7 @@ class Test(unittest.TestCase):
                                       1 : pybedtools.BedTool(clipper.test_file("clip_analysis_test_peak_results.bed.exon.rand.0.BED"))}}
                            }
         regions = (["all", "exon", "UTR3", "UTR5", "proxintron500", "distintron500"])    
-        phastcons = '/home/gabrielp/bioinformatics/Yeo_Lab/clip_analysis_metadata/phastcons/mm9_phastcons.bw'
+        phastcons = clipper.test_file('mm9_phastcons.bw')
 
         result = calculate_phastcons(regions, cluster_regions, phastcons)
         self.assertListEqual(result.keys(), ['real', 'rand'])

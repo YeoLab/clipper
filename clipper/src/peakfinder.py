@@ -39,6 +39,8 @@ def check_for_index(bamfile):
     
     if os.path.exists(bamfile + ".bai"):
         return 
+    if not bamfile.endswith(".bam"):
+        raise NameError("file %s not of correct type" % (bamfile))
     else:
         logging.info("Index for %s does not exist, indexing bamfile" % (bamfile))
         
