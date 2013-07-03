@@ -682,7 +682,7 @@ def fa_file(filename, region = None, directory=None, type = "real"):
     """
     
     if not os.path.exists(directory):
-        raise Exception
+        raise IOError("directory: %s, doesn't exist" % (directory))
     
     if region is not None:
         full_name = filename + "." +  region + "." + type + ".fa"
