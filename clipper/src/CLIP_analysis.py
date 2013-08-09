@@ -7,7 +7,7 @@ Michael Lovci and Gabriel Pratt
 
 """
 
-from collections import Counter, OrderedDict
+from collections import Counter, OrderedDict, defaultdict
 from itertools import izip_longest
 from optparse import OptionParser
 import os
@@ -16,13 +16,20 @@ from random import sample
 import subprocess
 
 from bx.bbi.bigwig_file import BigWigFile
+#import gffutils
 import numpy as np
+import pandas as pd
 import pybedtools
-
+from sklearn.cluster import KMeans
 from AS_Structure_tools import parse_AS_STRUCTURE_dict
 import clipper
 from clipper.src import CLIP_analysis_display
 from clipper.src.kmerdiff import kmer_diff
+from gscripts.general.pybedtools_helpers import small_peaks, shuffle_and_adjust, closest_by_feature, get_three_prime_end, get_five_prime_end, convert_to_mRNA_position, adjust_after_shuffle
+
+def name_to_chrom(interval):
+    interval.chrom = interval.name
+    return interval
 
 def intersection(A, B=None):
     
@@ -401,7 +408,78 @@ def get_offsets_bed12(tool):
     return offset_dict
 
 
+def RNA_position_interval(interval, location_dict):
     
+    """
+    
+    makes mrna and pre-mrna peak_center figure 
+    interval - single interval
+    
+    location_dict = dict{gene_id : {strand : "+/-", regions : list((start,stop)
+    as_structure_dict - from build AS structure dict 
+    
+    will return distribution across entire region + just across specific region
+    Might be able to use my ribo-seq stuff for genic -> transcriptomic location conversion
+    
+    this is based off as structure, which provides sequences ordered with first exon being the first exon on the gene, not 
+    first in the chromosome (like gff does) THIS WILL NOT WORK WITH RAW GFF DATA
+    
+    """
+    
+    #think about turning the location_dict into a gff file
+    #gets thickstart and stop
+    peak_center = (int(interval[6]) + int(interval[7])) / 2
+        
+    try:
+        gene = interval.name.split("_")[0]
+    except:
+        #takes first gene if there are multiple overlapping 
+        gene = interval.name.split(";")[0].split("_")[0]
+    
+    if gene not in location_dict:
+        raise KeyError(gene + " not in current as stucture dict ignoring cluster ")
+    
+    if not interval.strand == location_dict[gene][0].strand:
+        raise ValueError("strands not the same, there is some issue with gene annotations")
+    
+    total_length = float(sum(region.length for region in location_dict[gene]))
+    
+    running_length = 0
+    
+    #reverses list if negative strand so running count can work
+    #if location_dict[gene]['strand'] == "-":
+    #    location_dict[gene]['regions'].reverse()
+        
+    for region in location_dict[gene]:
+        length = float(region.length) 
+
+        if peak_center >= int(region.start) and peak_center <= int(region.stop):
+            if interval.strand == "+":
+                total_location = running_length + (peak_center - region.start)
+                total_fraction = np.round((total_location / total_length), 3)
+
+                individual_fraction = (peak_center - region.start) / length
+
+            elif interval.strand == "-":
+                total_location = running_length + (region.stop - peak_center)
+                total_fraction = total_location / total_length
+                individual_fraction = (region.stop - peak_center) / length
+                
+            else:
+                raise ValueError("Strand not correct strand is %s" % interval.strand)
+
+            #probably not nessessary
+            if total_fraction < 0 or total_fraction > 1:
+                raise ValueError("total_fraction is bad: %f, gene %s, total_length: %s, total_location: %s" % (total_fraction, 
+                                                                                                               gene, 
+                                                                                                              total_length,
+                                                                                                               total_location))
+            return individual_fraction, total_fraction
+        
+        running_length += length
+        
+    return None, None #clusters fall outside of regions integrated
+
 def RNA_position(interval, location_dict):
     
     """
@@ -475,12 +553,307 @@ def RNA_position(interval, location_dict):
         
     return None, None #clusters fall outside of regions integrated 
 
-def calculate_peak_locations(bedtool, genes):
+def to_bed(x):
+    """
+    
+    converts gtf formatted object to bed format
+    
+    """
+    return x.chrom, x.start, x.stop, x.attributes['gene_id'].split(".")[0], "0", x.strand
+
+def get_introns(exons):
     
     """
     
-    bedtool - bedtool of peaks (only works with clipper defined peaks)
+    from exon bedtool / list gets all introns, based on gene names
+    returns list of introns 
+    """
+    result_list = ""
+    prev_interval = None
+    for interval in exons:
+        try:
+            if prev_interval.name == interval.name:
+                
+                if prev_interval.end > interval.start:
+                    print prev_interval
+                    print interval
+                    raise "end is greater than start"
+                    
+                prev_interval.start = prev_interval.end
+                prev_interval.end = interval.start
+            
+                result_list += str(prev_interval) + "\n"
+                
+        except AttributeError:
+            pass
+        prev_interval = interval
+    return pybedtools.BedTool(result_list, from_string=True)
+    
+def get_genomic_regions(regions_dir, species, db):
+    
+    """
+    
+    returns bedtool of all non-overlapping regions in the genome, exons, cds, 3' utrs and 5' utrs
+    species - string of the species to analyze
+    db - db handle generated by gtf utils
+    
+    """
+    print os.path.join(regions_dir, species + "_genes.bed")
+    try:
+       return { 'genes' :  pybedtools.BedTool(os.path.join(regions_dir, species + "_genes.bed")),
+               "five_prime_utrs" : pybedtools.BedTool(os.path.join(regions_dir, species + "_five_prime_utrs.bed")),
+               "three_prime_utrs" : pybedtools.BedTool(os.path.join(regions_dir, species + "_three_prime_utrs.bed")),
+               "cds" : pybedtools.BedTool(os.path.join(regions_dir, species + "_cds.bed")),
+               "exons" : pybedtools.BedTool(os.path.join(regions_dir,species + "_exons.bed")),
+               "introns" : pybedtools.BedTool(os.path.join(regions_dir, species + "_introns.bed"))}
+
+    except:
+        pass
+    
+    genes = db.features_of_type('gene')
+    three_prime_utrs = []
+    five_prime_utrs = []
+    cds = []
+    exons = []
+    gene_list = []
+    for gene in genes:
+        mrnas = list(db.children(gene, featuretype='mRNA'))
+        
+         
+        gene_three_prime_utrs = []
+        gene_five_prime_utrs = []
+        gene_cds = []
+        gene_exons = []
+        
+        gene_list.append(gene)
+        for mrna in mrnas:
+    
+            utrs =  list(db.children(mrna, featuretype='UTR'))
+            cur_exons = list(db.children(mrna, featuretype='exon'))
+            gene_exons += cur_exons
+    
+    
+            cur_cds = list(db.children(mrna, featuretype='CDS'))
+            
+            if len(cur_cds) == 0:
+              continue
+                
+            first_cds = cur_cds[0]
+            last_cds = cur_cds[-1]
+            
+            gene_cds += cur_cds
+            for utr in utrs:
+                if utr.strand == "+":
+                    if utr.stop < first_cds.start:
+                        utr.featuretype = "five_prime_utr"
+                        gene_five_prime_utrs.append(utr)
+                    elif last_cds.stop < utr.start:
+                        utr.featuretype = "three_prime_utr"
+                        gene_three_prime_utrs.append(utr)
+                    else:
+                        print "something odd"
+                        
+                elif utr.strand == "-":
+                    if last_cds.stop < utr.start:
+                        utr.featuretype = "five_prime_utr"
+                        gene_five_prime_utrs.append(utr)
+                    elif utr.start < first_cds.start:
+                        utr.featuretype = "three_prime_utr"
+                        gene_three_prime_utrs.append(utr)
+                    else:
+                        print "odd in the negative strand"
+
+        if len(gene_exons) > 0:
+            gene_exons = sorted(list(db.merge_features(gene_exons)), key = lambda x: x.start)
+            for cur_exon in gene_exons:
+                cur_exon.attributes['gene_id'] = gene.id
+                exons.append(cur_exon)
+                
+        if len(gene_cds) > 0:
+            gene_cds = sorted(list(db.merge_features(gene_cds)), key = lambda x: x.start)
+            for cur_cds in gene_cds:
+                cur_cds.attributes['gene_id'] = gene.id
+                cds.append(cur_cds)
+                
+        if len(gene_five_prime_utrs) > 0:
+            gene_five_prime_utrs  = sorted(list(db.merge_features(gene_five_prime_utrs)), key = lambda x: x.start)
+            for gene_five_prime_utr in gene_five_prime_utrs:
+                gene_five_prime_utr.attributes['gene_id'] = gene.id
+                five_prime_utrs.append(gene_five_prime_utr)
+                
+        if len(gene_three_prime_utrs) > 0:
+            gene_three_prime_utrs = sorted(list(db.merge_features(gene_three_prime_utrs)), key = lambda x: x.start)   
+            for gene_three_prime_utr in gene_three_prime_utrs:
+                gene_three_prime_utr.attributes['gene_id'] = gene.id
+                three_prime_utrs.append(gene_three_prime_utr)  
+
+    #make daddy some introns
+    exons = pybedtools.BedTool(map(to_bed, exons)).saveas(os.path.join(species + "_exons.bed"))
+    
+    introns = get_introns(exons).saveas(os.path.join(species + "_introns.bed"))
+        
+    return { 'genes' : pybedtools.BedTool(map(to_bed, gene_list)).saveas(os.path.join(species + "_genes.bed")),
+            "five_prime_utrs" : pybedtools.BedTool(map(to_bed, five_prime_utrs)).saveas(os.path.join(species + "_five_prime_utrs.bed")),
+             "three_prime_utrs" : pybedtools.BedTool(map(to_bed, three_prime_utrs)).saveas(os.path.join(species + "_three_prime_utrs.bed")),
+             "cds" : pybedtools.BedTool(map(to_bed, cds)).saveas(os.path.join(species + "_cds.bed")),
+             "exons" : exons,
+             "introns" : introns }
+    
+
+
+def get_feature_locations(regions_dir, species, db):
+    
+    """
+    
+    Gets locations of genic features, five prime sites, 3 prime sites, poly a sites stop codons start codons and tss
+    based off annotated gtf db file
+    
+    db - db handle generated by gtf utils
+    
+    returns dict of bedfiles     { five_prime_ends : bedtool 
+                                   three_prime_ends
+                                   poly_a_sites
+                                   stop_codons
+                                   transcription_start_sites 
+                                } 
+    
+    """
+    #clipper.data_file(
+    try:
+       return { "five_prime_ends" : pybedtools.BedTool(os.path.join(regions_dir, species + "_five_prime_ends.bed")),
+             "three_prime_ends" : pybedtools.BedTool(os.path.join(regions_dir, species + "_three_prime_ends.bed")),
+             "poly_a_sites" : pybedtools.BedTool(os.path.join(regions_dir, species + "_poly_a_sites.bed")),
+             "stop_codons" : pybedtools.BedTool(os.path.join(regions_dir, species + "_stop_codons.bed")),
+             "start_codons" : pybedtools.BedTool(os.path.join(regions_dir, species + "_start_codons.bed")),
+             "transcription_start_sites" : pybedtools.BedTool(os.path.join(regions_dir, species + "_transcription_start_sites.bed"))}
+
+    except:
+        pass
+    
+    genes = db.features_of_type('gene')
+    five_prime_ends = []
+    three_prime_ends = []
+    poly_a_sites = []
+    stop_codons = []
+    start_codons = []
+    transcription_start_sites = []
+    count = 0
+    for gene in genes:
+        count += 1
+        try:
+            coding_length = 0 
+            for exon in db.children(gene, featuretype='exon'):
+                
+                if exon.strand == "+":
+                    five_prime_ends.append([exon.chrom, exon.start, exon.start, gene.id, "0", gene.strand])
+                    three_prime_ends.append([exon.chrom, exon.stop, exon.stop, gene.id, "0", gene.strand])
+                else:
+                    three_prime_ends.append([exon.chrom, exon.start, exon.start, gene.id, "0", gene.strand])
+                    five_prime_ends.append([exon.chrom, exon.stop, exon.stop, gene.id, "0", gene.strand])
+    
+            for transcript in db.children(gene, featuretype='transcript'):
+                if transcript.strand == "+":
+                    poly_a_sites.append([transcript.chrom, transcript.stop, transcript.stop, gene.id, "0", gene.strand])
+                    transcription_start_sites.append([transcript.chrom, transcript.start, transcript.start, gene.id, "0", gene.strand])
+                else:
+                    poly_a_sites.append([transcript.chrom, transcript.start, transcript.start, gene.id, "0", gene.strand])
+                    transcription_start_sites.append([transcript.chrom, transcript.stop, transcript.stop, gene.id, "0", gene.strand])
+                    
+            for start_codon in db.children(gene, featuretype='start_codon'):
+                start_codons.append([start_codon.chrom, start_codon.stop, start_codon.stop, gene.id, "0", gene.strand])
+                
+            for stop_codon in db.children(gene, featuretype='stop_codon'):
+                stop_codons.append([stop_codon.chrom, stop_codon.stop, stop_codon.stop, gene.id, "0", gene.strand])
+                
+        except IndexError:
+            pass
+
+    return { "five_prime_ends" : pybedtools.BedTool(five_prime_ends).saveas(os.path.join(species + "_five_prime_ends.bed")),
+             "three_prime_ends" :pybedtools.BedTool(three_prime_ends).saveas(os.path.join(species + "_three_prime_ends.bed")),
+             "poly_a_sites" :  pybedtools.BedTool(poly_a_sites).saveas(os.path.join(species + "_poly_a_sites.bed")),
+             "stop_codons" :  pybedtools.BedTool(stop_codons).saveas(os.path.join(species + "_stop_codons.bed")),
+             "start_codons" :  pybedtools.BedTool(start_codons).saveas(os.path.join(species + "_start_codons.bed")),
+             "transcription_start_sites" : pybedtools.BedTool(transcription_start_sites).saveas(os.path.join(species + "_transcription_start_sites.bed"))}
+
+def generate_region_dict(bedtool):
+    region_dict = defaultdict(list)
+    
+    for interval in bedtool:
+        region_dict[interval.name].append(interval)
+    
+    for gene in region_dict.keys():
+        if region_dict[gene][0].strand == "-":
+            region_dict[gene].reverse()
+            
+    return region_dict
+
+def convert_to_transcript(feature_dict):
+    
+    """
+    
+    Converts bed file to be based only off transcripts (transcripts are defined by chromosome)
+    
+    returns modified dict
+        
+    """
+    return { name : bedtool.each(name_to_chrom).saveas(name + "_transcripts.bed") for name, bedtool in feature_dict.items()}
+
+def convert_to_mrna(feature_dict, exon_dict):
+    
+    """
+    
+    converts transcript dict into mRNA locations given a dict of exons
+    
+    feature_dict - generated from convert to transcript, dict of bedfiles 
+    exon_dict - dict of { genes : [exons] }
+    
+    """
+    
+    return { name : bedtool.each(convert_to_mRNA_position, exon_dict).filter(lambda x: x.chrom != "none").saveas(name + "_transcripts_mrna.bed") for name, bedtool in feature_dict.items()}
+
+def invert_neg(interval):
+    interval[-1] = str(int(interval[-1]) * -1)
+    return interval
+
+def get_distributions(bedtool, region_dict):
+    
+    """
+    
+    Gets distributions from RNA_position function
+
+    bedtool - clipper bed file to generate distributions from
+    region_dict - generate_region_dict dict defining regions 
+
+    """
+    
+    exon_distributions = []
+    total_distributions = []
+    num_errors = []
+    num_missed = []
+    for interval in bedtool:
+        try: 
+            #will need to redefine this to use intervals
+            exon, total = RNA_position_interval(interval, region_dict)
+  
+            if total is not None:
+                total_distributions.append(total)
+                exon_distributions.append(exon)
+            else:
+                num_missed.append(interval)
+        except Exception as e:
+            print e
+            num_errors.append(interval)
+
+    return {'individual' : exon_distributions, 'total' : total_distributions, 
+            'errors' : num_errors, 'missed' : num_missed}
+
+def calculate_peak_locations(bedtool, genes, regions, features):
+    
+    """
+    
+    bedtools - bedtools of peaks, both  (only works with clipper defined peaks)
     genes - as_structure dictionary 
+    db - database of gff file from gffutils
     
     Counts peak locations returns mRNA, pre mRNA, exon and intron positions
     and the nearest type of exon (CE SE ect...)
@@ -489,11 +862,43 @@ def calculate_peak_locations(bedtool, genes):
     
     """
     
+
     mRNA_positions = []
     premRNA_positions = []
     intron_positions = []
     exon_positions = []
+
+
+    exon_dict = generate_region_dict(regions['exons'])
     
+    bed_center = bedtool.each(small_peaks).saveas()
+    beds_center_transcripts = bed_center.each(name_to_chrom).saveas()
+    beds_center_transcripts_mrna = beds_center_transcripts.each(convert_to_mRNA_position, exon_dict).filter(lambda x: x.chrom != "none").saveas()
+    
+    #####################
+    #Here be feature code
+    #####################
+
+
+    features_transcript = convert_to_transcript(features)
+    features_mrna = convert_to_mrna(features_transcript, exon_dict)
+    
+    #for pre-mrna
+    #can't use list comprehensions because if file is empty than error is thrown...
+    features_transcript_closest = {}
+    for name, feature in features_transcript.items():
+        try:
+            features_transcript_closest[name] = {"dist" : beds_center_transcripts.closest(feature, s=True, D="b", t="first", id=True).filter(lambda x: x[-2] != ".").saveas()}
+        except:
+            features_transcript_closest[name] = {"dist" : None}
+    #for mrna
+    features_mrna_closest = {} 
+    for name, feature in features_mrna.items():
+        try:
+            features_mrna_closest[name] = {"dist" : beds_center_transcripts_mrna.closest(feature, s=True, D="ref", t="first").filter(lambda x: x[-2] != ".").each(invert_neg).saveas()}
+        except:
+            features_mrna_closest[name] = {"dist" : None}
+            
     #I should factor out this building logic...
     exons_dict = {}
     for gene in genes:
@@ -524,6 +929,13 @@ def calculate_peak_locations(bedtool, genes):
 
     #need to generate CDS lists
     #need to make nearest type function
+    
+    distributions = {}
+    for name, region in regions.items(): 
+        region_dict = generate_region_dict(region)
+        distributions[name] = get_distributions(bedtool, region_dict)
+    
+    
     for interval in bedtool:
         try:
             exon_frac, mRNA_frac = RNA_position(interval, exons_dict)
@@ -561,7 +973,64 @@ def calculate_peak_locations(bedtool, genes):
     #this doesn't take into account badly placed peaks, we'll know if this is a problem if there a lot of ignoring error messages
     types = Counter([interval[-1] for interval in bedtool.closest(feature_tool, s=True)])
     
-    return types, premRNA_positions, mRNA_positions, exon_positions, intron_positions
+    return types, premRNA_positions, mRNA_positions, exon_positions, intron_positions, features_transcript_closest, features_mrna_closest, distributions
+
+
+#here we start a small module for getting read densities:
+
+def get_peak_wiggle(tool, data_pos, data_neg, size = 1000, num_peaks=100):
+    
+    """
+    
+    returns matrix of (n,25) of wiggle and peak information
+    tool - bedtool contains location of peaks
+    data - bigwig file handle - contains bw data for the peaks
+
+    """
+    
+    results = []
+    index = []
+    for line in tool[:num_peaks]:
+        peak_center = line.start
+        pad_amt = size / 2
+        try:
+            if line.strand == "+":
+                result = data_pos.get_as_array(line.chrom, peak_center - pad_amt , peak_center + pad_amt)
+            if line.strand == "-":
+                result = data_neg.get_as_array(line.chrom, peak_center - pad_amt , peak_center + pad_amt)[::-1]
+                
+            result = [0 if np.isnan(x) else x for x in result]
+        
+            results.append(result)
+            index.append(line.name)
+            
+        except:
+            pass
+    return pd.DataFrame(results, index=index)
+
+def cluser_peaks(bedtool, bw_pos, bw_neg, k=16):
+    
+    """
+    
+    Given a bedtool of peaks, positive and negative bigwig files
+    gets read densities around peaks, normalizes them and outputs clusters and dataframe 
+    
+    """
+    bed_center = bedtool.each(small_peaks).saveas()
+    bedtool_df = get_peak_wiggle(bed_center, bw_pos, bw_neg, num_peaks=1000000)
+
+    bedtool_df_mag_normalized = bedtool_df.div(bedtool_df.sum(axis=1), axis=0).fillna(0)
+    bedtool_df_mag_normalized[bedtool_df_mag_normalized > .1] = .1
+    
+    data = np.array(bedtool_df_mag_normalized)
+    
+    #fixes bad test case
+    if len(data) < k:
+        k = len(data) / 2
+        
+    kmeansClassifier = KMeans(k)
+    classes = kmeansClassifier.fit_predict(data)
+    return bedtool_df_mag_normalized, classes
 
 def run_homer(foreground, background, k = list([5,6,7,8,9]), outloc = os.getcwd()):
     
@@ -979,12 +1448,15 @@ def main(options):
     #gets clusters in a bed tools + names species 
     clusters = os.path.basename(options.clusters)
     species = options.species
-
+    
     #In case names aren't unique make them all unique
     global uniq_count
     uniq_count = 0
     clusters_bed = pybedtools.BedTool(options.clusters).each(make_unique).saveas()
     bamtool = pybedtools.BedTool(options.bam)
+    bw_pos = BigWigFile(open(options.bw_pos))
+    bw_neg = BigWigFile(open(options.bw_neg))
+    
     #makes output file names 
     clusters = str.replace(clusters, ".BED", "")
     options.k = [int(x) for x in options.k]
@@ -1011,11 +1483,22 @@ def main(options):
     #lazy refactor, this used to be a list, but the dict acts the same until I don't want it to...
     regions = OrderedDict()
     regions["all" ] = "All"
-    regions["exon"] = "Exon"
+    regions["exon"] = "CDS"
     regions["UTR3"] = "3' UTR"
     regions["UTR5"] = "5' UTR"
     regions["proxintron500"] = "Proximal\nIntron"
     regions["distintron500"] = "Distal\nIntron"
+    
+#    db = gffutils.FeatureDB(options.db)
+    db = None #hack to get working on tscc without access to sqlite3
+
+    print "getting regions"
+    genomic_regions = get_genomic_regions(options.regions_location, species, db)
+    print "Done"
+    
+    print "getting feature locations"
+    features = get_feature_locations(options.regions_location, species, db)
+    print "done"
     
      #all catagory would break some analysies, create copy and remove it
     assigned_regions = regions.copy()
@@ -1060,6 +1543,9 @@ def main(options):
     
     #might want to actually count genes_dict, not clusters...
     total_reads = count_total_reads(bamtool, genes_bed)
+    region_read_counts = {}
+    for region_name, cur_region in genomic_regions.items():
+        region_read_counts[region_name] = count_total_reads(bamtool, cur_region)  
     
     #one stat is just generated here
     #generates cluster lengths (figure 3)
@@ -1070,11 +1556,14 @@ def main(options):
     genomic_types = count_genomic_types(genes_dict)
     
     #figures 5 and 6, builds pre-mrna, mrna exon and intron distributions
-    types, premRNA_positions, mRNA_positions, exon_positions, intron_positions = calculate_peak_locations(cluster_regions['all']['real'], genes_dict)
-        
+    types, premRNA_positions, mRNA_positions, exon_positions, intron_positions, features_transcript_closest, features_mrna_closest, distributions = calculate_peak_locations(cluster_regions['all']['real'], genes_dict, genomic_regions, features)
+    
+    read_densities, classes = cluser_peaks(cluster_regions['all']['real'], bw_pos, bw_neg)
+    
     #gtypes is total genomic content 
     #types is what clusters are
     #generates figure 10 (exon distances)
+    
     type_count = [types["CE:"], types["SE:"], 
                   types["MXE:"], types["A5E:"], types["A3E:"]]
     
@@ -1100,29 +1589,15 @@ def main(options):
     if options.runPhast:
         phast_values = calculate_phastcons(assigned_regions, cluster_regions, options.phastcons_location)
     print "ending phast"
-    #build qc figure
-    QCfig_params = [reads_in_clusters, (total_reads - reads_in_clusters), 
-                    cluster_lengths, reads_per_cluster, premRNA_positions, 
-                    mRNA_positions, exon_positions, intron_positions, 
-                    genic_region_sizes, region_sizes, genomic_type_count,
-                    type_count, homerout, kmer_results, motifs, phast_values, 
-                    regions]
     
-    QCfig = CLIP_analysis_display.CLIP_QC_figure(*QCfig_params)
-    fn = clusters + ".QCfig." + options.extension
-    outFig = os.path.join(outdir, fn)
-    QCfig.savefig(outFig)
-        
-    #prints distance of clusters from various motifs in a different figure
     motif_distances = []
     try:
         if motifs:
             motif_distances = generate_motif_distances(cluster_regions, region_sizes, motifs, options.motif_location, options.species)
-            motif_fig = CLIP_analysis_display.plot_motifs(motif_distances)
-            motif_fig.savefig(clusters + ".motif_distribution." + options.extension)
+                    
     except:
         pass
-    
+
     #save all analysies in a pickle dict
     out_dict = {}
     out_dict["region_sizes"] = region_sizes
@@ -1141,9 +1616,42 @@ def main(options):
     out_dict["motifs"] = motifs
     out_dict["phast_values"] = phast_values
     out_dict["motif_distances"] = motif_distances
+    for name, feature in features_transcript_closest.items():
+        if feature['dist'] is not None:
+            feature['dist'].saveas(clusters + "_" + name + "_transcript.bed")
 
+    for name, feature in features_mrna_closest.items():
+        if feature['dist'] is not None:
+            feature['dist'].saveas(clusters + "_" + name + "_mrna.bed")
+    out_dict['distributions'] = distributions
+    out_dict['data'] = np.array(read_densities)
+    out_dict['classes'] = classes
+    out_dict['region_read_counts'] = region_read_counts
     out_file = open(os.path.join("%s.pickle" %(clusters)), 'w')
     pickle.dump(out_dict, file=out_file)
+    
+    print "file saved"
+    #build qc figure
+    QCfig_params = [reads_in_clusters, (total_reads - reads_in_clusters), 
+                    cluster_lengths, reads_per_cluster, distributions['genes']['total'], 
+                    distributions['exons']['total'], distributions['exons']['individual'], 
+                    distributions['introns']['individual'], genic_region_sizes, region_sizes, 
+                    genomic_type_count, type_count, homerout, kmer_results, motifs, phast_values, 
+                    regions, np.array(read_densities), classes]
+    
+    QCfig = CLIP_analysis_display.CLIP_QC_figure(*QCfig_params)
+    distribution_fig = CLIP_analysis_display.plot_distributions(features_transcript_closest, features_mrna_closest, distributions)
+    QCfig.savefig(os.path.join(outdir, clusters + ".QCfig." + options.extension))
+    distribution_fig.savefig(clusters + "DistFig." + options.extension)  
+      
+    #prints distance of clusters from various motifs in a different figure
+    
+    try:
+        if motifs:
+            motif_fig = CLIP_analysis_display.plot_motifs(motif_distances)
+            motif_fig.savefig(clusters + ".motif_distribution." + options.extension)
+    except:
+        pass
     
     with open(options.metrics, 'w') as outfile:
         outfile.write("FRiP\n")
@@ -1151,7 +1659,7 @@ def main(options):
     
     
     #fin
-def call_main(): 
+def call_main():  
     parser = OptionParser()
     
     parser.add_option("--clusters", dest="clusters", help="BED file of clusters", metavar="BED")
@@ -1171,6 +1679,7 @@ def call_main():
     parser.add_option("--nrand", dest="nrand", default=3, help="selects number of times to randomly sample genome", type="int")
     parser.add_option("--outdir", "-o", dest="outdir", default=os.getcwd(), help="directory for output, default:cwd")
     ##Below here are critical files that always need to be referenced
+    parser.add_option("--gff_db", dest="db", help="gff database from gffutils to generate annotations with")
     parser.add_option("--AS_Structure", dest="as_structure",  help="Location of AS_Structure directory (chromosme files should be inside)", default=None)
     parser.add_option("--genome_location", dest="genome_location", help="location of all.fa file for genome of interest", default=None)
     parser.add_option("--homer_path", dest="homer_path", action="append", help="path to homer, if not in default path", default=None)
@@ -1180,6 +1689,8 @@ def call_main():
     parser.add_option("--reAssign", dest="assign", action="store_true", default=False, help="re-assign clusters, if not set it will re-use existing assigned clusters")
     parser.add_option("--metrics", dest="metrics", default="CLIP_Analysis.metrics", help="file name to output metrics to")
     parser.add_option("--extension", dest="extension", default="png", help="file extension to use (svg, png, pdf...)")
+    parser.add_option("--bw_pos",  help="bigwig file, on the positive strand")
+    parser.add_option("--bw_neg", help="bigwige file on the negative strand")
 
     (options, args) = parser.parse_args()
     

@@ -693,6 +693,7 @@ class myGMM(sklearnGMM):
 
 class GaussMix(PeakGenerator):
     
+<<<<<<< HEAD
     def __init__(self, xvals, cover):
         #data should count one "base" per read (not one point for each position)
         #initialize the fitter
@@ -707,6 +708,7 @@ class GaussMix(PeakGenerator):
         self.hasBeenFit = False
         self.fit()
         
+<<<<<<< HEAD
     def fit(self, tryUpToThisMany=50, backCheck = 5):
         
     
@@ -773,7 +775,7 @@ class GaussMix(PeakGenerator):
             peaks.append((newX, newY, m))
             
         return peaks
-
+=
 def plot_sections(wiggle, sections, threshold):
     
     """
