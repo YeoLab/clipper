@@ -20,6 +20,7 @@ import numpy as np
 import pybedtools
 
 from AS_Structure_tools import parse_AS_STRUCTURE_dict
+import clipper
 from clipper.src import CLIP_analysis_display
 from clipper.src.kmerdiff import kmer_diff
 
@@ -135,7 +136,7 @@ def count_genomic_region_sizes(regions_dir, regions, species="hg19"):
     genomic_region_sizes = {}
     #TODO update this to work of GFF file, because something isn't matching up...
     for region in regions:
-        region_tool = pybedtools.BedTool(os.path.join(regions_dir, region + "_" + species + "_frea_sorted.withscore"))
+        region_tool = pybedtools.BedTool(os.path.join(clipper.data_dir(), "regions", region + "." + species + ".bed"))
         genomic_region_sizes[region] = region_tool.total_coverage()
     return genomic_region_sizes
 
@@ -216,7 +217,7 @@ def assign_to_regions(tool, clusters, speciesFA, regions_dir, regions,
     #regions = bedtracks.keys()
     
     for region in regions:
-        bedtracks[region] = pybedtools.BedTool(os.path.join(regions_dir, region + "_" + species + "_frea_sorted.withscore"))
+        bedtracks[region] = pybedtools.BedTool(os.path.join(clipper.data_dir(), "regions", region + "." + species + ".bed"))
               
     #creates the basics of bed dict
     bed_dict = {}
