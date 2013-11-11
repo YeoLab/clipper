@@ -35,3 +35,5 @@ clipper -h
   })();
 
 </script>
+
+[![githalytics.com alpha](https://cruel-carlota.pagodabox.com/e42e3a5bdf64aaa287351539866e6bd2 "githalytics.com")](http://githalytics.com/YeoLab/clipper)
