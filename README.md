@@ -2,15 +2,10 @@ CLIPper - CLIP peak enrichment recognition
 
 A tool to detect CLIP-seq peaks.
 
+Please visit our wiki page to learn more about usage of clipper: https://github.com/YeoLab/clipper/wiki/CLIPper-Home
 
 Install:
 
-Until the next version of scipy comes out we are stuck using rc1.  Get it here:
-http://sourceforge.net/projects/scipy/files/scipy/0.11.0rc1/
-and install like a normal python package.
-
-Also multiprocessing is broken in python before version 2.7.  Please make sure your python is up to date.  
-Then
 
 easy_install clipper
 
