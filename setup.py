@@ -10,9 +10,7 @@ peaks = Extension("clipper.src.peaks", sources = ['clipper/src/peaksmodule.cc'],
 
 readsToWiggle = Extension("clipper.src.readsToWiggle", ['clipper/src/readsToWiggle.pyx'])
 
-with open("README") as file:
-    long_description = file.read()
-
+long_description = "CLIPPER - clip peak enrichment"
 setup(
     name = "clipper",
     long_description = long_description,
