@@ -71,7 +71,7 @@ class Test(unittest.TestCase):
                 '--phastcons_location', clipper.test_file("allup_test.bam"),
                 '--motifs', 'AAAAAA',
                 '--nrand', '1',
-                '--runPhast',
+                #'--runPhast',
                 '--runMotif'
                 ]    
         (options, args) = self.parser.parse_args(args)
