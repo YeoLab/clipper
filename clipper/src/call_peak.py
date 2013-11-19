@@ -1075,7 +1075,6 @@ def peaks_from_info(bam_fileobj, wiggle, pos_counts, lengths, interval, gene_len
         
         if algorithm == "spline":
             data = map(float, data)
-            logging.info("fitting a peak with x, y lengths; %d %d" % len(xvals), len(data))
             initial_smoothing_value = (sectstop - sectstart + 1)
             fitter = SmoothingSpline(xvals, data, initial_smoothing_value,
                             lossFunction="get_norm_penalized_residuals",
@@ -1087,8 +1086,6 @@ def peaks_from_info(bam_fileobj, wiggle, pos_counts, lengths, interval, gene_len
             
         elif algorithm == "classic":
             data = map(float, data)
-            if verbose:
-                logging.info("fitting a peak with x, y lengths; %d %d" % len(xvals), len(data))
             fitter = Classic(xvals, data, max_width, min_width, max_gap)
 
         try:
