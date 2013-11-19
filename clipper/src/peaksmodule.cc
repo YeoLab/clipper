@@ -255,15 +255,13 @@ extern "C" PyObject *peaks_find_sections(PyObject *self, PyObject *args) {
 
       //sets new section if any only if we just left a section 
       if(in_section && gap > margin ) {
-	in_section = false;
-	stop = loc - gap + 1; //sets the stop to the last location that a real value has been seen
-	
-	//adds section to list
-	PyObject *section = PyTuple_New(2);
-	PyTuple_SetItem(section, 0, PyInt_FromLong(start));
-	PyTuple_SetItem(section, 1, PyInt_FromLong(stop));
-     
-	sections.push_back(section);
+         in_section = false;
+         stop = loc - gap + 1; //sets the stop to the last location that a real value has been seen
+	     //adds section to list
+	     PyObject *section = PyTuple_New(2);
+	     PyTuple_SetItem(section, 0, PyInt_FromLong(start));
+	     PyTuple_SetItem(section, 1, PyInt_FromLong(stop));
+	     sections.push_back(section);
       }
     }
   }
