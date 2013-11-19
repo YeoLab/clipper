@@ -566,18 +566,14 @@ class SmoothingSpline(PeakGenerator):
         if plotit == True:
             self.plot()
             
-
-            
         #step 2, refine to avoid local minima later
         #high-temp optimize
 
         best_error = self.lossFunction(spline)
 
+        #tries to find optimal initial smoothing parameter in this loop
+        for i in range(2, 50):
 
-            
-        for i in range(2, 50):   #tries find optimal initial smooting parameter in this loop
-
-            
             cur_smoothing_value = initial_smoothing_value * i
 
             cur_error = self.fit_loss(cur_smoothing_value)
@@ -586,7 +582,6 @@ class SmoothingSpline(PeakGenerator):
             if plotit == True:
                 self.plot(label=str(cur_smoothing_value))
 
-   
             if cur_error < best_error:
                 bestSmoothingEstimate = cur_smoothing_value
                 best_error = cur_error
@@ -631,7 +626,7 @@ class Classic(PeakGenerator):
         """
         
         xRange -- the range to interpolate the spline over, must be monotonically increasing
-        yData  -- the yAxis of the spline that corosponds to the xRange
+        yData  -- the yAxis of the spline that corresponds to the xRange
                 
         """
         
@@ -640,7 +635,7 @@ class Classic(PeakGenerator):
         self.min_width = min_width
         self.max_gap = max_gap
     
-    #hackety hack, factor to init when you aren't lazy
+    #TODO:factor to init
     def peaks(self, plotit):
         peak_definitions = []
         
@@ -662,7 +657,7 @@ class Classic(PeakGenerator):
                     #peak_stop = peak_start + self.min_width
                     pass
                 #Change peak calculation and p-value min width calculation
-                #also visuzlzation min width should be ~10
+                #also visualization min width should be ~10
                 peak_center = peak_start + self.yData[peak_start:peak_stop].index(max(self.yData[peak_start:peak_stop]))
                 peak_definitions.append((peak_start, peak_stop, peak_center))
                 in_peak = False
@@ -1026,8 +1021,7 @@ def peaks_from_info(bam_fileobj, wiggle, pos_counts, lengths, interval, gene_len
         cts = pos_counts[sectstart:(sectstop + 1)]
         xvals = arange(0, sect_length)
         Nreads = sum(cts)
-        if verbose:
-            print "section:\t" + "\t".join(map(str, [sect, sect_length, gene_length, Nreads]))
+
 
         peak_dict['sections'][sect] = {}
         threshold = int()
@@ -1067,7 +1061,8 @@ def peaks_from_info(bam_fileobj, wiggle, pos_counts, lengths, interval, gene_len
                 threshold = gene_threshold
         else:
             threshold = user_threshold
-
+        if verbose:
+            print "section:\t" + "\t".join(map(str, [sect, sect_length, gene_length, Nreads, threshold]))
         #saves threshold for each individual section
         peak_dict['sections'][sect]['threshold'] = threshold
         peak_dict['sections'][sect]['nreads'] = int(Nreads)
@@ -1079,17 +1074,20 @@ def peaks_from_info(bam_fileobj, wiggle, pos_counts, lengths, interval, gene_len
             continue
         
         if algorithm == "spline":
-            
+            data = map(float, data)
             initial_smoothing_value = (sectstop - sectstart + 1)
             fitter = SmoothingSpline(xvals, data, initial_smoothing_value,
                             lossFunction="get_norm_penalized_residuals",
                             threshold=threshold)
             
         elif algorithm == "gaussian":
+            cts = map(float, cts)
             fitter = GaussMix(xvals, cts)
             
         elif algorithm == "classic":
+            data = map(float, data)
             fitter = Classic(xvals, data, max_width, min_width, max_gap)
+
         try:
             peak_definitions = fitter.peaks(plotit)
 
