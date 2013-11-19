@@ -934,7 +934,8 @@ def call_peaks(interval, gene_length, bam_fileobj=None, bam_file=None,
                              correct_p=correct_p,
                              max_width=max_width,
                              min_width= min_width,
-                             algorithm=algorithm)
+                             algorithm=algorithm,
+                             verbose=verbose)
     
     return result
 
@@ -943,7 +944,7 @@ def peaks_from_info(bam_fileobj, wiggle, pos_counts, lengths, interval, gene_len
                     minreads=20, poisson_cutoff=0.05, plotit=False, 
                     width_cutoff=10, windowsize=1000, SloP=False, 
                     correct_p=False, max_width=None, min_width=None, 
-                    algorithm="spline", stastical_test = "poisson"):
+                    algorithm="spline", stastical_test = "poisson", verbose=False):
 
     """
     
@@ -1009,7 +1010,6 @@ def peaks_from_info(bam_fileobj, wiggle, pos_counts, lengths, interval, gene_len
     peak_dict['loc'] = interval 
 
     peak_number=1
-
  
     sections = find_sections(wiggle, max_gap)
     if plotit is True:      
@@ -1020,11 +1020,12 @@ def peaks_from_info(bam_fileobj, wiggle, pos_counts, lengths, interval, gene_len
         sect_length = sectstop - sectstart + 1
         data = wiggle[sectstart:(sectstop + 1)]
 
-        
         #this cts is alright because we know the reads are bounded
         cts = pos_counts[sectstart:(sectstop + 1)]
         xvals = arange(0, sect_length)
         Nreads = sum(cts)
+        if verbose:
+            print "section:\t" + "\t".join(map(str, [sect, sect_length, gene_length, Nreads]))
 
         peak_dict['sections'][sect] = {}
         threshold = int()
