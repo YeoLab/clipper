@@ -60,7 +60,7 @@ def get_FDR_cutoff_binom(readlengths, genelength, alpha, mincut = 2):
             else:
                 return k
         except:
-            print read_length, mean_read_length, prob, alpha, number_reads
+            print read_length, mean_read_length, genelength, prob, alpha, number_reads
             raise
         
 def get_FDR_cutoff_mode(readlengths, 
@@ -1051,11 +1051,10 @@ def peaks_from_info(bam_fileobj, wiggle, pos_counts, lengths, interval, gene_len
 
                 if method == "binomial":  #Uses Binomial Distribution to get cutoff if specified by user                             
                     
-                    threshold = min(gene_threshold, get_FDR_cutoff_binom(lengths, gene_length, binom_alpha))
+                    threshold = min(gene_threshold, get_FDR_cutoff_binom(lengths, sect_length, binom_alpha))
                 elif method == "random":
-                    
                     threshold = min(gene_threshold, get_FDR_cutoff_mean(readlengths = lengths,
-                                                 genelength = gene_length,
+                                                 genelength = sect_length,
                                                  alpha = fdr_alpha))
                 else:
                     raise ValueError("Method %s does not exist" % (method))
