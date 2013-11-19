@@ -206,7 +206,7 @@ extern "C" PyObject *peaks_shuffle(PyObject *self, PyObject *args)
   return returnList;
 }
 
-/* Find contigous (within margin) regions that have reads, the area between covered locations is defined as regions without any coverage
+/* Find contiguous (within margin) regions that have reads, the area between covered locations is defined as regions without any coverage
 
 Input: data - wiggle track in list form each value is the coverage at that location
 margin - distance between section
@@ -214,7 +214,7 @@ margin - distance between section
 Output:
 A list of strings in the form "start_location|stop_location"
 
-TODO: Modify to allow for threshold-ed margins"
+TODO: Modify to allow for threshold-ed margins
 
 */
 extern "C" PyObject *peaks_find_sections(PyObject *self, PyObject *args) {
