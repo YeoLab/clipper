@@ -1019,9 +1019,8 @@ def peaks_from_info(bam_fileobj, wiggle, pos_counts, lengths, interval, gene_len
 
         #this cts is alright because we know the reads are bounded
         cts = pos_counts[sectstart:(sectstop + 1)]
-        xvals = arange(0, sect_length)
+        xvals = arange(len(data))
         Nreads = sum(cts)
-
 
         peak_dict['sections'][sect] = {}
         threshold = int()
