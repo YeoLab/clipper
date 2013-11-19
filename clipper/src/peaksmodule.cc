@@ -61,7 +61,7 @@ extern "C" PyObject *peaks_shuffle(PyObject *self, PyObject *args)
     return NULL;
   }
   
-  //The equation in the initalizer is the estimated depth of the cutoff, initalizes all values to zero
+  //The equation in the initializer is the estimated depth of the cutoff, initializes all values to zero
   int num_reads = PyList_Size(reads); 
   if (num_reads == 0) {
         PyErr_SetString(PyExc_ValueError, "List must not be null");
@@ -72,13 +72,13 @@ extern "C" PyObject *peaks_shuffle(PyObject *self, PyObject *args)
  
   std::vector<int> GENE(L, 0L); //will store the height at every position of the gene
 
-  //This is height distribution, no reason to have length of gene, arbitrary starting depth choosen 
+  //This is height distribution, no reason to have length of gene, arbitrary starting depth chosen
   std::vector<long> HEIGHT(100, 0L); // will have the number of times you see every height across the gene  HEIGHT[3] = 10 means that there are 10 peaks with a height of 3
   
   srand(time(NULL)); // seed random-number generator with the current time
   for (int iteration = 1; iteration <= r; iteration++){
 
-    //re-initalize height and gene on each iteration
+    //re-initialize height and gene on each iteration
     for(int i = 0; i < L; i++) {
       GENE[i] = 0;
     }
@@ -99,7 +99,7 @@ extern "C" PyObject *peaks_shuffle(PyObject *self, PyObject *args)
       }
       int ran;
       
-      //Pick a random location witin the gene that the read can map to
+      //Pick a random location within the gene that the read can map to
       ran = rand() % (L - len - 1); //correct possible positions of reads based on size of gene and size of read
       
       if (ran + len >= L) {
@@ -141,10 +141,10 @@ extern "C" PyObject *peaks_shuffle(PyObject *self, PyObject *args)
 
     for (int height = 1; height < max_height; height++){
       
-      //Initalize p-value to 1 for all heights
+      //Initialize p-value to 1 for all heights
       PVAL[height] = 1;
 
-      //counts number of peaks that are heigher than height
+      //counts number of peaks that are higher than height
       int bigger_peaks = 0; 
       for (int height2=height; height2 < max_height; height2++){
 	bigger_peaks += HEIGHT[height2];
@@ -198,7 +198,7 @@ extern "C" PyObject *peaks_shuffle(PyObject *self, PyObject *args)
   
   PyObject *returnList = PyList_New(OBS_CUTOFF.size());
   
-  //constuct return list
+  //construct return list
   for (int cut = 0; cut < OBS_CUTOFF.size(); cut++) {
     PyList_SetItem(returnList, cut, PyInt_FromLong(OBS_CUTOFF[cut]));
   }
@@ -290,14 +290,14 @@ extern "C" PyObject *peaks_find_sections(PyObject *self, PyObject *args) {
 extern "C" PyObject *peaks_readsToWiggle_pysam(PyObject *self, PyObject *args) {
   
   
-  //Define argunments passed in
+  //Define arguments passed in
   PyObject *reads; //list of reads
   int tx_start;
   int tx_end;
   char *keepstrand;
   char *usePos;
   PyObject *fractional_input;
-  bool makeFractional; //flag to return either whole number coverage or coverage normalzied by length of reads
+  bool makeFractional; //flag to return either whole number coverage or coverage normalized by length of reads
   //parse args
   if(!PyArg_ParseTuple(args, "OiissO", &reads, &tx_start, &tx_end, &keepstrand, &usePos, &fractional_input)) {
     PyErr_SetString(PyExc_TypeError, "One of the argunments is null");  
@@ -444,7 +444,7 @@ extern "C" PyObject *peaks_readsToWiggle_pysam(PyObject *self, PyObject *args) {
     Py_DECREF(item);
 
   }
-  Py_DECREF(iterator); // iteration has ended, garbage collet it
+  Py_DECREF(iterator); // iteration has ended, garbage collect it
   
   //return reads;
   //all 3 items have been generated, convert them into PyLists and return them as a tuple 
