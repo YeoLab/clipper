@@ -53,6 +53,8 @@ def get_FDR_cutoff_binom(readlengths, genelength, alpha, mincut = 2):
         read_length = numpy.array(readlengths)
         mean_read_length = numpy.mean(read_length)
         prob = float(mean_read_length) / float(genelength)
+        if prob > 1:
+            raise ValueError("probability of ≥ 1 read per-base > 1")
         try:
             k = int(binom.ppf(1 - (alpha), number_reads, prob))
             if k < mincut:
@@ -1054,9 +1056,9 @@ def peaks_from_info(bam_fileobj, wiggle, pos_counts, lengths, interval, gene_len
                     threshold = min(gene_threshold, get_FDR_cutoff_binom(sect_read_lengths, sect_length, binom_alpha))
                 elif method == "random":
                     #use the minimum FDR cutoff between superlocal and gene-wide calculations
-                    threshold = min(gene_threshold, get_FDR_cutoff_mean(readlengths = sect_read_lengths,
-                                                 genelength = sect_length,
-                                                 alpha = fdr_alpha))
+                    threshold = min(gene_threshold, get_FDR_cutoff_mean(readlengths=sect_read_lengths,
+                                                 genelength=sect_length,
+                                                 alpha=fdr_alpha))
                 else:
                     raise ValueError("Method %s does not exist" % (method))
                 logging.info("Using super-local threshold %d" %(threshold))
