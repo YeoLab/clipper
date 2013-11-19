@@ -869,7 +869,7 @@ def call_peaks(interval, gene_length, bam_fileobj=None, bam_file=None,
                minreads=20, poisson_cutoff=0.05, 
                plotit=False, w_cutoff=10, windowsize=1000, 
                SloP=False, correct_p=False, max_width=None, min_width=None,
-               algorithm="spline"):
+               algorithm="spline", verbose=False):
     
     """
 
