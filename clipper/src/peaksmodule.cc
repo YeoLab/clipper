@@ -214,12 +214,12 @@ margin - distance between section
 Output:
 A list of strings in the form "start_location|stop_location"
 
-TODO: Modify to allow for thresholded margins"
+TODO: Modify to allow for threshold-ed margins"
 
 */
 extern "C" PyObject *peaks_find_sections(PyObject *self, PyObject *args) {
   std::vector<PyObject*> sections(0); //vector of sections because appending to a python list takes a very long time
-  PyObject *wiggle; //list of reads
+  PyObject *wiggle; //list of read densities
   int margin;
   int start = 0;
   int stop = 0;
