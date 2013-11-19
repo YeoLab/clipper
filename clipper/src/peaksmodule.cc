@@ -244,7 +244,7 @@ extern "C" PyObject *peaks_find_sections(PyObject *self, PyObject *args) {
       
       //if not in section mark this location as the first part of a section
       if(!in_section) {
-	start = loc;
+	    start = loc;
       }
 
       in_section = true;
@@ -252,7 +252,6 @@ extern "C" PyObject *peaks_find_sections(PyObject *self, PyObject *args) {
       
     } else {
       gap += 1;
-
       //sets new section if any only if we just left a section 
       if(in_section && gap > margin ) {
          in_section = false;
@@ -271,7 +270,7 @@ extern "C" PyObject *peaks_find_sections(PyObject *self, PyObject *args) {
  
     PyObject *section = PyTuple_New(2);
     PyTuple_SetItem(section, 0, PyInt_FromLong(start));
-    PyTuple_SetItem(section, 1, PyInt_FromLong(loc - (gap + 1)));
+    PyTuple_SetItem(section, 1, PyInt_FromLong(loc - gap + 1));
    
     sections.push_back(section);
 
