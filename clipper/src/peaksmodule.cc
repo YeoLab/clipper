@@ -268,7 +268,7 @@ extern "C" PyObject *peaks_find_sections(PyObject *self, PyObject *args) {
     }
   }
 
-  //catch last potental section
+  //catch last potential section
   if ( in_section ) {
  
     PyObject *section = PyTuple_New(2);
