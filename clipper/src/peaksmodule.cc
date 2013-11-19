@@ -225,7 +225,7 @@ extern "C" PyObject *peaks_find_sections(PyObject *self, PyObject *args) {
   int stop = 0;
   bool in_section = false;
   int gap = 0;
-  int loc = 0; //initalize outside because we need to use for the end catch
+  int loc = 0; //initialize outside because we need to use for the end catch
 
   //parse args
   if(!PyArg_ParseTuple(args, "Oi", &wiggle, &margin)) {
