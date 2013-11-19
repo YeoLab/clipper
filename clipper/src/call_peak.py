@@ -693,23 +693,6 @@ class myGMM(sklearnGMM):
 
 class GaussMix(PeakGenerator):
     
-<<<<<<< HEAD
-    def __init__(self, xvals, cover):
-
-        #data should count one "base" per read (not one point for each position)
-        #initialize the fitter
-
-        Tdata = list()
-        self.xvals = xvals
-        self.cover = cover
-        for x, n in izip(xvals, cover):
-            for i in xrange(int(n)):
-                Tdata.append(x)
-        self.data = np.array(Tdata) #transformed to x-value frequency
-        self.hasBeenFit = False
-        self.fit()
-        
-<<<<<<< HEAD
     def fit(self, tryUpToThisMany=50, backCheck = 5):
         
     
