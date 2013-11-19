@@ -852,7 +852,7 @@ def poissonP(reads_in_gene, reads_in_peak, gene_length, peak_length):
         
         lam = 1 + ((float(reads_in_gene) / float(gene_length)) * float(peak_length)) #expect at least one read.
 
-        cum_p = 1 - stats.poisson.cdf(reads_in_peak, lam)
+        cum_p = stats.poisson.sf(reads_in_peak, lam)
 
         return cum_p
     
