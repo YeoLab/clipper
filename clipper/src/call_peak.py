@@ -1044,17 +1044,17 @@ def peaks_from_info(bam_fileobj, wiggle, pos_counts, lengths, interval, gene_len
         if user_threshold == None:
             if SloP:
                 
-                #gets random subset of lengths of reads for calculations on a section
+                #gets random subset of lengths of reads from the whole gene for calculations on a section
                 #not exactly the right way to do this but it should be very close.
-                sect_read_lengths = rs(lengths, Nreads) 
-                
-                #use the minimum FDR cutoff between superlocal and gene-wide calculations
+                sect_read_lengths = rs(lengths, Nreads)
+                sect_read_lengths = [sect_length - 1 if read > sect_length else read for read in sect_read_lengths]
 
                 if method == "binomial":  #Uses Binomial Distribution to get cutoff if specified by user                             
                     
-                    threshold = min(gene_threshold, get_FDR_cutoff_binom(lengths, sect_length, binom_alpha))
+                    threshold = min(gene_threshold, get_FDR_cutoff_binom(sect_read_lengths, sect_length, binom_alpha))
                 elif method == "random":
-                    threshold = min(gene_threshold, get_FDR_cutoff_mean(readlengths = lengths,
+                    #use the minimum FDR cutoff between superlocal and gene-wide calculations
+                    threshold = min(gene_threshold, get_FDR_cutoff_mean(readlengths = sect_read_lengths,
                                                  genelength = sect_length,
                                                  alpha = fdr_alpha))
                 else:
