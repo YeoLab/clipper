@@ -759,7 +759,7 @@ class GaussMix(PeakGenerator):
             peaks.append((newX, newY, m))
             
         return peaks
-=
+
 def plot_sections(wiggle, sections, threshold):
     
     """
