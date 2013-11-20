@@ -1,7 +1,7 @@
 
 """
 
-Analizes CLIP data given a bed file and a bam file
+Analyzes CLIP data given a bed file and a bam file
 
 Michael Lovci and Gabriel Pratt
 
