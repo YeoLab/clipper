@@ -42,8 +42,13 @@ class Peak(namedtuple('Peak', ['chrom',
                                'gene_poisson_p',
                                'size',
                                'p'])):
+    def __repr__(self):
+        return "\t".join(map(str, [self.chrom, self.genomic_start, self.genomic_stop,
+                         "_".join(map(str, [self.gene_name, self.peak_number, self.number_reads_in_peak])),
+                         min(self.super_local_poisson_p, self.gene_poisson_p), self.strand,
+                         self.thick_start, self.thick_stop]))
     pass
-   
+
 def get_FDR_cutoff_binom(readlengths, genelength, alpha, mincut = 2):
     number_reads = len(readlengths)
     
