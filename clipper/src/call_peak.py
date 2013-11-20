@@ -1046,10 +1046,10 @@ def peaks_from_info(bam_fileobj, wiggle, pos_counts, lengths, interval, gene_len
 
                 if method == "binomial":  #Uses Binomial Distribution to get cutoff if specified by user                             
                     
-                    threshold = min(gene_threshold, get_FDR_cutoff_binom(sect_read_lengths, sect_length, binom_alpha))
+                    threshold = max(gene_threshold, get_FDR_cutoff_binom(sect_read_lengths, sect_length, binom_alpha))
                 elif method == "random":
                     #use the minimum FDR cutoff between superlocal and gene-wide calculations
-                    threshold = min(gene_threshold, get_FDR_cutoff_mean(readlengths=sect_read_lengths,
+                    threshold = max(gene_threshold, get_FDR_cutoff_mean(readlengths=sect_read_lengths,
                                                  genelength=sect_length,
                                                  alpha=fdr_alpha))
                 else:
