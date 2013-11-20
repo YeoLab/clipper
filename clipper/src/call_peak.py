@@ -43,6 +43,7 @@ class Peak(namedtuple('Peak', ['chrom',
                                'size',
                                'p'])):
     def __repr__(self):
+        """bed8 format"""
         return "\t".join(map(str, [self.chrom, self.genomic_start, self.genomic_stop,
                          "_".join(map(str, [self.gene_name, self.peak_number, self.number_reads_in_peak])),
                          min(self.super_local_poisson_p, self.gene_poisson_p), self.strand,
@@ -78,7 +79,7 @@ def get_FDR_cutoff_mode(readlengths,
    
     """
     
-    Find randomized method, as in FOX2ES NSMB paper.
+    Find randomized method, as in FOX2 ES NSMB paper.
     
     """
     
