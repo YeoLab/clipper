@@ -32,3 +32,10 @@ build/
 clipper.egg-info/
 dist/
 
+#other stuff 
+setuptools_git-1.0-py2.7.egg
+
+#large test files
+*mm9.fa
+*mm9.fa.fai
+*mm9_phastcons.bw

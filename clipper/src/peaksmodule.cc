@@ -256,21 +256,20 @@ extern "C" PyObject *peaks_find_sections(PyObject *self, PyObject *args) {
       if(in_section && gap > margin ) {
          in_section = false;
          stop = loc - gap + 1; //sets the stop to the last location that a real value has been seen
-	     //adds section to list
-	     PyObject *section = PyTuple_New(2);
-	     PyTuple_SetItem(section, 0, PyInt_FromLong(start));
-	     PyTuple_SetItem(section, 1, PyInt_FromLong(stop));
-	     sections.push_back(section);
+	 //adds section to list
+	 PyObject *section = PyTuple_New(2);
+	 PyTuple_SetItem(section, 0, PyInt_FromLong(start));
+	 PyTuple_SetItem(section, 1, PyInt_FromLong(stop));
+	 sections.push_back(section);
       }
     }
   }
 
   //catch last potential section
   if ( in_section ) {
- 
     PyObject *section = PyTuple_New(2);
     PyTuple_SetItem(section, 0, PyInt_FromLong(start));
-    PyTuple_SetItem(section, 1, PyInt_FromLong(loc - gap + 1));
+    PyTuple_SetItem(section, 1, PyInt_FromLong(loc - (gap + 1)));
    
     sections.push_back(section);
 
@@ -309,7 +308,7 @@ extern "C" PyObject *peaks_readsToWiggle_pysam(PyObject *self, PyObject *args) {
     	PyErr_SetString(PyExc_NameError, "usePos must be either center, start or end");
 	return NULL;
   }
-  makeFractional = PyObject_IsTrue(fractional_input);
+ makeFractional = PyObject_IsTrue(fractional_input);
   //set list sizes to do calculations on (NEVER SET BEFORE parsing the tuple)
   
   std::vector<double> wiggle(tx_end - tx_start + 1, 0);    

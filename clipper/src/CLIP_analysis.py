@@ -1,7 +1,7 @@
 
 """
 
-Analyzes CLIP data given a bed file and a bam file
+Analizes CLIP data given a bed file and a bam file
 
 Michael Lovci and Gabriel Pratt
 
@@ -607,7 +607,8 @@ def get_genomic_regions(regions_dir, species, db):
                "exons" : pybedtools.BedTool(os.path.join(regions_dir,species + "_exons.bed")),
                "introns" : pybedtools.BedTool(os.path.join(regions_dir, species + "_introns.bed"))}
 
-    except:
+    except Exception as e:
+        print e
         pass
     
     genes = db.features_of_type('gene')
@@ -796,7 +797,7 @@ def convert_to_transcript(feature_dict):
     returns modified dict
         
     """
-    return { name : bedtool.each(name_to_chrom).saveas(name + "_transcripts.bed") for name, bedtool in feature_dict.items()}
+    return { name : bedtool.each(name_to_chrom).saveas() for name, bedtool in feature_dict.items()}
 
 def convert_to_mrna(feature_dict, exon_dict):
     
@@ -809,7 +810,7 @@ def convert_to_mrna(feature_dict, exon_dict):
     
     """
     
-    return { name : bedtool.each(convert_to_mRNA_position, exon_dict).filter(lambda x: x.chrom != "none").saveas(name + "_transcripts_mrna.bed") for name, bedtool in feature_dict.items()}
+    return { name : bedtool.each(convert_to_mRNA_position, exon_dict).filter(lambda x: x.chrom != "none").saveas() for name, bedtool in feature_dict.items()}
 
 def invert_neg(interval):
     interval[-1] = str(int(interval[-1]) * -1)
@@ -1131,13 +1132,14 @@ def get_mean_phastcons(bedtool, phastcons_location, sample_size = 1000):
         
         for bedline in bedtool.random_subset(min(len(bedtool), sample_size)):
             conservation_values = bw.get_as_array(bedline.chrom, bedline.start, bedline.stop)
-        
-            if len(conservation_values) > 0:
-                mean_phastcons = np.mean(conservation_values)
-            else:
-                mean_phastcons = 0
-            data.append(mean_phastcons)
-        
+            try:
+                if len(conservation_values) > 0:
+                    mean_phastcons = np.mean(conservation_values)
+                else:
+                    mean_phastcons = 0
+                data.append(mean_phastcons)
+            except TypeError:
+                pass
     return data
 
 
@@ -1309,6 +1311,9 @@ def calculate_phastcons(regions, cluster_regions, phastcons_location, sample_siz
         except KeyError as e:
             print "ignoring: ", e
             continue
+        except Exception as e:
+            print region, e
+            raise
 
 
     #get the "all" values
@@ -1483,9 +1488,9 @@ def main(options):
     #lazy refactor, this used to be a list, but the dict acts the same until I don't want it to...
     regions = OrderedDict()
     regions["all" ] = "All"
-    regions["exon"] = "CDS"
-    regions["UTR3"] = "3' UTR"
-    regions["UTR5"] = "5' UTR"
+    regions["cds"] = "CDS"
+    regions["utr3"] = "3' UTR"
+    regions["utr5"] = "5' UTR"
     regions["proxintron500"] = "Proximal\nIntron"
     regions["distintron500"] = "Distal\nIntron"
     
