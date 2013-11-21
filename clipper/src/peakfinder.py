@@ -307,7 +307,7 @@ def build_transcript_data(species, gene_bed, gene_mrna, gene_pre_mrna, pre_mrna)
     """
     
     #error checking 
-    raise NotImplementedError("use custom gff files please")
+
     acceptable_species = get_acceptable_species()
     if (species is None and 
         gene_bed is None and 

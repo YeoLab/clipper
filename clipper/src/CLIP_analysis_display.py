@@ -208,7 +208,7 @@ def build_pie_chart_content(ax, regions_count, regions):
     #red, tan, blue, green, purple
     
 
-    colors = { "exon" : "#E52C27", "UTR3" : "#C3996B", "UTR5" : "#3C54A4", "proxintron500" : "#48843D", "distintron500" : "#852882"} 
+    colors = { "cds" : "#E52C27", "utr3" : "#C3996B", "utr5" : "#3C54A4", "proxintron500" : "#48843D", "distintron500" : "#852882"} 
     
     ax.pie(regions_count.values(), colors=[colors[region] for region in regions_count.keys()], labels=[regions[region] for region in regions_count.keys()])
     

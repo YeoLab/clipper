@@ -60,7 +60,7 @@ def get_FDR_cutoff_binom(readlengths, genelength, alpha, mincut = 2):
         mean_read_length = numpy.mean(read_length)
         prob = float(mean_read_length) / float(genelength)
         if prob > 1:
-            raise ValueError("probability of ≥ 1 read per-base > 1")
+            raise ValueError("probability of >= 1 read per-base > 1")
         try:
             k = int(binom.ppf(1 - (alpha), number_reads, prob))
             if k < mincut:
