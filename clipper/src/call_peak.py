@@ -605,7 +605,7 @@ class SmoothingSpline(PeakGenerator):
     def plot(self, ax=None):
         self.peakCalls = self.peaks()
         if ax==None:
-            ax = pylab.gca()
+            ax = plt.gca()
         for peak in self.peakCalls:
             ax.axvline(x=peak[2], color='red', alpha=1, linewidth=4) #peak middle
             ax.axvspan(peak[0]+1, peak[1]-1, facecolor='blue', linewidth=2, alpha=.2)#peak span
@@ -1184,8 +1184,6 @@ def peaks_from_info(wiggle, pos_counts, lengths, interval, gene_length,
 
              else:
                  slop_pois_p = np.Inf
-
-
 
              #TODO a peak object might just be a gtf file or
              #bed file...
