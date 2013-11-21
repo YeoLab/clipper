@@ -901,7 +901,9 @@ def call_peaks(interval, gene_length, bam_fileobj=None, bam_file=None,
     subset_reads = bam_fileobj.fetch(reference=interval.chrom, start=interval.start, end=interval.stop)
 
     #need to document reads to wiggle
-    wiggle, jxns, pos_counts, read_lengths, allreads = readsToWiggle_pysam(subset_reads, interval.start, interval.stop, interval.strand, "center", False)
+    (wiggle, jxns, pos_counts,
+     read_lengths, allreads) = readsToWiggle_pysam(subset_reads, interval.start,
+                                                   interval.stop, interval.strand, "start", False)
 
     #TODO have a check to kill this if there aren't any reads in a region
         
