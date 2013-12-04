@@ -599,7 +599,7 @@ def main(options):
     logging.info("finished with calling peaks")
 
     if options.save_pickle is True:
-        with open(options.outfile + ".pickle", 'w') as pickle_file:  
+        with open(options.outfile + "all_peaks.pickle", 'w') as pickle_file:  
             pickle.dump(results, file=pickle_file)                
     
     transcriptome_reads = count_transcriptome_reads(results)

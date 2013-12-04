@@ -1632,7 +1632,7 @@ def main(options):
     out_dict['data'] = np.array(read_densities)
     out_dict['classes'] = classes
     out_dict['region_read_counts'] = region_read_counts
-    out_file = open(os.path.join("%s.pickle" %(clusters)), 'w')
+    out_file = open(os.path.join("%s.clip_analysis.pickle" %(clusters)), 'w')
     pickle.dump(out_dict, file=out_file)
     
     print "file saved"
