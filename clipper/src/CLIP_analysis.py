@@ -6,7 +6,7 @@ Analizes CLIP data given a bed file and a bam file
 Michael Lovci and Gabriel Pratt
 
 """
-
+import copy
 from collections import Counter, OrderedDict, defaultdict
 from itertools import izip_longest
 from optparse import OptionParser
@@ -588,8 +588,41 @@ def get_introns(exons):
             pass
         prev_interval = interval
     return pybedtools.BedTool(result_list, from_string=True)
-    
-def get_genomic_regions(regions_dir, species, db):
+
+def get_proximal_distal_introns(gene, prox_size=500):
+    """
+
+    From a given gene returns all its proximal and distal introns, proximal and distal being defined by prox_size 
+    gene = iterator of exons belonging to a single gene
+    prox_size = int size of proximal introns
+
+    returns bedtool(proximal introns), bedtool(distal introns)
+
+    """
+
+    prox_introns = []
+    dist_introns = []
+
+    for intron in db.interfeatures(exons):
+        if len(intron) <= (pad_size * 2) + 1:
+            prox_introns.append(intron)
+    else:
+        #create prox and dist intron ranges from intron (this is dangerous, but copying doesn't work
+        start_prox_intron = copy.deepcopy(intron)
+        start_proxintron.stop = start + pad_size
+        prox_introns.append(start_proxintron)
+        
+        stop_prox_intron = copy.deepcopy(intron)
+        stop_prox_intron.start = intron.stop - pad_size
+        prox_introns.append(stop_prox_intron)
+        
+        dist_intron = copy.deepcopy(intron)
+        dist_intron.start = intron.start + pad_size + 1
+        dist_intron.stop = intron.stop - pad_size - 1
+        dist_introns.append(dist_intron)
+    return prox_introns, dist_introns
+
+def get_genomic_regions(regions_dir, species, db, prox_size=500):
     
     """
     
@@ -616,6 +649,8 @@ def get_genomic_regions(regions_dir, species, db):
     five_prime_utrs = []
     cds = []
     exons = []
+    dist_introns = []
+    prox_introns = []
     gene_list = []
     for gene in genes:
         mrnas = list(db.children(gene, featuretype='mRNA'))
@@ -632,7 +667,6 @@ def get_genomic_regions(regions_dir, species, db):
             utrs =  list(db.children(mrna, featuretype='UTR'))
             cur_exons = list(db.children(mrna, featuretype='exon'))
             gene_exons += cur_exons
-    
     
             cur_cds = list(db.children(mrna, featuretype='CDS'))
             
@@ -669,7 +703,12 @@ def get_genomic_regions(regions_dir, species, db):
             for cur_exon in gene_exons:
                 cur_exon.attributes['gene_id'] = gene.id
                 exons.append(cur_exon)
-                
+            
+            #get introns from exons
+            gene_prox_introns, gene_dist_introns = get_proximal_distal_introns(gene_exons, prox_size)
+            prox_introns.append(gene_prox_introns)
+            dist_introns.append(gene_dist_introns)
+
         if len(gene_cds) > 0:
             gene_cds = sorted(list(db.merge_features(gene_cds)), key = lambda x: x.start)
             for cur_cds in gene_cds:
@@ -690,15 +729,17 @@ def get_genomic_regions(regions_dir, species, db):
 
     #make daddy some introns
     exons = pybedtools.BedTool(map(to_bed, exons)).saveas(os.path.join(species + "_exons.bed"))
-    
     introns = get_introns(exons).saveas(os.path.join(species + "_introns.bed"))
         
     return { 'genes' : pybedtools.BedTool(map(to_bed, gene_list)).saveas(os.path.join(species + "_genes.bed")),
             "five_prime_utrs" : pybedtools.BedTool(map(to_bed, five_prime_utrs)).saveas(os.path.join(species + "_five_prime_utrs.bed")),
              "three_prime_utrs" : pybedtools.BedTool(map(to_bed, three_prime_utrs)).saveas(os.path.join(species + "_three_prime_utrs.bed")),
              "cds" : pybedtools.BedTool(map(to_bed, cds)).saveas(os.path.join(species + "_cds.bed")),
+             "prox_introns" = pybedtools.BedTool(map(to_bed, prox_introns)).saveas(os.path.join("%s_proxintron%d.bed" % (species, prox_size)),
+             "dist_introns" = pybedtools.BedTool(map(to_bed, dist_introns)).saveas(os.path.join("%s_distintron%d.bed" % (species, prox_size))),
              "exons" : exons,
-             "introns" : introns }
+             "introns" : introns,
+             }
     
 
 
