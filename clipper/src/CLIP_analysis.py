@@ -224,7 +224,7 @@ def assign_to_regions(tool, clusters, speciesFA, regions_dir, regions,
     #regions = bedtracks.keys()
     
     for region in regions:
-        bedtracks[region] = pybedtools.BedTool(os.path.join(clipper.data_dir(), "regions", region + "." + species + ".bed"))
+        bedtracks[region] = pybedtools.BedTool(os.path.join(clipper.data_dir(), "regions", species + "_" + region + ".bed"))
               
     #creates the basics of bed dict
     bed_dict = {}
@@ -559,7 +559,7 @@ def to_bed(x):
     converts gtf formatted object to bed format
     
     """
-    return x.chrom, x.start, x.stop, x.attributes['gene_id'].split(".")[0], "0", x.strand
+    return x.chrom, x.start, x.stop, x.attributes['gene_id'], "0", x.strand
 
 def get_introns(exons):
     
@@ -589,7 +589,7 @@ def get_introns(exons):
         prev_interval = interval
     return pybedtools.BedTool(result_list, from_string=True)
 
-def get_proximal_distal_introns(gene, prox_size=500):
+def get_proximal_distal_introns(db, gene, prox_size=500):
     """
 
     From a given gene returns all its proximal and distal introns, proximal and distal being defined by prox_size 
@@ -603,23 +603,24 @@ def get_proximal_distal_introns(gene, prox_size=500):
     prox_introns = []
     dist_introns = []
 
-    for intron in db.interfeatures(exons):
-        if len(intron) <= (pad_size * 2) + 1:
+    for intron in db.interfeatures(gene):
+        if len(intron) <= (prox_size * 2) + 3: #want distal introns to have size at least one, otherwise
+            #they are poximal
             prox_introns.append(intron)
-    else:
-        #create prox and dist intron ranges from intron (this is dangerous, but copying doesn't work
-        start_prox_intron = copy.deepcopy(intron)
-        start_proxintron.stop = start + pad_size
-        prox_introns.append(start_proxintron)
+        else:
+            #create prox and dist intron ranges from intron (this is dangerous, but copying doesn't work
+            start_prox_intron = copy.deepcopy(intron)
+            start_prox_intron.stop = intron.start + prox_size
+            prox_introns.append(start_prox_intron)
         
-        stop_prox_intron = copy.deepcopy(intron)
-        stop_prox_intron.start = intron.stop - pad_size
-        prox_introns.append(stop_prox_intron)
+            stop_prox_intron = copy.deepcopy(intron)
+            stop_prox_intron.start = intron.stop - prox_size
+            prox_introns.append(stop_prox_intron)
         
-        dist_intron = copy.deepcopy(intron)
-        dist_intron.start = intron.start + pad_size + 1
-        dist_intron.stop = intron.stop - pad_size - 1
-        dist_introns.append(dist_intron)
+            dist_intron = copy.deepcopy(intron)
+            dist_intron.start = intron.start + prox_size + 1
+            dist_intron.stop = intron.stop - prox_size - 1
+            dist_introns.append(dist_intron)
     return prox_introns, dist_introns
 
 def get_genomic_regions(regions_dir, species, db, prox_size=500):
@@ -705,9 +706,14 @@ def get_genomic_regions(regions_dir, species, db, prox_size=500):
                 exons.append(cur_exon)
             
             #get introns from exons
-            gene_prox_introns, gene_dist_introns = get_proximal_distal_introns(gene_exons, prox_size)
-            prox_introns.append(gene_prox_introns)
-            dist_introns.append(gene_dist_introns)
+            cur_prox_introns, cur_dist_introns = get_proximal_distal_introns(db, gene_exons, prox_size)
+            for cur_prox_intron in cur_prox_introns:
+                cur_prox_intron.attributes['gene_id'] = gene.id
+                prox_introns.append(cur_prox_intron)
+
+            for cur_dist_intron in cur_dist_introns:
+                cur_dist_intron.attributes['gene_id'] = gene.id
+                dist_introns.append(cur_dist_intron)
 
         if len(gene_cds) > 0:
             gene_cds = sorted(list(db.merge_features(gene_cds)), key = lambda x: x.start)
@@ -735,8 +741,8 @@ def get_genomic_regions(regions_dir, species, db, prox_size=500):
             "five_prime_utrs" : pybedtools.BedTool(map(to_bed, five_prime_utrs)).saveas(os.path.join(species + "_five_prime_utrs.bed")),
              "three_prime_utrs" : pybedtools.BedTool(map(to_bed, three_prime_utrs)).saveas(os.path.join(species + "_three_prime_utrs.bed")),
              "cds" : pybedtools.BedTool(map(to_bed, cds)).saveas(os.path.join(species + "_cds.bed")),
-             "prox_introns" = pybedtools.BedTool(map(to_bed, prox_introns)).saveas(os.path.join("%s_proxintron%d.bed" % (species, prox_size)),
-             "dist_introns" = pybedtools.BedTool(map(to_bed, dist_introns)).saveas(os.path.join("%s_distintron%d.bed" % (species, prox_size))),
+             "prox_introns" : pybedtools.BedTool(map(to_bed, prox_introns)).saveas(os.path.join("%s_proxintron%d.bed" % (species,prox_size))),
+             "dist_introns" : pybedtools.BedTool(map(to_bed, dist_introns)).saveas(os.path.join("%s_distintron%d.bed" % (species,prox_size))),
              "exons" : exons,
              "introns" : introns,
              }
@@ -1530,8 +1536,8 @@ def main(options):
     regions = OrderedDict()
     regions["all" ] = "All"
     regions["cds"] = "CDS"
-    regions["utr3"] = "3' UTR"
-    regions["utr5"] = "5' UTR"
+    regions["three_prime_utrs"] = "3' UTR"
+    regions["five_prime_utrs"] = "5' UTR"
     regions["proxintron500"] = "Proximal\nIntron"
     regions["distintron500"] = "Distal\nIntron"
     
