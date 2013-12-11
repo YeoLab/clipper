@@ -143,7 +143,7 @@ def count_genomic_region_sizes(regions_dir, regions, species="hg19"):
     genomic_region_sizes = {}
     #TODO update this to work of GFF file, because something isn't matching up...
     for region in regions:
-        region_tool = pybedtools.BedTool(os.path.join(clipper.data_dir(), "regions", region + "." + species + ".bed"))
+        region_tool = pybedtools.BedTool(os.path.join(clipper.data_dir(), "regions",  species + "_" + region + ".bed"))
         genomic_region_sizes[region] = region_tool.total_coverage()
     return genomic_region_sizes
 
@@ -734,15 +734,15 @@ def get_genomic_regions(regions_dir, species, db, prox_size=500):
                 three_prime_utrs.append(gene_three_prime_utr)  
 
     #make daddy some introns
-    exons = pybedtools.BedTool(map(to_bed, exons)).saveas(os.path.join(species + "_exons.bed"))
-    introns = get_introns(exons).saveas(os.path.join(species + "_introns.bed"))
+    exons = pybedtools.BedTool(map(to_bed, exons)).sort().saveas(os.path.join(species + "_exons.bed"))
+    introns = get_introns(exons).sort().saveas(os.path.join(species + "_introns.bed"))
         
-    return { 'genes' : pybedtools.BedTool(map(to_bed, gene_list)).saveas(os.path.join(species + "_genes.bed")),
-            "five_prime_utrs" : pybedtools.BedTool(map(to_bed, five_prime_utrs)).saveas(os.path.join(species + "_five_prime_utrs.bed")),
-             "three_prime_utrs" : pybedtools.BedTool(map(to_bed, three_prime_utrs)).saveas(os.path.join(species + "_three_prime_utrs.bed")),
-             "cds" : pybedtools.BedTool(map(to_bed, cds)).saveas(os.path.join(species + "_cds.bed")),
-             "prox_introns" : pybedtools.BedTool(map(to_bed, prox_introns)).saveas(os.path.join("%s_proxintron%d.bed" % (species,prox_size))),
-             "dist_introns" : pybedtools.BedTool(map(to_bed, dist_introns)).saveas(os.path.join("%s_distintron%d.bed" % (species,prox_size))),
+    return { 'genes' : pybedtools.BedTool(map(to_bed, gene_list)).sort().saveas(os.path.join(species + "_genes.bed")),
+            "five_prime_utrs" : pybedtools.BedTool(map(to_bed, five_prime_utrs)).sort().saveas(os.path.join(species + "_five_prime_utrs.bed")),
+             "three_prime_utrs" : pybedtools.BedTool(map(to_bed, three_prime_utrs)).sort().saveas(os.path.join(species + "_three_prime_utrs.bed")),
+             "cds" : pybedtools.BedTool(map(to_bed, cds)).sort().saveas(os.path.join(species + "_cds.bed")),
+             "prox_introns" : pybedtools.BedTool(map(to_bed, prox_introns)).sort().saveas(os.path.join("%s_proxintron%d.bed" % (species,prox_size))),
+             "dist_introns" : pybedtools.BedTool(map(to_bed, dist_introns)).sort().saveas(os.path.join("%s_distintron%d.bed" % (species,prox_size))),
              "exons" : exons,
              "introns" : introns,
              }
@@ -1694,7 +1694,7 @@ def main(options):
     QCfig = CLIP_analysis_display.CLIP_QC_figure(*QCfig_params)
     distribution_fig = CLIP_analysis_display.plot_distributions(features_transcript_closest, features_mrna_closest, distributions)
     QCfig.savefig(os.path.join(outdir, clusters + ".QCfig." + options.extension))
-    distribution_fig.savefig(clusters + "DistFig." + options.extension)  
+    distribution_fig.savefig(os.path.join(outdir, clusters + ".DistFig." + options.extension))  
       
     #prints distance of clusters from various motifs in a different figure
     
