@@ -82,8 +82,8 @@ def adjust_offsets(tool, offsets=None):
             thick_stop = int(bed_line[7])
         
         #the ; represents two merged locations 
-        if ";" in bed_line.name and bed_line.name not in offsets:
-            offset = offsets[bed_line.name.split(";")[0]]
+        if "," in bed_line.name and bed_line.name not in offsets:
+            offset = offsets[bed_line.name.split(",")[0]]
         else:
             offset = offsets[bed_line.name]
         
