@@ -565,6 +565,8 @@ def to_bed(x):
 	nm = x.attribtues['Name']
     else:
 	raise Exception
+    if not x.chrom.startswith("chr"):
+        x.chrom = "chr" + x.chrom
     return x.chrom, x.start, x.stop, nm, "0", x.strand
 
 def get_introns(exons):
