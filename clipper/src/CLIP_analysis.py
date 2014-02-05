@@ -559,7 +559,13 @@ def to_bed(x):
     converts gtf formatted object to bed format
     
     """
-    return x.chrom, x.start, x.stop, x.attributes['gene_id'], "0", x.strand
+    if 'gene_id' in x.attributes:
+	nm = x.attributes['gene_id']
+    elif 'Name' in x.attributes:
+	nm = x.attribtues['Name']
+    else:
+	raise Exception
+    return x.chrom, x.start, x.stop, nm, "0", x.strand
 
 def get_introns(exons):
     
