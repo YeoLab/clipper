@@ -33,7 +33,9 @@ def parse_AS_STRUCTURE_dict(species, working_dir):
     elif species == "mm9":
         chroms = [str(x) for x in range(1, 20)] #1-19
         chroms.append("X")
-        chroms.append("Y")        
+        chroms.append("Y")
+    elif species == "ce10":
+        chroms = ["I", "II", "III", "IV", "V", "X", "M"]
     elif species == "test":
         chroms = ["1"]
 
