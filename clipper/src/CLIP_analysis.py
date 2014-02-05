@@ -699,7 +699,7 @@ def get_genomic_regions(regions_dir, species, db, prox_size=500):
                         print "odd in the negative strand"
 
         if len(gene_exons) > 0:
-            gene_exons = sorted(list(db.merge_features(gene_exons)), key = lambda x: x.start)
+            gene_exons = sorted(list(db.merge(gene_exons)), key = lambda x: x.start)
             for cur_exon in gene_exons:
                 cur_exon.attributes['gene_id'] = gene.id
                 exons.append(cur_exon)
@@ -715,19 +715,19 @@ def get_genomic_regions(regions_dir, species, db, prox_size=500):
                 dist_introns.append(cur_dist_intron)
 
         if len(gene_cds) > 0:
-            gene_cds = sorted(list(db.merge_features(gene_cds)), key = lambda x: x.start)
+            gene_cds = sorted(list(db.merge(gene_cds)), key = lambda x: x.start)
             for cur_cds in gene_cds:
                 cur_cds.attributes['gene_id'] = gene.id
                 cds.append(cur_cds)
                 
         if len(gene_five_prime_utrs) > 0:
-            gene_five_prime_utrs  = sorted(list(db.merge_features(gene_five_prime_utrs)), key = lambda x: x.start)
+            gene_five_prime_utrs  = sorted(list(db.merge(gene_five_prime_utrs)), key = lambda x: x.start)
             for gene_five_prime_utr in gene_five_prime_utrs:
                 gene_five_prime_utr.attributes['gene_id'] = gene.id
                 five_prime_utrs.append(gene_five_prime_utr)
                 
         if len(gene_three_prime_utrs) > 0:
-            gene_three_prime_utrs = sorted(list(db.merge_features(gene_three_prime_utrs)), key = lambda x: x.start)   
+            gene_three_prime_utrs = sorted(list(db.merge(gene_three_prime_utrs)), key = lambda x: x.start)   
             for gene_three_prime_utr in gene_three_prime_utrs:
                 gene_three_prime_utr.attributes['gene_id'] = gene.id
                 three_prime_utrs.append(gene_three_prime_utr)  
