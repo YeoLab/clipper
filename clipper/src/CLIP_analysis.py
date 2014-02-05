@@ -559,6 +559,7 @@ def to_bed(x):
     converts gtf formatted object to bed format
     
     """
+
     if 'gene_id' in x.attributes:
         nm = x.attributes['gene_id']
     elif 'Name' in x.attributes:
