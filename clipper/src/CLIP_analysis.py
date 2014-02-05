@@ -563,7 +563,7 @@ def to_bed(x):
     if 'gene_id' in x.attributes:
         nm = x.attributes['gene_id']
     elif 'Name' in x.attributes:
-        nm = x.attribtues['Name']
+        nm = x.attributes['Name']
     else:
         raise Exception
     if not x.chrom.startswith("chr"):
