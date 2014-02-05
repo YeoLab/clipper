@@ -1630,8 +1630,8 @@ def main(options):
     regions["proxintron500"] = "Proximal\nIntron"
     regions["distintron500"] = "Distal\nIntron"
     
-    db = gffutils.FeatureDB(options.db)
-    #db = None #hack to get working on tscc without access to sqlite3
+    #db = gffutils.FeatureDB(options.db)
+    db = None #hack to get working on tscc without access to sqlite3
 
     print "getting regions"
     genomic_regions = get_genomic_regions(options.regions_location, species, db)
