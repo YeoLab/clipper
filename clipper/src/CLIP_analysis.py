@@ -672,74 +672,78 @@ def get_genomic_regions(regions_dir, species, db, prox_size=500):
         
         gene_list.append(gene)
         for mrna in mrnas:
-    
-            utrs =  list(db.children(mrna, featuretype='UTR'))
-            cur_exons = list(db.children(mrna, featuretype='exon'))
-            gene_exons += cur_exons
-    
-            cur_cds = list(db.children(mrna, featuretype='CDS'))
-            
-            if len(cur_cds) == 0:
-              continue
-                
-            first_cds = cur_cds[0]
-            last_cds = cur_cds[-1]
-            
-            gene_cds += cur_cds
-            for utr in utrs:
-                if utr.strand == "+":
-                    if utr.stop < first_cds.start:
-                        utr.featuretype = "five_prime_utr"
-                        gene_five_prime_utrs.append(utr)
-                    elif last_cds.stop < utr.start:
-                        utr.featuretype = "three_prime_utr"
-                        gene_three_prime_utrs.append(utr)
-                    else:
-                        print "something odd"
-                        
-                elif utr.strand == "-":
-                    if last_cds.stop < utr.start:
-                        utr.featuretype = "five_prime_utr"
-                        gene_five_prime_utrs.append(utr)
-                    elif utr.start < first_cds.start:
-                        utr.featuretype = "three_prime_utr"
-                        gene_three_prime_utrs.append(utr)
-                    else:
-                        print "odd in the negative strand"
+            try:
+                gene_three_prime_utrs.append(db.children(mrna, featuretype='three_prime_utr'))
+                gene_five_prime_utrs.append(db.children(mrna, featuretype='five_prime_utr'))
+            except:
 
-        if len(gene_exons) > 0:
-            gene_exons = sorted(list(db.merge(gene_exons)), key = lambda x: x.start)
-            for cur_exon in gene_exons:
-                cur_exon.attributes['gene_id'] = gene.id
-                exons.append(cur_exon)
-            
-            #get introns from exons
-            cur_prox_introns, cur_dist_introns = get_proximal_distal_introns(db, gene_exons, prox_size)
-            for cur_prox_intron in cur_prox_introns:
-                cur_prox_intron.attributes['gene_id'] = gene.id
-                prox_introns.append(cur_prox_intron)
+                utrs =  list(db.children(mrna, featuretype='UTR'))
+                cur_exons = list(db.children(mrna, featuretype='exon'))
+                gene_exons += cur_exons
 
-            for cur_dist_intron in cur_dist_introns:
-                cur_dist_intron.attributes['gene_id'] = gene.id
-                dist_introns.append(cur_dist_intron)
+                cur_cds = list(db.children(mrna, featuretype='CDS'))
 
-        if len(gene_cds) > 0:
-            gene_cds = sorted(list(db.merge(gene_cds)), key = lambda x: x.start)
-            for cur_cds in gene_cds:
-                cur_cds.attributes['gene_id'] = gene.id
-                cds.append(cur_cds)
-                
-        if len(gene_five_prime_utrs) > 0:
-            gene_five_prime_utrs  = sorted(list(db.merge(gene_five_prime_utrs)), key = lambda x: x.start)
-            for gene_five_prime_utr in gene_five_prime_utrs:
-                gene_five_prime_utr.attributes['gene_id'] = gene.id
-                five_prime_utrs.append(gene_five_prime_utr)
-                
-        if len(gene_three_prime_utrs) > 0:
-            gene_three_prime_utrs = sorted(list(db.merge(gene_three_prime_utrs)), key = lambda x: x.start)   
-            for gene_three_prime_utr in gene_three_prime_utrs:
-                gene_three_prime_utr.attributes['gene_id'] = gene.id
-                three_prime_utrs.append(gene_three_prime_utr)  
+                if len(cur_cds) == 0:
+                  continue
+
+                first_cds = cur_cds[0]
+                last_cds = cur_cds[-1]
+
+                gene_cds += cur_cds
+                for utr in utrs:
+                    if utr.strand == "+":
+                        if utr.stop < first_cds.start:
+                            utr.featuretype = "five_prime_utr"
+                            gene_five_prime_utrs.append(utr)
+                        elif last_cds.stop < utr.start:
+                            utr.featuretype = "three_prime_utr"
+                            gene_three_prime_utrs.append(utr)
+                        else:
+                            print "something odd"
+
+                    elif utr.strand == "-":
+                        if last_cds.stop < utr.start:
+                            utr.featuretype = "five_prime_utr"
+                            gene_five_prime_utrs.append(utr)
+                        elif utr.start < first_cds.start:
+                            utr.featuretype = "three_prime_utr"
+                            gene_three_prime_utrs.append(utr)
+                        else:
+                            print "odd in the negative strand"
+
+            if len(gene_exons) > 0:
+                gene_exons = sorted(list(db.merge(gene_exons)), key = lambda x: x.start)
+                for cur_exon in gene_exons:
+                    cur_exon.attributes['gene_id'] = gene.id
+                    exons.append(cur_exon)
+
+                #get introns from exons
+                cur_prox_introns, cur_dist_introns = get_proximal_distal_introns(db, gene_exons, prox_size)
+                for cur_prox_intron in cur_prox_introns:
+                    cur_prox_intron.attributes['gene_id'] = gene.id
+                    prox_introns.append(cur_prox_intron)
+
+                for cur_dist_intron in cur_dist_introns:
+                    cur_dist_intron.attributes['gene_id'] = gene.id
+                    dist_introns.append(cur_dist_intron)
+
+            if len(gene_cds) > 0:
+                gene_cds = sorted(list(db.merge(gene_cds)), key = lambda x: x.start)
+                for cur_cds in gene_cds:
+                    cur_cds.attributes['gene_id'] = gene.id
+                    cds.append(cur_cds)
+
+            if len(gene_five_prime_utrs) > 0:
+                gene_five_prime_utrs  = sorted(list(db.merge(gene_five_prime_utrs)), key = lambda x: x.start)
+                for gene_five_prime_utr in gene_five_prime_utrs:
+                    gene_five_prime_utr.attributes['gene_id'] = gene.id
+                    five_prime_utrs.append(gene_five_prime_utr)
+
+            if len(gene_three_prime_utrs) > 0:
+                gene_three_prime_utrs = sorted(list(db.merge(gene_three_prime_utrs)), key = lambda x: x.start)
+                for gene_three_prime_utr in gene_three_prime_utrs:
+                    gene_three_prime_utr.attributes['gene_id'] = gene.id
+                    three_prime_utrs.append(gene_three_prime_utr)
 
     #make daddy some introns
     exons = pybedtools.BedTool(map(to_bed, exons)).sort().saveas(os.path.join(species + "_exons.bed"))
@@ -830,6 +834,83 @@ def get_feature_locations(regions_dir, species, db):
              "stop_codons" :  pybedtools.BedTool(stop_codons).saveas(os.path.join(species + "_stop_codons.bed")),
              "start_codons" :  pybedtools.BedTool(start_codons).saveas(os.path.join(species + "_start_codons.bed")),
              "transcription_start_sites" : pybedtools.BedTool(transcription_start_sites).saveas(os.path.join(species + "_transcription_start_sites.bed"))}
+
+def get_feature_locations_ce10(regions_dir, species, db):
+
+    """
+
+    Gets locations of genic features, five prime sites, 3 prime sites, poly a sites stop codons start codons and tss
+    based off annotated gtf db file
+
+    db - db handle generated by gtf utils
+
+    returns dict of bedfiles     { five_prime_ends : bedtool
+                                   three_prime_ends
+                                   poly_a_sites
+                                   stop_codons
+                                   transcription_start_sites
+                                }
+
+    """
+    #clipper.data_file(
+    try:
+       return { "five_prime_ends" : pybedtools.BedTool(os.path.join(regions_dir, species + "_five_prime_ends.bed")),
+             "three_prime_ends" : pybedtools.BedTool(os.path.join(regions_dir, species + "_three_prime_ends.bed")),
+             "poly_a_sites" : pybedtools.BedTool(os.path.join(regions_dir, species + "_poly_a_sites.bed")),
+             "stop_codons" : pybedtools.BedTool(os.path.join(regions_dir, species + "_stop_codons.bed")),
+             "start_codons" : pybedtools.BedTool(os.path.join(regions_dir, species + "_start_codons.bed")),
+             "transcription_start_sites" : pybedtools.BedTool(os.path.join(regions_dir, species + "_transcription_start_sites.bed"))}
+
+    except:
+        pass
+
+    genes = db.features_of_type('gene')
+    five_prime_ends = []
+    three_prime_ends = []
+    poly_a_sites = []
+    stop_codons = []
+    start_codons = []
+    transcription_start_sites = []
+    count = 0
+    for gene in genes:
+        count += 1
+        try:
+            coding_length = 0
+            for exon in db.children(gene, featuretype='exon'):
+
+                if exon.strand == "+":
+                    five_prime_ends.append(['chr' + exon.chrom, exon.start, exon.start, gene.id, "0", gene.strand])
+                    three_prime_ends.append(['chr' + exon.chrom, exon.stop, exon.stop, gene.id, "0", gene.strand])
+                else:
+                    three_prime_ends.append(['chr' + exon.chrom, exon.start, exon.start, gene.id, "0", gene.strand])
+                    five_prime_ends.append(['chr' + exon.chrom, exon.stop, exon.stop, gene.id, "0", gene.strand])
+
+            for transcript in db.children(gene, featuretype='mRNA'):
+                if transcript.strand == "+":
+                    poly_a_sites.append(['chr' + transcript.chrom, transcript.stop, transcript.stop, gene.id, "0", gene.strand])
+                    transcription_start_sites.append(['chr' + transcript.chrom, transcript.start, transcript.start, gene.id, "0", gene.strand])
+                else:
+                    poly_a_sites.append(['chr' + transcript.chrom, transcript.start, transcript.start, gene.id, "0", gene.strand])
+                    transcription_start_sites.append(['chr' + transcript.chrom, transcript.stop, transcript.stop, gene.id, "0", gene.strand])
+                try:
+                    cds = list(db.children(transcript, featuretype='CDS'))
+                    first, last = cds[0], cds[-1]
+                    if first.strand == '-':
+                        first, last = last, first #Matthew 20:16
+                    start_codons.append(['chr' + first.chrom, first.start, first.start, gene.attributes['sequence_name'][0], "0", first.strand])
+                    stop_codons.append(['chr' + last.chrom, last.start, last.start, gene.attributes['sequence_name'][0], "0", last.strand])
+                except:
+                    pass
+
+        except IndexError:
+            pass
+
+    return { "five_prime_ends" : pybedtools.BedTool(five_prime_ends).sort().saveas(os.path.join(species + "_five_prime_ends.bed")),
+             "three_prime_ends" :pybedtools.BedTool(three_prime_ends).sort().saveas(os.path.join(species + "_three_prime_ends.bed")),
+             "poly_a_sites" :  pybedtools.BedTool(poly_a_sites).sort().saveas(os.path.join(species + "_poly_a_sites.bed")),
+             "stop_codons" :  pybedtools.BedTool(stop_codons).sort().saveas(os.path.join(species + "_stop_codons.bed")),
+             "start_codons" :  pybedtools.BedTool(start_codons).sort().saveas(os.path.join(species + "_start_codons.bed")),
+             "transcription_start_sites" : pybedtools.BedTool(transcription_start_sites).sort().saveas(os.path.join(species + "_transcription_start_sites.bed"))}
 
 def generate_region_dict(bedtool):
     region_dict = defaultdict(list)
@@ -1549,8 +1630,8 @@ def main(options):
     regions["proxintron500"] = "Proximal\nIntron"
     regions["distintron500"] = "Distal\nIntron"
     
-#    db = gffutils.FeatureDB(options.db)
-    db = None #hack to get working on tscc without access to sqlite3
+    db = gffutils.FeatureDB(options.db)
+    #db = None #hack to get working on tscc without access to sqlite3
 
     print "getting regions"
     genomic_regions = get_genomic_regions(options.regions_location, species, db)
