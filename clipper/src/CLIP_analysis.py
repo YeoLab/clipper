@@ -344,7 +344,7 @@ def build_assigned_from_existing(assigned_dir, clusters, regions, nrand):
         CLUS_regions[region]={}
         for n in range(nrand):
             CLUS_regions[region]['rand']={}
-    for region in regions:
+    for region, region_descrip in regions:
         bedfile = os.path.join(assigned_dir, "%s.%s.real.BED" %(clusters, region))
         CLUS_regions[region]['real'] = pybedtools.BedTool(bedfile)
         for n in range(nrand):
@@ -1577,6 +1577,8 @@ def main(options):
             
             print "I used a pre-assigned set output_file BED files... score!"
         except:
+            import pdb
+            pdb.set_trace()
             print "I had problems retreiving region-assigned BED files from %s, i'll rebuild" % (assigned_dir)
             options.assign = True
     
