@@ -24,7 +24,8 @@ from AS_Structure_tools import parse_AS_STRUCTURE_dict
 import clipper
 from clipper.src import CLIP_analysis_display
 from clipper.src.kmerdiff import kmer_diff
-from gscripts.general.pybedtools_helpers import small_peaks, shuffle_and_adjust, closest_by_feature, get_three_prime_end, get_five_prime_end, convert_to_mRNA_position, adjust_after_shuffle, to_bed
+from clipper.src.get_genomic_regions import GenomicFeatures
+from gscripts.general.pybedtools_helpers import small_peaks, shuffle_and_adjust, closest_by_feature, get_three_prime_end, get_five_prime_end, convert_to_mRNA_position, adjust_after_shuffle, _to_bed
 
 def name_to_chrom(interval):
     interval.chrom = interval.name
@@ -202,12 +203,12 @@ def assign_to_regions(tool, clusters, speciesFA, regions_dir, regions,
     
     tool - a bed tool (each line represnting a cluster)
     clusters - name of cluster file
-    speciesFA - the species fasta file
+    speciesFA - the _species fasta file
     regions_dir - the directory that has genomic regions already processed
     regions - dict [str] regions to process, not used now but should be after refactoring 
     assigned_dir - location to save files in
     fasta_dir -location to save fasta files in
-    species - str species to segment
+    _species - str _species to segment
     nrand - int number offsets times to shuffle for null hypothesis
     getseq - boolean gets the full sequence to store
     
@@ -286,7 +287,7 @@ def assign_to_regions(tool, clusters, speciesFA, regions_dir, regions,
             
             #for each region shuffles all peaks in that region around the region 
             #then pulls out sequences if requested 
-            random_intervals = bed_dict[region]['real'].shuffle(genome=species, incl=bedtracks[region].fn).sort()
+            random_intervals = bed_dict[region]['real'].shuffle(genome=_species, incl=bedtracks[region].fn).sort()
 
             #shuffling doesn't change offsets so we adjust bed 11 and 12 lines here to correct 
             random_intervals = adjust_offsets(random_intervals, offset_dict)
@@ -1185,7 +1186,7 @@ def generate_motif_distances(cluster_regions, region_sizes, motifs, motif_locati
     returns list[motif_distances]
     
     motif_location - str location that motifs are stored
-    species - str species (for finding stored motifs)
+    _species - str _species (for finding stored motifs)
     motifs - list of motifs to analize
     cluster_regions - dict from parse clusters 
     
@@ -1226,9 +1227,9 @@ def main(options):
     
     """
     print "starting"
-    #gets clusters in a bed tools + names species 
+    #gets clusters in a bed tools + names _species 
     clusters = os.path.basename(options.clusters)
-    species = options.species
+    species = options._species
     
     #In case names aren't unique make them all unique
     global uniq_count
@@ -1274,11 +1275,9 @@ def main(options):
     db = None #hack to get working on tscc without access to sqlite3
 
     print "getting regions"
-    genomic_regions = get_genomic_regions(options.regions_location, species, db)
-    print "Done"
-    
-    print "getting feature locations"
-    features = get_feature_locations(options.regions_location, species, db)
+    features = GenomicFeatures(options.regions_location, species, db)
+    genomic_regions = features.get_genomic_regions()
+    features = features.get_feature_locations()
     print "done"
     
      #all catagory would break some analysies, create copy and remove it
@@ -1376,7 +1375,7 @@ def main(options):
     motif_distances = []
     try:
         if motifs:
-            motif_distances = generate_motif_distances(cluster_regions, region_sizes, motifs, options.motif_location, options.species)
+            motif_distances = generate_motif_distances(cluster_regions, region_sizes, motifs, options.motif_location, options._species)
                     
     except:
         pass
@@ -1447,7 +1446,7 @@ def call_main():
     
     parser.add_option("--clusters", dest="clusters", help="BED file of clusters", metavar="BED")
     parser.add_option("--bam", dest="bam", help="The bam file from the CLIP analysis")
-    parser.add_option("--species", "-s", dest="species", help = "genome version")
+    parser.add_option("--_species", "-s", dest="_species", help = "genome version")
     ##to-do. this should be auto-set if the creation date of "clusters" is after creation date fo assigned files
     #parser.add_option("--reAssign", dest="assign", action="store_true", default=False, help="re-assign clusters, if not set it will re-use existing assigned clusters") 
     ##to-do. this should be auto-set if the creation date of "clusters" is after creation date fo assigned files
@@ -1467,7 +1466,7 @@ def call_main():
     parser.add_option("--genome_location", dest="genome_location", help="location of all.fa file for genome of interest", default=None)
     parser.add_option("--homer_path", dest="homer_path", action="append", help="path to homer, if not in default path", default=None)
     parser.add_option("--phastcons_location", dest="phastcons_location",  help="location of phastcons file", default=None)
-    parser.add_option("--regions_location", dest="regions_location",  help="directory of genomic regions for a species", default=None)
+    parser.add_option("--regions_location", dest="regions_location",  help="directory of genomic regions for a _species", default=None)
     parser.add_option("--motif_directory", dest="motif_location",  help="directory of pre-computed motifs for analysis", default=os.getcwd())
     parser.add_option("--reAssign", dest="assign", action="store_true", default=False, help="re-assign clusters, if not set it will re-use existing assigned clusters")
     parser.add_option("--metrics", dest="metrics", default="CLIP_Analysis.metrics", help="file name to output metrics to")
@@ -1478,7 +1477,7 @@ def call_main():
     (options, args) = parser.parse_args()
     
     #error checking
-    if options.clusters is None or options.bam is None or options.species is None:
+    if options.clusters is None or options.bam is None or options._species is None:
         parser.print_help()
         exit()
         

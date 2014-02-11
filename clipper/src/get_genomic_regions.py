@@ -1,56 +1,93 @@
+"""
+
+class to get genomic features from gffutils _db
+
+"""
+
 import copy
 import os
 
 import gffutils
 import pybedtools
 
-from gscripts.general.pybedtools_helpers import to_bed
-#usage: python get_genomic_regions.py > ce10_genes.gff3
+class GenomicFeatures():
+    """
 
-class genomic_features():
+    class to get genomic features from gffutils _db
+    
+    """
     def __init__(self, regions_dir, species, db):
         """
         
-        creates genomic features function, chooses how to direct creation of features based on species
+        creates genomic features function, chooses 
+        how to direct creation of features based on _species
+        
+        regions_dir : str location to create region
+        species: str species (hg19, mm9, ce10
+        db: gffutils FeatureDb object
         
         """
-        self.regions_dir = regions_dir
-        self.db = db
-        self.species = species
+        self._regions_dir = regions_dir
+        self._db = db
+        self._species = species
         
-    def get_introns(self, exons):
+        if species in ["hg19", "mm9"]:
+            self._feature_names = {
+                             "five_prime_utr" : "five_prime_utr",
+                             "three_prime_utr" : "three_prime_utr",
+                             "exon" : "exon",
+                             "CDS" : "CDS",
+                             "gene_id" : "gene_id",
+                             }
+            self._fix_chrom = self._fix_chrom_null
+            
+        elif species in ["ce10"]:
+            self._feature_names = {
+                             "five_prime_utr" : "five_prime_UTR",
+                             "three_prime_utr" : "three_prime_UTR",
+                             "exon" : "exon",
+                             "CDS" : "CDS",
+                             "gene_id" : "ID",
+                             }
+            self._fix_chrom = self._fix_chrom_ce10
+    
+    def _to_bed(self, interval):
+        """
+        interval: gffutils interval
+        
+        converts gffutils to bed format, setting id to be the 
+        id of the gene
+        
+        """
+        gene_id = interval.attributes[self._feature_names['gene_id']][0]
+        if type(gene_id) is list:
+            gene_id = gene_id[0]
+        return (interval.chrom, interval.start, 
+                interval.stop, gene_id, "0", interval.strand)
+    
+    def _fix_chrom_ce10(self, interval):
         """
         
-        from exon bedtool / list gets all introns, based on gene names
-        returns list of introns 
+        Adjusts ce10 interval to be in line with ucsc browser format
         
         """
-        if species = 
-        result_list = ""
-        prev_interval = None
-        for interval in exons:
-            try:
-                if prev_interval.name == interval.name:
-                    
-                    if prev_interval.end > interval.start:
-                        print prev_interval
-                        print interval
-                        raise "end is greater than start"
-                        
-                    prev_interval.start = prev_interval.end
-                    prev_interval.end = interval.start
-                
-                    result_list += str(prev_interval) + "\n"
-                    
-            except AttributeError:
-                pass
-            prev_interval = interval
-        return pybedtools.BedTool(result_list, from_string=True)
-
-    def get_proximal_distal_introns(self, gene, prox_size=500):
+        interval.chrom = "chr" + interval.chrom.replace("tDNA", "")
+        return interval 
+    
+    def _fix_chrom_null(self, interval):
+        
+        """
+        
+        null fixer for when things are in ucsc format
+        
+        """
+        return interval
+    
+    def _get_proximal_distal_introns(self, introns, prox_size=500):
         """
     
-        From a given gene returns all its proximal and distal introns, proximal and distal being defined by prox_size 
+        From a given gene returns all its proximal and distal introns, 
+        proximal and distal being defined by prox_size 
         gene = iterator of exons belonging to a single gene
         prox_size = int size of proximal introns
     
@@ -61,12 +98,14 @@ class genomic_features():
         prox_introns = []
         dist_introns = []
     
-        for intron in self.db.interfeatures(gene):
-            if len(intron) <= (prox_size * 2) + 3: #want distal introns to have size at least one, otherwise
+        for intron in introns:
+            #want distal introns to have size at least one, otherwise
+            if len(intron) <= (prox_size * 2) + 3: 
                 #they are poximal
                 prox_introns.append(intron)
             else:
-                #create prox and dist intron ranges from intron (this is dangerous, but copying doesn't work
+                #create prox and dist intron ranges from intron 
+                #(this is dangerous, but copying doesn't work
                 start_prox_intron = copy.deepcopy(intron)
                 start_prox_intron.stop = intron.start + prox_size
                 prox_introns.append(start_prox_intron)
@@ -80,30 +119,73 @@ class genomic_features():
                 dist_intron.stop = intron.stop - prox_size - 1
                 dist_introns.append(dist_intron)
         return prox_introns, dist_introns
+
+    
+    def _rename_regions(self, intervals, gene_id):
+        """
+        
+        renames list of intervals
+        
+        intervals: gffutils interval list
+        gene_id: value to replace id with
+        
+        returns updated list of intervals
+        """
+        updated_regions = []
+        for interval in intervals:
+            interval.attributes[self._feature_names['gene_id']] = gene_id
+            updated_regions.append(interval)
+        return updated_regions
+    
+    def _merge_and_rename_regions(self, regions, gene_id):
+        """
+        
+        region: list gffutils features to merge 
+        gene_id: str string to rename gene_id as (changes feature names to be sane)
+        
+        """
+        
+        if len(regions) > 0:
+            regions = sorted(list(self._db.merge(regions)), 
+                                           key = lambda x: x.start)
+        
+            return self._rename_regions(regions, gene_id)
+        return []
     
     def get_genomic_regions(self, prox_size=500):
         
         """
         
         returns bedtool of all non-overlapping regions in the genome, exons, cds, 3' utrs and 5' utrs
-        species - string of the species to analyze
-        db - db handle generated by gtf utils
+        _species - string of the _species to analyze
+        _db - _db handle generated by gtf utils
         
+        Potental off by one bug here, need to examine more closely
         """
-    
+        region_and_species = os.path.join(self._regions_dir, self._species)
+        regions = ["genes",
+                   "five_prime_utrs"
+                   "three_prime_utrs"
+                   "cds",
+                   "exons",
+                   "introns",
+                   "prox_introns",
+                   "dist_introns",
+                   ]
         try:
-           region_and_species = os.path.join(self.regions_dir, self.species)
-           return { 'genes' :  pybedtools.BedTool(region_and_species + "_genes.bed"),
-                   "five_prime_utrs" : pybedtools.BedTool(region_and_species + "_five_prime_utrs.bed"),
-                   "three_prime_utrs" : pybedtools.BedTool(region_and_species + "_three_prime_utrs.bed"),
-                   "cds" : pybedtools.BedTool(region_and_species + "_cds.bed"),
-                   "exons" : pybedtools.BedTool(region_and_species + "_exons.bed"),
-                   "introns" : pybedtools.BedTool(region_and_species + "_introns.bed")}
+            results = {}
+            for k, intervals in results.items():
+                if k in ["prox_introns", "dist_introns"]:
+                    results[k] = pybedtools.BedTool("%s_%s%d.bed" % (region_and_species, 
+                                                                     k, prox_size))
+                else:
+                    results[k] = pybedtools.BedTool("%s_%s.bed" % (region_and_species, 
+                                                                   prox_size))
     
         except Exception as e:
             pass
         
-        genes = self.db.features_of_type('gene')
+        genes = self._db.features_of_type('gene')
         three_prime_utrs = []
         five_prime_utrs = []
         cds = []
@@ -111,10 +193,14 @@ class genomic_features():
         dist_introns = []
         prox_introns = []
         gene_list = []
-        for gene in genes:
-            mrnas = list(self.db.children(gene, featuretype='mRNA'))
-            
-             
+        introns = []
+        for i, gene in enumerate(genes):
+            if i % 500 == 0:
+                print "processed %d genes" % (i)
+                #break
+                
+            mrnas = list(self._db.children(gene, featuretype='mRNA'))
+            #print "gene"
             gene_three_prime_utrs = []
             gene_five_prime_utrs = []
             gene_cds = []
@@ -122,106 +208,90 @@ class genomic_features():
             
             gene_list.append(gene)
             for mrna in mrnas:
+                cur_cds = list(self._db.children(mrna, featuretype=self._feature_names['CDS']))
+                cur_exons = list(self._db.children(mrna, featuretype=self._feature_names['exon']))
+                gene_exons += cur_exons
+                gene_cds += cur_cds
+                
                 try:
-                    gene_three_prime_utrs.append(self.db.children(mrna, featuretype='three_prime_utr'))
-                    gene_five_prime_utrs.append(self.db.children(mrna, featuretype='five_prime_utr'))
+                    gene_five_prime_utrs += (list(self._db.children(mrna, featuretype=self._feature_names['five_prime_utr'])))
+                    gene_three_prime_utrs += (list(self._db.children(mrna, featuretype=self._feature_names['three_prime_utr'])))
                 except:
-    
-                    utrs =  list(self.db.children(mrna, featuretype='UTR'))
-                    cur_exons = list(self.db.children(mrna, featuretype='exon'))
-                    gene_exons += cur_exons
-    
-                    cur_cds = list(self.db.children(mrna, featuretype='CDS'))
-    
+                    #If 5' and 3' utr annotations don't exist generate them from CDS and UTR information (handles gencode case)
+                    utrs =  list(self._db.children(mrna, featuretype='UTR'))
                     if len(cur_cds) == 0:
-                      continue
-    
-                    first_cds = cur_cds[0]
-                    last_cds = cur_cds[-1]
-    
-                    gene_cds += cur_cds
+                        continue
+                        
+                    first_cds, last_cds = cur_cds[0], cur_cds[-1]
+                                        
+                    #this is ugly code, can I fix it?
                     for utr in utrs:
                         if utr.strand == "+":
                             if utr.stop < first_cds.start:
-                                utr.featuretype = "five_prime_utr"
+                                utr.featuretype = self._feature_names["five_prime_utr"]
                                 gene_five_prime_utrs.append(utr)
                             elif last_cds.stop < utr.start:
-                                utr.featuretype = "three_prime_utr"
+                                utr.featuretype = self._feature_names["three_prime_utr"]
                                 gene_three_prime_utrs.append(utr)
                             else:
                                 print "something odd"
     
                         elif utr.strand == "-":
                             if last_cds.stop < utr.start:
-                                utr.featuretype = "five_prime_utr"
+                                utr.featuretype = self._feature_names["five_prime_utr"]
                                 gene_five_prime_utrs.append(utr)
                             elif utr.start < first_cds.start:
-                                utr.featuretype = "three_prime_utr"
+                                utr.featuretype = self._feature_names["three_prime_utr"]
                                 gene_three_prime_utrs.append(utr)
                             else:
                                 print "odd in the negative strand"
-    
-                if len(gene_exons) > 0:
-                    gene_exons = sorted(list(self.db.merge(gene_exons)), key = lambda x: x.start)
-                    for cur_exon in gene_exons:
-                        cur_exon.attributes['gene_id'] = gene.id
-                        exons.append(cur_exon)
-    
-                    #get introns from exons
-                    cur_prox_introns, cur_dist_introns = self.get_proximal_distal_introns(gene_exons, prox_size)
-                    for cur_prox_intron in cur_prox_introns:
-                        cur_prox_intron.attributes['gene_id'] = gene.id
-                        prox_introns.append(cur_prox_intron)
-    
-                    for cur_dist_intron in cur_dist_introns:
-                        cur_dist_intron.attributes['gene_id'] = gene.id
-                        dist_introns.append(cur_dist_intron)
-    
-                if len(gene_cds) > 0:
-                    gene_cds = sorted(list(self.db.merge(gene_cds)), 
-                                      key = lambda x: x.start)
-                    for cur_cds in gene_cds:
-                        cur_cds.attributes['gene_id'] = gene.id
-                        cds.append(cur_cds)
-    
-                if len(gene_five_prime_utrs) > 0:
-                    gene_five_prime_utrs  = sorted(list(self.db.merge(gene_five_prime_utrs)), 
-                                                   key = lambda x: x.start)
-                    for gene_five_prime_utr in gene_five_prime_utrs:
-                        gene_five_prime_utr.attributes['gene_id'] = gene.id
-                        five_prime_utrs.append(gene_five_prime_utr)
-    
-                if len(gene_three_prime_utrs) > 0:
-                    gene_three_prime_utrs = sorted(list(self.db.merge(gene_three_prime_utrs)), 
-                                                   key = lambda x: x.start)
-                    for gene_three_prime_utr in gene_three_prime_utrs:
-                        gene_three_prime_utr.attributes['gene_id'] = gene.id
-                        three_prime_utrs.append(gene_three_prime_utr)
-    
-        #make daddy some introns
-        exons = pybedtools.BedTool(map(to_bed, exons)).sort().saveas(os.path.join(self.species + "_exons.bed"))
-        introns = self.get_introns(exons).sort().saveas(os.path.join(species + "_introns.bed"))
+                                
+            gene_id = gene.attributes[self._feature_names['gene_id']]
+            merged_exons = self._merge_and_rename_regions(gene_exons, gene.id)
+            exons += merged_exons
             
-        return { 'genes' : pybedtools.BedTool(map(to_bed, gene_list)).sort().saveas(os.path.join(self.species + "_genes.bed")),
-                "five_prime_utrs" : pybedtools.BedTool(map(to_bed, five_prime_utrs)).sort().saveas(os.path.join(self.species + "_five_prime_utrs.bed")),
-                 "three_prime_utrs" : pybedtools.BedTool(map(to_bed, three_prime_utrs)).sort().saveas(os.path.join(self.species + "_three_prime_utrs.bed")),
-                 "cds" : pybedtools.BedTool(map(to_bed, cds)).sort().saveas(os.path.join(self.species + "_cds.bed")),
-                 "prox_introns" : pybedtools.BedTool(map(to_bed, prox_introns)).sort().saveas(os.path.join("%s_proxintron%d.bed" % (self.species,prox_size))),
-                 "dist_introns" : pybedtools.BedTool(map(to_bed, dist_introns)).sort().saveas(os.path.join("%s_distintron%d.bed" % (self.species,prox_size))),
-                 "exons" : exons,
-                 "introns" : introns,
-                 }
+            gene_introns = list(self._db.interfeatures(merged_exons))
+            introns += gene_introns
+            cur_prox_introns, cur_dist_introns = self._get_proximal_distal_introns(gene_introns, 
+                                                                                  prox_size)
+            prox_introns += self._rename_regions(cur_prox_introns, gene_id)
+            dist_introns += self._rename_regions(cur_dist_introns, gene_id)
+            
+            cds += self._merge_and_rename_regions(gene_cds, gene.id)       
+            five_prime_utrs += self._merge_and_rename_regions(gene_five_prime_utrs, gene_id)
+            three_prime_utrs += self._merge_and_rename_regions(gene_three_prime_utrs, gene_id)
+
+    
+        #make exons and introns
+        exons = pybedtools.BedTool(map(self._to_bed, exons)).sort()
+        results = {"genes" : gene_list,
+                   "five_prime_utrs" : five_prime_utrs,
+                   "three_prime_utrs" : three_prime_utrs,
+                   "cds" : cds, 
+                   "prox_introns" : prox_introns, 
+                   "dist_introns": dist_introns,
+                   "exons" : exons,
+                   "introns" : introns}
         
-    
-    
+        for name, intervals in results.items():
+            intervals = pybedtools.BedTool(map(self._to_bed, introns)).sort().each(self._fix_chrom)
+            
+            if name in ["prox_introns", "dist_introns"]:
+                results[name] = intervals.saveas(region_and_species + "_%s%d.bed" % (name, 
+                                                                                     prox_size))
+            else:
+                results[name] = intervals.saveas(region_and_species + "_%s.bed" % (name))
+
+        return results
+        
     def get_feature_locations(self):
         
         """
         
         Gets locations of genic features, five prime sites, 3 prime sites, poly a sites stop codons start codons and tss
-        based off annotated gtf db file
+        based off annotated gtf _db file
         
-        db - db handle generated by gtf utils
+        _db - _db handle generated by gtf utils
         
         returns dict of bedfiles     { five_prime_ends : bedtool 
                                        three_prime_ends
@@ -231,234 +301,107 @@ class genomic_features():
                                     } 
         
         """
-        #clipper.data_file(
+        regions = ["five_prime_ends",
+                   "three_prime_ends",
+                   "poly_a_sites",
+                   "stop_codons",
+                   "start_codons",
+                   "transcription_start_sites"]
         try:
-            region_and_species = os.path.join(self.regions_dir, self.species)
-            return { "five_prime_ends" : pybedtools.BedTool(region_and_species + "_five_prime_ends.bed"),
-                 "three_prime_ends" : pybedtools.BedTool(region_and_species + "_three_prime_ends.bed"),
-                 "poly_a_sites" : pybedtools.BedTool(region_and_species + "_poly_a_sites.bed"),
-                 "stop_codons" : pybedtools.BedTool(region_and_species + "_stop_codons.bed"),
-                 "start_codons" : pybedtools.BedTool(region_and_species + "_start_codons.bed"),
-                 "transcription_start_sites" : pybedtools.BedTool(region_and_species + "_transcription_start_sites.bed")}
+            region_and_species = os.path.join(self._regions_dir, self._species)
+            return {region : pybedtools.BedTool("%s_%s.bed" % (region_and_species, 
+                                                               region)) for region in regions}
     
         except:
             pass
         
-        genes = self.db.features_of_type('gene')
+        genes = self._db.features_of_type('gene')
         five_prime_ends = []
         three_prime_ends = []
         poly_a_sites = []
         stop_codons = []
         start_codons = []
         transcription_start_sites = []
-        count = 0
         for gene in genes:
-            count += 1
             try:
-                coding_length = 0 
-                for exon in self.db.children(gene, featuretype='exon'):
+                for exon in self._db.children(gene, featuretype='exon'):
+                    exon_start = [exon.chrom, exon.start, exon.start + 1, 
+                                  gene.id, "0", gene.strand]
+                    exon_stop = [exon.chrom, exon.stop, exon.stop, 
+                                 gene.id, "0", gene.strand]
                     
-                    if exon.strand == "+":
-                        five_prime_ends.append([exon.chrom, exon.start, exon.start, gene.id, "0", gene.strand])
-                        three_prime_ends.append([exon.chrom, exon.stop, exon.stop, gene.id, "0", gene.strand])
-                    else:
-                        three_prime_ends.append([exon.chrom, exon.start, exon.start, gene.id, "0", gene.strand])
-                        five_prime_ends.append([exon.chrom, exon.stop, exon.stop, gene.id, "0", gene.strand])
-        
-                for transcript in self.db.children(gene, featuretype='transcript'):
-                    if transcript.strand == "+":
-                        poly_a_sites.append([transcript.chrom, transcript.stop, transcript.stop, gene.id, "0", gene.strand])
-                        transcription_start_sites.append([transcript.chrom, transcript.start, transcript.start, gene.id, "0", gene.strand])
-                    else:
-                        poly_a_sites.append([transcript.chrom, transcript.start, transcript.start, gene.id, "0", gene.strand])
-                        transcription_start_sites.append([transcript.chrom, transcript.stop, transcript.stop, gene.id, "0", gene.strand])
+                    if exon.strand == "-":
+                        exon_start, exon_stop = exon_stop, exon_start 
                         
-                for start_codon in self.db.children(gene, featuretype='start_codon'):
-                    start_codons.append([start_codon.chrom, start_codon.stop, start_codon.stop, gene.id, "0", gene.strand])
+                    five_prime_ends.append(exon_start)
+                    three_prime_ends.append(exon_stop)
+                
+                #transcript vs mRNA need to look at the difference
+                for transcript in self._db.children(gene, featuretype='mRNA'):
+                    transcript_start = [transcript.chrom, transcript.start, 
+                                        transcript.start + 1, gene.id, 
+                                        "0", gene.strand]
+                    transcript_stop = [transcript.chrom, transcript.stop, 
+                                       transcript.stop + 1, gene.id, 
+                                       "0", gene.strand]
                     
-                for stop_codon in self.db.children(gene, featuretype='stop_codon'):
-                    stop_codons.append([stop_codon.chrom, stop_codon.stop, stop_codon.stop, gene.id, "0", gene.strand])
+                    if transcript.strand == "-":
+                        transcript_start, transcript_stop = transcript_stop, transcript_start
+                        
+                    poly_a_sites.append(transcript_stop)
+                    transcription_start_sites.append(transcript_start)
+                if self._species == "ce10": #need to generalize later
+                    for transcript in self._db.children(gene, featuretype='mRNA'):
+                        try:
+                            cds = list(self._db.children(transcript, featuretype='CDS'))
+                            first, last = cds[0], cds[-1]
+                            
+                            if first.strand == '-':
+                                first, last = last, first
+                            start_codons.append([first.chrom, 
+                                                     first.start, 
+                                                     first.start + 1, 
+                                                     gene.id, 
+                                                     "0", 
+                                                     first.strand])
+                            stop_codons.append([last.chrom, 
+                                                    last.stop, 
+                                                    last.stop + 1, 
+                                                    gene.id, 
+                                                    "0", 
+                                                    last.strand])
+
+                        except:
+                            pass
+                else: #for hg19 and mm9 gencode 
+                    for start_codon in self._db.children(gene, featuretype='start_codon'):
+                        start_codons.append([start_codon.chrom, 
+                                             start_codon.stop, 
+                                             start_codon.stop + 1, 
+                                             gene.id, 
+                                             "0", 
+                                             gene.strand])
+                        
+                    for stop_codon in self._db.children(gene, featuretype='stop_codon'):
+                        stop_codons.append([stop_codon.chrom, 
+                                            stop_codon.stop, 
+                                            stop_codon.stop + 1, 
+                                            gene.id, 
+                                            "0", 
+                                            gene.strand])
                     
             except IndexError:
                 pass
-    
-        return { "five_prime_ends" : pybedtools.BedTool(five_prime_ends).saveas(os.path.join(self.species + "_five_prime_ends.bed")),
-                 "three_prime_ends" :pybedtools.BedTool(three_prime_ends).saveas(os.path.join(self.species + "_three_prime_ends.bed")),
-                 "poly_a_sites" :  pybedtools.BedTool(poly_a_sites).saveas(os.path.join(self.species + "_poly_a_sites.bed")),
-                 "stop_codons" :  pybedtools.BedTool(stop_codons).saveas(os.path.join(self.species + "_stop_codons.bed")),
-                 "start_codons" :  pybedtools.BedTool(start_codons).saveas(os.path.join(self.species + "_start_codons.bed")),
-                 "transcription_start_sites" : pybedtools.BedTool(transcription_start_sites).saveas(os.path.join(self.species + "_transcription_start_sites.bed"))}
+            
         
-    def fix_chrM(self, interval):
-        interval.chrom = interval.chrom.replace("tDNA", '')
-        return interval
-    
-    def rename(self, interval):
-        interval.name = ",".join(set(interval.name.split(",")))
-        return interval
-    
-    def get_feature_locations_ce10(self):
-    
-        """
-    
-        Gets locations of genic features, five prime sites, 3 prime sites, poly a sites stop codons start codons and tss
-        based off annotated gtf db file
-    
-        db - db handle generated by gtf utils
-    
-        returns dict of bedfiles     { five_prime_ends : bedtool
-                                       three_prime_ends
-                                       poly_a_sites
-                                       stop_codons
-                                       transcription_start_sites
-                                    }
-    
-        """
-    
-        genes = db.features_of_type('gene')
-        five_prime_ends = []
-        three_prime_ends = []
-        poly_a_sites = []
-        stop_codons = []
-        start_codons = []
-        transcription_start_sites = []
-        count = 0
-        for gene in genes:
-    
-            count += 1
-            try:
-                coding_length = 0
-                for exon in db.children(gene, featuretype='exon'):
-                    if exon.strand == "+":
-                        five_prime_ends.append(['chr' + exon.chrom, exon.start, exon.start, gene.attributes['sequence_name'][0], "0", gene.strand])
-                        three_prime_ends.append(['chr' + exon.chrom, exon.stop, exon.stop, gene.attributes['sequence_name'][0], "0", gene.strand])
-                    else:
-                        three_prime_ends.append(['chr' + exon.chrom, exon.start, exon.start, gene.attributes['sequence_name'][0], "0", gene.strand])
-                        five_prime_ends.append(['chr' + exon.chrom, exon.stop, exon.stop, gene.attributes['sequence_name'][0], "0", gene.strand])
-    
-                for transcript in db.children(gene, featuretype='mRNA'):
-                    if transcript.strand == "+":
-                        poly_a_sites.append(['chr' + transcript.chrom, transcript.stop, transcript.stop, gene.attributes['sequence_name'][0], "0", gene.strand])
-                        transcription_start_sites.append(['chr' + transcript.chrom, transcript.start, transcript.start, gene.attributes['sequence_name'][0], "0", gene.strand])
-                    else:
-                        poly_a_sites.append(['chr' + transcript.chrom, transcript.start, transcript.start, gene.attributes['sequence_name'][0], "0", gene.strand])
-                        transcription_start_sites.append(['chr' + transcript.chrom, transcript.stop, transcript.stop, gene.attributes['sequence_name'][0], "0", gene.strand])
-                    try:
-                        cds = list(db.children(transcript, featuretype='CDS'))
-                        first, last = cds[0], cds[-1]
-                        if first.strand == '-':
-                            first, last = last, first
-                        start_codons.append(['chr' + first.chrom, first.start, first.start, gene.attributes['sequence_name'][0], "0", first.strand])
-                        stop_codons.append(['chr' + last.chrom, last.start, last.start, gene.attributes['sequence_name'][0], "0", last.strand])
-                    except:
-                        pass
-    
-            except IndexError:
-                pass
+        results = { "five_prime_ends" : pybedtools.BedTool(five_prime_ends),
+                 "three_prime_ends" :pybedtools.BedTool(three_prime_ends),
+                 "poly_a_sites" :  pybedtools.BedTool(poly_a_sites),
+                 "stop_codons" :  pybedtools.BedTool(stop_codons),
+                 "start_codons" :  pybedtools.BedTool(start_codons),
+                 "transcription_start_sites" : pybedtools.BedTool(transcription_start_sites)}
 
-        five_prime_ends = pybedtools.BedTool(five_prime_ends).sort().each(self.fix_chrM).saveas(os.path.join(self.species + "_five_prime_ends.bed"))
-        three_prime_ends = pybedtools.BedTool(three_prime_ends).sort().each(self.fix_chrM).saveas(os.path.join(self.species + "_three_prime_ends.bed"))
-        poly_a_sites = pybedtools.BedTool(poly_a_sites).sort().each(self.fix_chrM).saveas(os.path.join(self.species + "_poly_a_sites.bed"))
-        stop_codons = pybedtools.BedTool(stop_codons).sort().each(self.fix_chrM).saveas(os.path.join(self.species + "_stop_codons.bed"))
-        start_codons = pybedtools.BedTool(start_codons).sort().each(self.fix_chrM).saveas(os.path.join(self.species + "_start_codons.bed"))
-        transcription_start_sites = pybedtools.BedTool(transcription_start_sites).sort().each(self.fix_chrM).saveas(os.path.join(self.species + "_transcription_start_sites.bed"))
+        for name, intervals in results.items():
+            results[name] = intervals.each(self._fix_chrom).saveas("%s_%s.bed" % (region_and_species, name))
 
-        return { "five_prime_ends" : five_prime_ends,
-                 "three_prime_ends" : three_prime_ends,
-                 "poly_a_sites" :  poly_a_sites,
-                 "stop_codons" :  stop_codons,
-                 "start_codons" :  start_codons,
-                 "transcription_start_sites" : transcription_start_sites
-                }
-        
-    def get_genomic_regions_ce10(self):
-        id_to_gene = {}
-        mrna_to_id = {}
-        
-        for x in self.db.features_of_type('gene'):
-            id_to_gene[x.attributes['ID'][0]] = x.attributes['sequence_name'][0]
-            mRNAs = self.db.children(x, featuretype='mRNA')
-            premRNA_len = len(x)
-            lns = [0,]
-            for mRNA in mRNAs:
-                exons = self.db.children(mRNA, featuretype='exon')
-                this_len = sum([len(i) for i in exons])
-                lns.append(this_len)
-            mRNA_len = max(lns)
-            if mRNA_len == 0:
-                mRNA_len = premRNA_len
-            x.chrom = x.chrom.replace('tDNA', '')
-            print str(x).replace('sequence_name', 'gene_id') +  ';mrna_length=%d;premrna_length=%d' % (mRNA_len, premRNA_len)
-        
-        
-        for ft in self.db.featuretypes():
-            if ft == "gene":
-                continue
-        
-            for x in db.features_of_type(ft):
-                mrna_to_id[x.attributes['ID'][0]] = x.attributes['Parent'][0]
-        
-        
-        
-        _ = pybedtools.BedTool([("chr" + i.chrom.replace("tDNA", ""), 
-                                 i.start, 
-                                 i.stop, 
-                                 i.attributes['sequence_name'][0], 
-                                 '0', 
-                                 i.strand) for i in self.db.features_of_type('gene')]).sort().saveas('ce10_genes.bed')
-        
-        _ = pybedtools.BedTool([("chr" + i.chrom.replace("tDNA", ""), 
-                                 i.start, 
-                                 i.stop, 
-                                 id_to_gene[mrna_to_id[i['Parent'][0]]], 
-                                 '0', 
-                                 i.strand) for i in self.db.features_of_type('three_prime_UTR')]).sort().saveas('ce10_three_prime_utrs.bed')
-        
-        _ = pybedtools.BedTool([("chr" + i.chrom.replace("tDNA", ""), 
-                                 i.start, 
-                                 i.stop, 
-                                 id_to_gene[mrna_to_id[i['Parent'][0]]], 
-                                 '0', 
-                                 i.strand) for i in self.db.features_of_type('five_prime_UTR')]).sort().saveas('ce10_five_prime_utrs.bed')
-        
-        _ = pybedtools.BedTool([("chr" + i.chrom.replace("tDNA", ""), 
-                                 i.start, 
-                                 i.stop, 
-                                 id_to_gene[mrna_to_id[i['Parent'][0]]], 
-                                 '0', 
-                                 i.strand) for i in self.db.features_of_type('CDS')]).sort().saveas('ce10_cds.bed')
-        
-        exons = pybedtools.BedTool([("chr" + i.chrom.replace("tDNA", ""), 
-                                     i.start, 
-                                     i.stop, 
-                                     id_to_gene[mrna_to_id[i['Parent'][0]]], 
-                                     '0', 
-                                     i.strand) for i in self.db.features_of_type('exon')]).sort().saveas('ce10_exons.bed')
-        
-        introns  = self.get_introns(exons).sort().saveas("ce10_introns.bed")
-        
-        dist = []
-        prox = []
-        dist_len = 500
-        
-        for intron in introns:
-            if len(intron) < dist_len * 2:
-                prox.append(intron)
-        
-            else:
-                up = intron
-                down = intron
-                middle = intron
-                up.stop = up.start + dist_len
-                down.start = down.stop - dist_len
-                middle.start = up.stop
-                middle.stop = down.start
-                prox.append(up)
-                prox.append(down)
-                dist.append(middle)
-        
-        pybedtools.BedTool(prox).sort().saveas("ce10_proxintron500.bed")
-        pybedtools.BedTool(dist).sort().saveas("ce10_distintron500.bed")
-
-
-
+        return results   
