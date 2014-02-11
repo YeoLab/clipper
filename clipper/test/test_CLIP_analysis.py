@@ -53,6 +53,9 @@ class Test(unittest.TestCase):
         self.parser.add_option("--reAssign", dest="assign", action="store_true", default=False, help="re-assign clusters, if not set it will re-use existing assigned clusters")
         self.parser.add_option("--metrics", dest="metrics",  default="CLIP_Analysis.metrics", help="file name to output metrics to")
         self.parser.add_option("--extension", dest="extension", default="png", help="file extension to use (svg, png, pdf...)")
+        self.parser.add_option("--bw_pos",  help="bigwig file, on the positive strand")
+        self.parser.add_option("--bw_neg", help="bigwige file on the negative strand")
+
 
     def testName(self):
         pass
@@ -71,8 +74,10 @@ class Test(unittest.TestCase):
                 '--phastcons_location', clipper.test_file("allup_test.bam"),
                 '--motifs', 'AAAAAA',
                 '--nrand', '1',
-                '--runPhast',
-                '--runMotif'
+                #'--runPhast',
+                '--runMotif',
+                '--bw_pos', clipper.test_file("allup_test.pos.bw"),
+                '--bw_neg', clipper.test_file("allup_test.neg.bw"),
                 ]    
         (options, args) = self.parser.parse_args(args)
         #self.assertTrue(False, "allup test is slow and has been removed for now")
@@ -237,9 +242,9 @@ class Test(unittest.TestCase):
         """
         
         regions = OrderedDict()
-        regions["exon"] = "Exon"
-        regions["UTR3"] = "3' UTR"
-        regions["UTR5"] = "5' UTR"
+        regions["exons"] = "Exon"
+        regions["utr3"] = "3' UTR"
+        regions["utr5"] = "5' UTR"
         regions["proxintron500"] = "Proximal\nIntron"
         regions["distintron500"] = "Distal\nIntron"
         results = count_genomic_region_sizes(os.path.join(clipper.test_dir(), "regions"), regions, "mm9")
@@ -258,8 +263,8 @@ class Test(unittest.TestCase):
                           clusters="test", 
                           speciesFA= clipper.test_file("mm9.fa"), 
                           regions_dir=os.path.join(clipper.test_dir(), "regions"), 
-                          regions={"exon" : "Exon", "UTR3" : "3' UTR", 
-                                    "UTR5" : "5' UTR", "proxintron500" : "Proximal Intron", 
+                          regions={"exons" : "Exon", "utr3" : "3' UTR", 
+                                    "utr5" : "5' UTR", "proxintron500" : "Proximal Intron", 
                                     "distintron500" : "Distal Intron"} ,
                           assigned_dir = clipper.test_dir(),
                           fasta_dir = clipper.test_dir(),

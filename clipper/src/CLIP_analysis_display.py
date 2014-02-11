@@ -206,9 +206,11 @@ def build_pie_chart_content(ax, regions_count, regions):
     """
 
     #red, tan, blue, green, purple
-    colors = ["#E52C27", "#C3996B", "#3C54A4", "#48843D", "#852882"][:len(regions_count)]
     
-    ax.pie(regions_count.values(), colors=colors, labels=[regions[region] for region in regions_count.keys()])
+
+    colors = { "cds" : "#E52C27", "three_prime_utrs" : "#C3996B", "five_prime_utrs" : "#3C54A4", "proxintron500" : "#48843D", "distintron500" : "#852882"} 
+    
+    ax.pie(regions_count.values(), colors=[colors[region] for region in regions_count.keys()], labels=[regions[region] for region in regions_count.keys()])
     
 
 def build_nearest_exon(ax, genomic_types, clusters_types):
@@ -259,24 +261,28 @@ def build_common_motifs(motif_grid, homer_location, regions):
         gs_homer_motifs = gridspec.GridSpecFromSubplotSpec(8, 1, subplot_spec=(motif_grid[i]))
         
         #for each top 8 motifs
-        for j, space in enumerate(gs_homer_motifs):
+        for j, gs in enumerate(gs_homer_motifs):
 
             #get it from where homer stored the output
-            motif_name = "motif" + str(j + 1) + ".logo.png"
-            
-            motif_file = os.path.join(homer_location, region, "homerResults", motif_name)
-            
-            if os.path.exists(motif_file):
-                motif = mpimg.imread(motif_file)
-            
+            motif_logo = "motif" + str(j + 1) + ".logo.png"
+            motif_pvalue = 'motif' + str(j + 1) + '.motif'
+            motif_logo_file = os.path.join(homer_location, region, "homerResults", motif_logo)
+            motif_pvalue_file = os.path.join(homer_location, region, "homerResults", motif_pvalue)
+            if os.path.exists(motif_logo_file) and os.path.exists(motif_pvalue_file):
+                motif = mpimg.imread(motif_logo_file)
+                pvalue = float(open(motif_pvalue_file).readline().strip().split(",")[-1].split(":")[-1])
+
                 #print title only once
                 if j == 0:
-                    ax = plt.subplot(space, frameon=False, xticks=[], yticks=[], title=regions[region])
+                    ax = plt.subplot(gs, frameon=False, 
+                                     xticks=[], 
+                                     yticks=[], 
+                                     title=regions[region] + "\n" + '{:.2e}'.format(pvalue))
                 else:
-                    ax = plt.subplot(space, frameon=False, xticks=[], yticks=[])
+                    ax = plt.subplot(gs, frameon=False, xticks=[], yticks=[], title='{:.2e}'.format(pvalue))
                 ax.imshow(motif)
             else:
-                print "no motif %s" % (motif_file)
+                print "no motif %s" % (motif_logo_file)
 
 
 
@@ -370,6 +376,7 @@ def build_phastcons_values(ax, phastcons_values, regions):
     ax.set_xticks([(ax.get_xticks()[x] + ax.get_xticks()[x+1])  / 2.0 for x in range(len(ax.get_xticks()))[::2]])
     ax.set_xticklabels([regions[region] for region in list(intersecting_regions)])
     ax.set_ylabel("PhastCons Score")
+    ax.legend()
 
 def build_motif_boxplots(ax, kmer_results, highlight_motifs, regions):
 
@@ -441,6 +448,213 @@ def build_motif_boxplots(ax, kmer_results, highlight_motifs, regions):
     
     ax.set_xlabel("Z-score")
 
+
+def plot_distance_and_sn(gs, closest_dict, dist_name):
+
+    """
+    
+    Take a dict of name : bedfile (that has had closest bed run on it) and prints out the distribution 200bp away
+    from the closest results
+
+    """
+    
+    #get all the shuffled distances
+    shuffled = []
+    #for name, item in [(name, item) for name, item in closest_dict.items() if "control" in name]:
+    #    shuffled += [ int(result[-1]) for result in item]
+    
+    #import random
+    for sample in closest_dict.keys():
+        standard = plt.subplot(gs[0], title= "Peaks around\n" + dist_name)
+        normalized = plt.subplot(gs[1], title="Normed")
+        if closest_dict[sample] is None:
+            print dist_name, "is none"
+            continue
+        
+        sample_distances = np.array([ int(result[-1]) for result in closest_dict[sample]])
+        
+      
+     #   sample_distances_control = random.sample(shuffled, len(sample_distances))
+        sample_y  = np.histogram(sample_distances, range=(-200, 200), bins=25)[0]
+     #   sample_y_control  = numpy.histogram(sample_distances_control, range=(-200, 200), bins=25)[0]
+        sample_y_normed = np.histogram(sample_distances, range=(-200, 200), bins=25, normed=True)[0]
+     #   sample_y_control_normed = numpy.histogram(sample_distances_control, range=(-200, 200), bins=25, normed=True)[0]
+
+    
+        bins  = np.histogram(sample_distances, range=(-200, 200), bins=25)[1]
+    
+     #   sample_sn = sample_y / sample_y_control
+
+    
+      #  sample_sn_normed = sample_y_normed / sample_y_control_normed
+
+    
+        x = [(bins[n] + bins[n+1]) / 2 for n in range(len(bins) - 1)]
+    
+        
+        standard.plot(x, sample_y, label=sample, linewidth=3, alpha=.7)
+    
+        
+        #ax.plot(x, sample_y_control, label=sample + " Shuffled", linewidth=3, alpha=.7)
+    
+        standard.legend(loc=0)
+    
+        #ax.subplot(2,2,2)
+        #ax.plot(x, sample_sn, label=sample,  linewidth=3, alpha=.7)
+    
+        #ax.title("Signal To Noise of Peaks around " + dist_name)
+        #ax.legend(loc=0)
+        
+        
+        normalized.plot(x, sample_y_normed, label=sample, linewidth=3, alpha=.7)
+
+        #ax.plot(x, sample_y_control_normed, label=sample + " Shuffled", linewidth=3, alpha=.7)
+        normalized.legend(loc=0)
+    
+        #ax.subplot(2,2,4)
+        #ax.plot(x, sample_sn_normed, label=sample,  linewidth=3, alpha=.7)
+    
+        #ax.title("Signal To Noise of Peaks around normed" + dist_name)
+        #ax.legend(loc=0)
+
+def generate_distribution(dist):
+    
+    """
+    
+    Helper to return his back as a line for easy plotting
+    
+    """
+    count, bins = np.histogram(dist, range=(0, 1.0), 
+                                    bins=50, 
+                                    density=True
+                                    )
+    return count, [(bins[x] + bins[x+1]) / 2 for x in range(len(bins) - 1)]
+
+def generate_peak_distribution(ax, distribution, total = False):
+    
+    """
+    
+    ax - axis to plot on
+    distribution - distribution to plot (in the form of a list
+    
+    """
+
+    if total:
+        total_int = 'total'
+    else:
+        total_int = 'individual'
+    sample_count, bins = generate_distribution(distribution[total_int])
+    ax.plot(bins, sample_count, label="rbp", linewidth=3, alpha=.7)
+        
+    #sample_shuffled_count, bins = generate_distribution(concatenate(array([distribution_dict[distribuiton][0] for distribuiton in distribution_dict if "control" in distribuiton])))
+    #plot(bins, sample_shuffled_count, label="control", linewidth=3, alpha=.7)
+    ax.legend(loc=0)
+
+from mpl_toolkits.axes_grid1 import make_axes_locatable
+
+def build_peak_densities(ax, read_densities, classes):
+    
+    reClasses = classes[classes.argsort()].reshape(len(classes),1)
+    reordered = read_densities[classes.argsort()]
+    finalRank = classes.argsort()
+    cluster = ax.matshow(reordered, aspect='auto', origin='lower') #, norm=norm)
+    divider = make_axes_locatable(ax)
+    cax = divider.append_axes("right", size="5%", pad=0.05)
+    plt.colorbar(cluster, cax=cax)
+
+    
+def plot_distributions(features_transcript_closest, features_mrna_closest, distributions):
+    
+    """
+    
+    Plots all motifs given in motif distances returns the figure for saving
+    motif_distances - list of results from calculate_motif_distance
+    
+    """
+    
+    fig = plt.figure(figsize=(30, 30))
+    full_grid = gridspec.GridSpec(5, 6)
+    
+    #premRNA distributions
+    #could factor this into for loop
+    gs_premRNA = gridspec.GridSpecFromSubplotSpec(1, 6, subplot_spec=full_grid[0,:])
+    
+    tss = gridspec.GridSpecFromSubplotSpec(2, 2, subplot_spec=gs_premRNA[0])
+    plot_distance_and_sn(tss, features_transcript_closest['transcription_start_sites'], "Transcription Start Sites")
+    
+    start_sites = gridspec.GridSpecFromSubplotSpec(2, 2, subplot_spec=gs_premRNA[1])
+    plot_distance_and_sn(start_sites, features_transcript_closest['start_codons'], "Start Codons")
+    
+    stop_sites = gridspec.GridSpecFromSubplotSpec(2, 2, subplot_spec=gs_premRNA[2])
+    plot_distance_and_sn(stop_sites, features_transcript_closest['stop_codons'], "Stop Codons")
+    
+    three_prime_ends = gridspec.GridSpecFromSubplotSpec(2, 2, subplot_spec=gs_premRNA[3])
+    plot_distance_and_sn(three_prime_ends, features_transcript_closest['five_prime_ends'], "Five Prime Ends")
+    
+    five_prime_ends = gridspec.GridSpecFromSubplotSpec(2, 2, subplot_spec=gs_premRNA[4])
+    plot_distance_and_sn(five_prime_ends, features_transcript_closest['three_prime_ends'], "Three Prime Ends")
+    
+    poly_a_sites = gridspec.GridSpecFromSubplotSpec(2, 2, subplot_spec=gs_premRNA[5])
+    plot_distance_and_sn(poly_a_sites, features_transcript_closest['poly_a_sites'], "Poly A Sites")
+    
+    #mRNA distributions
+    gs_mRNA = gridspec.GridSpecFromSubplotSpec(1, 6, subplot_spec=full_grid[1, : ])
+    
+    tss = gridspec.GridSpecFromSubplotSpec(2, 2, subplot_spec=gs_mRNA[0])
+    plot_distance_and_sn(tss, features_mrna_closest['transcription_start_sites'], "Transcription Start Sites")
+    
+    start_sites = gridspec.GridSpecFromSubplotSpec(2, 2, subplot_spec=gs_mRNA[1])
+    plot_distance_and_sn(start_sites, features_mrna_closest['start_codons'], "Start Codons")
+    
+    stop_sites = gridspec.GridSpecFromSubplotSpec(2, 2, subplot_spec=gs_mRNA[2])
+    plot_distance_and_sn(stop_sites, features_mrna_closest['stop_codons'], "Stop Codons")
+    
+    three_prime_ends = gridspec.GridSpecFromSubplotSpec(2, 2, subplot_spec=gs_mRNA[3])
+    plot_distance_and_sn(three_prime_ends, features_mrna_closest['three_prime_ends'], "Five Prime Ends")
+
+    five_prime_ends = gridspec.GridSpecFromSubplotSpec(2, 2, subplot_spec=gs_mRNA[4])
+    plot_distance_and_sn(five_prime_ends, features_mrna_closest['five_prime_ends'], "Three Prime Ends")
+    
+    poly_a_sites = gridspec.GridSpecFromSubplotSpec(2, 2, subplot_spec=gs_mRNA[5])
+    plot_distance_and_sn(poly_a_sites, features_mrna_closest['poly_a_sites'], "Poly A Sites")
+    
+    #peak distributions across regions
+    gs_individual_distribution = gridspec.GridSpecFromSubplotSpec(1, 5, subplot_spec=full_grid[2, : ])
+    five_prime_utr = plt.subplot(gs_individual_distribution[0], title="Peaks\n across 5' UTR individual")
+    generate_peak_distribution(five_prime_utr, distributions['five_prime_utrs'], total = False)
+    
+    cds = plt.subplot(gs_individual_distribution[1], title="Distribution of Peaks\n across CDS individual")
+    generate_peak_distribution(cds, distributions['cds'], total = False)
+    
+    three_prime_utr = plt.subplot(gs_individual_distribution[2], title="Peaks across\n 3' UTR individual")
+    generate_peak_distribution(three_prime_utr, distributions['three_prime_utrs'], total = False)
+    
+    exon = plt.subplot(gs_individual_distribution[3], title="Peaks\n across exons individual")
+    generate_peak_distribution(exon, distributions['exons'], total = False)
+    
+    intron = plt.subplot(gs_individual_distribution[4], title="Distribution of Peaks\n across introns individual")
+    generate_peak_distribution(intron, distributions['introns'], total = False)
+    
+    gs_full_distribution = gridspec.GridSpecFromSubplotSpec(1, 5, subplot_spec=full_grid[3, : ])
+    
+    five_prime_utr = plt.subplot(gs_full_distribution[0], title="Peaks\n across 5' UTR total")
+    generate_peak_distribution(five_prime_utr, distributions['five_prime_utrs'], total = True)
+    
+    cds = plt.subplot(gs_full_distribution[1], title="Peaks\n across CDS total")
+    generate_peak_distribution(cds, distributions['cds'], total = True)
+    
+    three_prime_utr = plt.subplot(gs_full_distribution[2], title="Peaks\n across 3' UTR total")
+    generate_peak_distribution(three_prime_utr, distributions['three_prime_utrs'], total = True)
+    
+    exon = plt.subplot(gs_full_distribution[3], title="Peaks\n across exons total")
+    generate_peak_distribution(exon, distributions['exons'], total = True)
+    
+    #intron = plt.subplot(gs_full_distribution[4], title="Distribution of Peaks across " + name + " total")
+    
+
+    return fig
+    
+
 def plot_motifs(motif_distances):
     
     """
@@ -454,7 +668,7 @@ def plot_motifs(motif_distances):
     colors = ["red", "orange", "green", "blue", "purple", "brown", "black", "pink", "gray", "cyan", "magenta"]
 
     for i, motif in enumerate(motif_distances):
-        plot_motifs(motif, fig, color = colors[i], species=species, slopsize=200)
+        plot_motif_dist(motif, fig, color = colors[i], species=species, slopsize=200)
     
     return fig
 
@@ -496,7 +710,8 @@ def plot_motif_dist(motif_distances, figure, color = "red", label=None, scale='l
 def CLIP_QC_figure(reads_in_clusters, reads_out_clusters, cluster_lengths, 
                    reads_per_cluster, premRNA, mRNA, exondist, introndist, 
                    genomic_locs, clusters_locs, genomic_types, clusters_types,
-                   homer_location, kmer_results, motifs, phastcons_values, regions):
+                   homer_location, kmer_results, motifs, phastcons_values, regions,
+                   read_densities, classes):
     
     """
     
@@ -521,7 +736,9 @@ def CLIP_QC_figure(reads_in_clusters, reads_out_clusters, cluster_lengths,
     motifs - list[str] motifs to plot
     phastcons_values -- list[float] - conservation scores for each cluster
     regions - dict of short name : printable name 
-    
+    read_densities - read denisites around peaks, np matrix
+    classes - np array, classes resulting from k-means clustering, goes with read denisites
+
     """
     
     #First do layout for main figures
@@ -554,17 +771,23 @@ def CLIP_QC_figure(reads_in_clusters, reads_out_clusters, cluster_lengths,
     #Creates exon distance axis
     ax_exondist = plt.subplot(gs_line2[2:4], title = "Distribution Across Exons and Introns")
     
+    #Creates read densities axis
+    ax_read_densities = plt.subplot(gs_line2[4:], title = "Read Densities Around Peaks")
+    
     #Creates out 3rd column minus the motif z-scores
-    gs_pie_nearestType = gridspec.GridSpecFromSubplotSpec(1,3, subplot_spec=full_grid[2,0:2])
+    gs_pie_nearestType = gridspec.GridSpecFromSubplotSpec(1,4, subplot_spec=full_grid[2,0:2])
     
     #Creates genomic content axis 
     ax_pie_genomic = plt.subplot(gs_pie_nearestType[0], title = "Genomic Content", aspect=1)
     
+    #Creates exonic content axis 
+    ax_pie_exonic = plt.subplot(gs_pie_nearestType[1], title = "Exonic Content", aspect=1)
+    
     #Creates cluster content axis 
-    ax_pie_clusters = plt.subplot(gs_pie_nearestType[1], title = "Clusters' Content", aspect=1)
+    ax_pie_clusters = plt.subplot(gs_pie_nearestType[2], title = "Clusters' Content", aspect=1)
     
     #Creates nearest exon type axis
-    ax_bar_exontypes = plt.subplot(gs_pie_nearestType[2], title = "Nearest Exon Types")  
+    ax_bar_exontypes = plt.subplot(gs_pie_nearestType[3], title = "Nearest Exon Types")  
     
     #Creates z-score axis 
     ax_hist_zscores = plt.subplot(full_grid[2,2:4], title = "Motif Z-scores")
@@ -583,7 +806,13 @@ def CLIP_QC_figure(reads_in_clusters, reads_out_clusters, cluster_lengths,
         build_phastcons_values(ax_cons, phastcons_values, regions)
     build_gene_distribution(ax_genedist, premRNA, mRNA)
     build_exon_exon_distribution(ax_exondist, exondist, introndist)
+    build_peak_densities(ax_read_densities, read_densities, classes)
     build_genomic_content(ax_pie_genomic, genomic_locs, regions)
+    
+    #filter out intronic regions
+    exonic_locs = {name : value for name, value in genomic_locs.items() if name not in ['proxintron500', 'distintron500']}
+    build_genomic_content(ax_pie_exonic, exonic_locs, regions)
+    
     build_cluster_content(ax_pie_clusters, clusters_locs, regions)
     build_nearest_exon(ax_bar_exontypes, genomic_types, clusters_types)
     build_common_motifs(motif_grid, homer_location, regions)
