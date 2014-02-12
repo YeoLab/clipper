@@ -399,13 +399,13 @@ class GenomicFeatures():
                     
             except IndexError:
                 pass
-            
-        five_prime_ends += list(self._db.merge(gene_five_prime_ends))
-        three_prime_ends += list(self._db.merge(gene_three_prime_ends))
-        poly_a_sites += list(self._db.merge(gene_poly_a_sites))
-        stop_codons += list(self._db.merge(gene_start_codons))
-        start_codons += list(self._db.merge(gene_stop_codons))
-        transcription_start_sites += list(self._db.merge(gene_transcription_start_sites))
+            gene_id = gene.attributes[self._feature_names['gene_id']]
+            five_prime_ends += self._merge_and_rename_regions(gene_five_prime_ends, gene_id)
+            three_prime_ends += self._merge_and_rename_regions(gene_three_prime_ends, gene_id)
+            poly_a_sites += self._merge_and_rename_regions(gene_poly_a_sites, gene_id)
+            stop_codons += self._merge_and_rename_regions(gene_start_codons, gene_id)
+            start_codons += self._merge_and_rename_regions(gene_stop_codons, gene_id)
+            transcription_start_sites += self._merge_and_rename_regions(gene_transcription_start_sites, gene_id)
         
         results = { "five_prime_ends" : pybedtools.BedTool(five_prime_ends),
                  "three_prime_ends" :pybedtools.BedTool(three_prime_ends),
