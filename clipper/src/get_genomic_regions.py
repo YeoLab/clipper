@@ -175,7 +175,6 @@ class GenomicFeatures():
             #If 5' and 3' utr annotations don't exist 
             #generate them from CDS and UTR information (handles gencode case)
             utrs = list(self._db.children(mrna, featuretype='UTR'))
-            print len(cds)
             if len(cds) == 0:
                 return [], []
                 
@@ -261,15 +260,14 @@ class GenomicFeatures():
                    
             gene_id = gene.attributes[self._feature_names['gene_id']]
             merged_exons = self._merge_and_rename_regions(gene_exons, gene_id)
-            exons += merged_exons
-            
             gene_introns = list(self._db.interfeatures(merged_exons))
-            introns += gene_introns
-            cur_prox_introns, cur_dist_introns = self._get_proximal_distal_introns(gene_introns, 
-                                                                                  prox_size)
-            prox_introns += self._rename_regions(cur_prox_introns, gene_id)
-            dist_introns += self._rename_regions(cur_dist_introns, gene_id)
+            gene_prox_introns, gene_dist_introns = self._get_proximal_distal_introns(gene_introns, 
+                                                                                     prox_size)
             
+            exons += merged_exons
+            introns += gene_introns
+            prox_introns += self._rename_regions(gene_prox_introns, gene_id)
+            dist_introns += self._rename_regions(gene_dist_introns, gene_id)
             cds += self._merge_and_rename_regions(gene_cds, gene.id)       
             five_prime_utrs += self._merge_and_rename_regions(gene_five_prime_utrs, gene_id)
             three_prime_utrs += self._merge_and_rename_regions(gene_three_prime_utrs, gene_id)
