@@ -25,7 +25,7 @@ import clipper
 from clipper.src import CLIP_analysis_display
 from clipper.src.kmerdiff import kmer_diff
 from clipper.src.get_genomic_regions import GenomicFeatures
-from gscripts.general.pybedtools_helpers import small_peaks, shuffle_and_adjust, closest_by_feature, get_three_prime_end, get_five_prime_end, convert_to_mRNA_position, adjust_after_shuffle, _to_bed
+from gscripts.general.pybedtools_helpers import small_peaks, shuffle_and_adjust, closest_by_feature, get_three_prime_end, get_five_prime_end, convert_to_mRNA_position, adjust_after_shuffle
 
 def name_to_chrom(interval):
     interval.chrom = interval.name
