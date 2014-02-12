@@ -332,10 +332,12 @@ class GenomicFeatures():
             gene_stop_codons = []
             try:
                 for exon in self._db.children(gene, featuretype='exon'):
-                    exon_start = [exon.chrom, exon.start, exon.start + 1, 
-                                  gene.id, "0", gene.strand]
-                    exon_stop = [exon.chrom, exon.stop, exon.stop + 1, 
-                                 gene.id, "0", gene.strand]
+                    exon_start = copy.deepcopy(exon)
+                    exon_start.start = exon.start + 1
+   
+                    exon_stop = copy.deepcopy(exon)
+                    exon_stop.start = exon_stop.stop
+                    exon_stop.stop = exon_stop.stop + 1  
                     
                     if exon.strand == "-":
                         exon_start, exon_stop = exon_stop, exon_start 
@@ -345,13 +347,13 @@ class GenomicFeatures():
                 
                 #transcript vs mRNA need to look at the difference
                 for transcript in self._db.children(gene, featuretype=self._feature_names['transcript']):
-                    transcript_start = [transcript.chrom, transcript.start, 
-                                        transcript.start + 1, gene.id, 
-                                        "0", gene.strand]
-                    transcript_stop = [transcript.chrom, transcript.stop, 
-                                       transcript.stop + 1, gene.id, 
-                                       "0", gene.strand]
+                    transcript_start = copy.deepcopy(transcript)
+                    transcript_start.stop = transcript.start + 1
                     
+                    transcript_stop = copy.deepcopy(transcript)
+                    transcript_stop.start = transcript_stop.stop
+                    transcript_stop.stop = transcript_stop.stop + 1
+                 
                     if transcript.strand == "-":
                         transcript_start, transcript_stop = transcript_stop, transcript_start
                         
@@ -365,37 +367,28 @@ class GenomicFeatures():
                             
                             if first.strand == '-':
                                 first, last = last, first
-                            gene_start_codons.append([first.chrom, 
-                                                     first.start, 
-                                                     first.start + 1, 
-                                                     gene.id, 
-                                                     "0", 
-                                                     first.strand])
-                            gene_stop_codons.append([last.chrom, 
-                                                    last.stop, 
-                                                    last.stop + 1, 
-                                                    gene.id, 
-                                                    "0", 
-                                                    last.strand])
+                                start_codon = copy.deepcopy(first)
+                                start_codon.stop = start_codon.start + 1
+                                gene_start_codons.append(start_codon)
+                                
+                                stop_codon = copy.deepcopy(last)
+                                stop_codon.start = stop_codon.stop
+                                stop_codon.stop  = stop_codon.stop + 1
+                                gene_stop_codons.append(stop_codon)
 
                         except:
                             pass
                 else: #for hg19 and mm9 gencode 
                     for start_codon in self._db.children(gene, featuretype='start_codon'):
-                        gene_start_codons.append([start_codon.chrom, 
-                                             start_codon.stop, 
-                                             start_codon.stop + 1, 
-                                             gene.id, 
-                                             "0", 
-                                             gene.strand])
+                        start_codon = copy.deepcopy(start_codon)
+                        start_codon.stop = start_codon.start + 1
+                        gene_start_codons.append(start_codon)
                         
                     for stop_codon in self._db.children(gene, featuretype='stop_codon'):
-                        gene_stop_codons.append([stop_codon.chrom, 
-                                            stop_codon.stop, 
-                                            stop_codon.stop + 1, 
-                                            gene.id, 
-                                            "0", 
-                                            gene.strand])
+                        stop_codon = copy.deepcopy(stop_codon)
+                        stop_codon.start = stop_codon.stop
+                        stop_codon.stop  = stop_codon.stop + 1
+                        gene_stop_codons.append(stop_codon)
                     
             except IndexError:
                 pass
