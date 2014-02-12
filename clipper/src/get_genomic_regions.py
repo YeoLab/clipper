@@ -148,8 +148,9 @@ class GenomicFeatures():
         """
         
         if len(regions) > 0:
-            regions = sorted(list(self._db.merge(regions)), 
-                                           key = lambda x: x.start)
+            regions = self._db.merge(sorted(list(regions), 
+                                            key = lambda x: x.start)) 
+                                           
         
             return self._rename_regions(regions, gene_id)
         return []
@@ -171,8 +172,10 @@ class GenomicFeatures():
             mrna_five_prime_utrs = (list(self._db.children(mrna, featuretype=self._feature_names['five_prime_utr'])))
             mrna_three_prime_utrs = (list(self._db.children(mrna, featuretype=self._feature_names['three_prime_utr'])))
         else:
-            #If 5' and 3' utr annotations don't exist generate them from CDS and UTR information (handles gencode case)
+            #If 5' and 3' utr annotations don't exist 
+            #generate them from CDS and UTR information (handles gencode case)
             utrs = list(self._db.children(mrna, featuretype='UTR'))
+            print len(cds)
             if len(cds) == 0:
                 return [], []
                 
@@ -215,15 +218,15 @@ class GenomicFeatures():
                    ]
         try:
             results = {}
-            for k, intervals in results.items():
-                if k in ["prox_introns", "dist_introns"]:
-                    results[k] = pybedtools.BedTool("%s_%s%d.bed" % (region_and_species, 
-                                                                     k, prox_size))
+            for region in regions:
+                if region in ["prox_introns", "dist_introns"]:
+                    results[regions] = pybedtools.BedTool("%s_%s%d.bed" % (region_and_species, 
+                                                                           regions, prox_size))
                 else:
-                    results[k] = pybedtools.BedTool("%s_%s.bed" % (region_and_species, 
-                                                                   prox_size))
+                    results[regions] = pybedtools.BedTool("%s_%s.bed" % (region_and_species, 
+                                                                         regions))
     
-        except Exception as e:
+        except ValueError as e:
             pass
         
         three_prime_utrs = []
@@ -252,12 +255,12 @@ class GenomicFeatures():
                 mrna_exons = list(self._db.children(mrna, featuretype=self._feature_names['exon']))
                 gene_exons += mrna_exons
                 gene_cds += mrna_cds
-                mrna_five_prime_utrs, mrna_three_prime_utrs = self._get_utrs(mrna, cur_cds, feature_types)
+                mrna_five_prime_utrs, mrna_three_prime_utrs = self._get_utrs(mrna, mrna_cds, feature_types)
                 gene_five_prime_utrs += mrna_five_prime_utrs
-                gene_five_prime_utrs += mrna_three_prime_utrs
+                gene_three_prime_utrs += mrna_three_prime_utrs
                    
             gene_id = gene.attributes[self._feature_names['gene_id']]
-            merged_exons = self._merge_and_rename_regions(gene_exons, gene.id)
+            merged_exons = self._merge_and_rename_regions(gene_exons, gene_id)
             exons += merged_exons
             
             gene_introns = list(self._db.interfeatures(merged_exons))
@@ -316,7 +319,7 @@ class GenomicFeatures():
             return {region : pybedtools.BedTool("%s_%s.bed" % (region_and_species, 
                                                                region)) for region in regions}
     
-        except:
+        except ValueError:
             pass
         
         five_prime_ends = []
