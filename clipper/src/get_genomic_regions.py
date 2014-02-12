@@ -61,9 +61,9 @@ class GenomicFeatures():
         id of the gene
         
         """
-        gene_id = interval.attributes[self._feature_names['gene_id']][0]
+        gene_id = interval.attributes[self._feature_names['gene_id']]
         if type(gene_id) is list:
-            gene_id = gene_id[0]
+            gene_id = gene_id[0]        
         return (interval.chrom, interval.start, 
                 interval.stop, gene_id, "0", interval.strand)
     
@@ -324,18 +324,24 @@ class GenomicFeatures():
         start_codons = []
         transcription_start_sites = []
         for gene in self._db.features_of_type('gene'):
+            gene_five_prime_ends = []
+            gene_three_prime_ends = []
+            gene_poly_a_sites = []
+            gene_transcription_start_sites = []
+            gene_start_codons = []
+            gene_stop_codons = []
             try:
                 for exon in self._db.children(gene, featuretype='exon'):
                     exon_start = [exon.chrom, exon.start, exon.start + 1, 
                                   gene.id, "0", gene.strand]
-                    exon_stop = [exon.chrom, exon.stop, exon.stop, 
+                    exon_stop = [exon.chrom, exon.stop, exon.stop + 1, 
                                  gene.id, "0", gene.strand]
                     
                     if exon.strand == "-":
                         exon_start, exon_stop = exon_stop, exon_start 
                         
-                    five_prime_ends.append(exon_start)
-                    three_prime_ends.append(exon_stop)
+                    gene_five_prime_ends.append(exon_start)
+                    gene_three_prime_ends.append(exon_stop)
                 
                 #transcript vs mRNA need to look at the difference
                 for transcript in self._db.children(gene, featuretype=self._feature_names['transcript']):
@@ -349,8 +355,8 @@ class GenomicFeatures():
                     if transcript.strand == "-":
                         transcript_start, transcript_stop = transcript_stop, transcript_start
                         
-                    poly_a_sites.append(transcript_stop)
-                    transcription_start_sites.append(transcript_start)
+                    gene_poly_a_sites.append(transcript_stop)
+                    gene_transcription_start_sites.append(transcript_start)
                 if self._species == "ce10": #need to generalize later
                     for transcript in self._db.children(gene, featuretype=self._feature_names['transcript']):
                         try:
@@ -359,13 +365,13 @@ class GenomicFeatures():
                             
                             if first.strand == '-':
                                 first, last = last, first
-                            start_codons.append([first.chrom, 
+                            gene_start_codons.append([first.chrom, 
                                                      first.start, 
                                                      first.start + 1, 
                                                      gene.id, 
                                                      "0", 
                                                      first.strand])
-                            stop_codons.append([last.chrom, 
+                            gene_stop_codons.append([last.chrom, 
                                                     last.stop, 
                                                     last.stop + 1, 
                                                     gene.id, 
@@ -376,7 +382,7 @@ class GenomicFeatures():
                             pass
                 else: #for hg19 and mm9 gencode 
                     for start_codon in self._db.children(gene, featuretype='start_codon'):
-                        start_codons.append([start_codon.chrom, 
+                        gene_start_codons.append([start_codon.chrom, 
                                              start_codon.stop, 
                                              start_codon.stop + 1, 
                                              gene.id, 
@@ -384,7 +390,7 @@ class GenomicFeatures():
                                              gene.strand])
                         
                     for stop_codon in self._db.children(gene, featuretype='stop_codon'):
-                        stop_codons.append([stop_codon.chrom, 
+                        gene_stop_codons.append([stop_codon.chrom, 
                                             stop_codon.stop, 
                                             stop_codon.stop + 1, 
                                             gene.id, 
@@ -394,6 +400,12 @@ class GenomicFeatures():
             except IndexError:
                 pass
             
+        five_prime_ends += list(self._db.merge(gene_five_prime_ends))
+        three_prime_ends += list(self._db.merge(gene_three_prime_ends))
+        poly_a_sites += list(self._db.merge(gene_poly_a_sites))
+        stop_codons += list(self._db.merge(gene_start_codons))
+        start_codons += list(self._db.merge(gene_stop_codons))
+        transcription_start_sites += list(self._db.merge(gene_transcription_start_sites))
         
         results = { "five_prime_ends" : pybedtools.BedTool(five_prime_ends),
                  "three_prime_ends" :pybedtools.BedTool(three_prime_ends),
