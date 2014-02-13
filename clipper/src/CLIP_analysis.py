@@ -217,12 +217,9 @@ def assign_to_regions(tool, clusters, speciesFA, regions_dir, regions,
     """
     
     
-    #constructs bed tools for each region
-    #TODO fix names
-    bedtracks = {}
-    #bedtracks = build_genomic_regions(pybedtools.BedTool(regions_dir))
-    #regions = bedtracks.keys()
     
+    bedtracks = {}
+
     for region in regions:
         bedtracks[region] = pybedtools.BedTool(os.path.join(clipper.data_dir(), "regions", species + "_" + region + ".bed"))
               
@@ -586,6 +583,7 @@ def convert_to_mrna(feature_dict, exon_dict):
     exon_dict - dict of { genes : [exons] }
     
     """
+
     return { name : bedtool.each(convert_to_mRNA_position, exon_dict).filter(lambda x: x.chrom != "none").saveas() for name, bedtool in feature_dict.items()}
 
 def invert_neg(interval):
@@ -1319,24 +1317,29 @@ def main(options):
 
             
     print "Counting reads in clusters...",
-    #reads_in_clusters, reads_per_cluster = count_reads_per_cluster(cluster_regions['all']['real'], bamtool)
+    reads_in_clusters, reads_per_cluster = count_reads_per_cluster(cluster_regions['all']['real'], bamtool)
     
     #might want to actually count genes_dict, not clusters...
-    #total_reads = count_total_reads(bamtool, genes_bed)
-    #region_read_counts = {}
-    #for region_name, cur_region in genomic_regions.items():
-    #    region_read_counts[region_name] = count_total_reads(bamtool, cur_region)
+    total_reads = count_total_reads(bamtool, genes_bed)
+    region_read_counts = {}
+    for region_name, cur_region in genomic_regions.items():
+        region_read_counts[region_name] = count_total_reads(bamtool, cur_region)  
     
     #one stat is just generated here
     #generates cluster lengths (figure 3)
-    #cluster_lengths = bedlengths(cluster_regions['all']['real'])
+    cluster_lengths = bedlengths(cluster_regions['all']['real'])
     print "done"
     
     #also builds figure 10 (exon distances)
-    #genomic_types = count_genomic_types(genes_dict)
+    genomic_types = count_genomic_types(genes_dict)
     
     #figures 5 and 6, builds pre-mrna, mrna exon and intron distributions
-    types, premRNA_positions, mRNA_positions, exon_positions, intron_positions, features_transcript_closest, features_mrna_closest, distributions = calculate_peak_locations(cluster_regions['all']['real'], genes_dict, genomic_regions, features)
+    (types, premRNA_positions, mRNA_positions, exon_positions, 
+     intron_positions, features_transcript_closest, 
+     features_mrna_closest, distributions) = calculate_peak_locations(cluster_regions['all']['real'], 
+                                                                      genes_dict, 
+                                                                      genomic_regions, 
+                                                                      features)
     
     read_densities, classes = cluser_peaks(cluster_regions['all']['real'], bw_pos, bw_neg)
     
@@ -1359,11 +1362,11 @@ def main(options):
     
     phast_values = None
     #loads phastcons values output_file generates them again
-    #if not options.rePhast:
-    #    try:
-    #        phast_values = pickle.load(open(os.path.join(misc_dir, "%s.phast.pickle" % (clusters))))
-    #    except:
-    #        options.rePhast = True
+    if not options.rePhast:
+        try:
+            phast_values = pickle.load(open(os.path.join(misc_dir, "%s.phast.pickle" % (clusters))))
+        except:
+            options.rePhast = True
 
     print "starting phast"
     if options.runPhast:
