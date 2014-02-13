@@ -1451,7 +1451,7 @@ def call_main():
     ##to-do. this should be auto-set if the creation date of "clusters" is after creation date fo assigned files
     #parser.add_option("--reAssign", dest="assign", action="store_true", default=False, help="re-assign clusters, if not set it will re-use existing assigned clusters") 
     ##to-do. this should be auto-set if the creation date of "clusters" is after creation date fo assigned files
-    #parser.add_option("--rePhast", dest="rePhast", action="store_true", default=False, help="re-calculate conservation, must have been done before") 
+    parser.add_option("--rePhast", dest="rePhast", action="store_true", default=False, help="re-calculate conservation, must have been done before") 
     parser.add_option("--runPhast", dest="runPhast", action="store_true", default=False, help="Run Phastcons ") 
     parser.add_option("--runMotif", dest="reMotif", action="store_true", default=False, help="Calculate Motif scores")
     parser.add_option("--runHomer", dest="homer", action="store_true", help="Runs homer", default=False)
