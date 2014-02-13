@@ -213,19 +213,20 @@ class GenomicFeatures():
         """
         region_and_species = os.path.join(self._regions_dir, self._species)
         regions = ["genes", "five_prime_utrs", "three_prime_utrs", "cds", 
-                   "exons", "introns", "prox_introns", "dist_introns",
+                   "exons", "introns", "proxintron", "distintron",
                    ]
         try:
             results = {}
             for region in regions:
-                if region in ["prox_introns", "dist_introns"]:
-                    results[regions] = pybedtools.BedTool("%s_%s%d.bed" % (region_and_species, 
-                                                                           regions, prox_size))
+                if region in ["proxintron", "distintron"]:
+                    results[region] = pybedtools.BedTool("%s_%s%d.bed" % (region_and_species, 
+                                                                           region, prox_size))
                 else:
-                    results[regions] = pybedtools.BedTool("%s_%s.bed" % (region_and_species, 
-                                                                         regions))
-    
+                    results[region] = pybedtools.BedTool("%s_%s.bed" % (region_and_species, 
+                                                                         region))
+            return results
         except ValueError as e:
+            print e
             pass
         
         three_prime_utrs = []
@@ -277,8 +278,8 @@ class GenomicFeatures():
                    "five_prime_utrs" : five_prime_utrs,
                    "three_prime_utrs" : three_prime_utrs,
                    "cds" : cds, 
-                   "prox_introns" : prox_introns, 
-                   "dist_introns": dist_introns,
+                   "proxintron" : prox_introns, 
+                   "distintron": dist_introns,
                    "exons" : exons,
                    "introns" : introns}
         
