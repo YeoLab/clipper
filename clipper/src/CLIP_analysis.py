@@ -831,8 +831,8 @@ def run_homer(foreground, background, k = list([5,6,7,8,9]), outloc = os.getcwd(
     try:
         with open(os.devnull, 'w') as fnull:
             result = subprocess.call(["findMotifs.pl", foreground, "fasta", 
-                                  outloc, "-p", "4", "-rna", "-S", "20",
-                                   "-len", k, "-fasta", background], shell=False, stdout=fnull)
+                                  outloc, "-nofacts", "-p", "4", "-rna", "-S", "20",
+                                   "-len", k, "-noconvert", "-nogo", "-fasta", background], shell=False, stdout=fnull)
             
         print "Homer Finished, output here: %s" %(outloc)
     except OSError:

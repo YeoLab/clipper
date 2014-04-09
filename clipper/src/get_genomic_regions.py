@@ -284,7 +284,7 @@ class GenomicFeatures():
                    "introns" : introns}
         
         for name, intervals in results.items():
-            intervals = pybedtools.BedTool(map(self._to_bed, intervals)).sort().each(self._fix_chrom)
+            intervals = pybedtools.BedTool(map(self._to_bed, intervals)).remove_invalid().sort().each(self._fix_chrom)
             
             if name in ["prox_introns", "dist_introns"]:
                 results[name] = intervals.saveas(region_and_species + "_%s%d.bed" % (name, 
@@ -418,6 +418,6 @@ class GenomicFeatures():
                     "transcription_start_sites" : transcription_start_sites}
 
         for name, intervals in results.items():
-            results[name] = pybedtools.BedTool(map(self._to_bed, intervals)).sort().each(self._fix_chrom).saveas("%s_%s.bed" % (region_and_species, name))
+            results[name] = pybedtools.BedTool(map(self._to_bed, intervals)).remove_invalid().sort().each(self._fix_chrom).saveas("%s_%s.bed" % (region_and_species, name))
 
         return results   
