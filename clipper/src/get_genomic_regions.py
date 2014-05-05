@@ -9,14 +9,14 @@ import os
 
 import gffutils
 import pybedtools
-
+from clipper import data_dir
 class GenomicFeatures():
     """
 
     class to get genomic features from gffutils _db
     
     """
-    def __init__(self, regions_dir, species, db):
+    def __init__(self, species, db, regions_dir=None):
         """
         
         creates genomic features function, chooses 
@@ -27,6 +27,9 @@ class GenomicFeatures():
         db: gffutils FeatureDb object
         
         """
+
+        if regions_dir == None:
+            regions_dir = os.path.join(data_dir(), "regions")
         self._regions_dir = regions_dir
         self._db = db
         self._species = species
@@ -201,7 +204,7 @@ class GenomicFeatures():
                         print "odd in the negative strand"
         return mrna_five_prime_utrs, mrna_three_prime_utrs
     
-    def get_genomic_regions(self, prox_size=500, limit_genes=False):
+    def get_genomic_regions(self, prox_size=500, limit_genes=False, flush_cashe=False):
         
         """
         
@@ -216,6 +219,8 @@ class GenomicFeatures():
                    "exons", "introns", "proxintron", "distintron",
                    ]
         try:
+            if flush_cashe:
+                raise ValueError
             results = {}
             for region in regions:
                 if region in ["proxintron", "distintron"]:
@@ -294,7 +299,8 @@ class GenomicFeatures():
 
         return results
         
-    def get_feature_locations(self, limit_genes=False):
+    def get_feature_locations(self, limit_genes=False, flush_cashe=False):
+
         
         """
         
@@ -311,12 +317,20 @@ class GenomicFeatures():
                                     } 
         
         """
-        regions = ["five_prime_ends", "three_prime_ends", "poly_a_sites",
-                   "stop_codons", "start_codons", "transcription_start_sites"]
+
+        transcriptome = { "five_prime_ends" : [],
+                    "three_prime_ends" : [],
+                    "poly_a_sites" : [],
+                    "stop_codons" :  [],
+                    "start_codons" :  [],
+                    "transcription_start_sites" : []}
+
         try:
+            if flush_cashe:
+                raise ValueError
             region_and_species = os.path.join(self._regions_dir, self._species)
             return {region : pybedtools.BedTool("%s_%s.bed" % (region_and_species, 
-                                                               region)) for region in regions}
+                                                               region)) for region in transcriptome}
     
         except ValueError:
             pass
@@ -327,20 +341,20 @@ class GenomicFeatures():
         stop_codons = []
         start_codons = []
         transcription_start_sites = []
-        for i, gene in enumerate(self._db.features_of_type('gene')):
+        for i, gene_id in enumerate(self._db.features_of_type('gene')):
             if i % 2000 == 0:
                 print "processed %d genes" % (i)
                 if i == 2000 and limit_genes:
                     break
                 
-            gene_five_prime_ends = []
-            gene_three_prime_ends = []
-            gene_poly_a_sites = []
-            gene_transcription_start_sites = []
-            gene_start_codons = []
-            gene_stop_codons = []
+            gene = { "five_prime_ends" : [],
+                    "three_prime_ends" : [],
+                    "poly_a_sites" : [],
+                    "stop_codons" :  [],
+                    "start_codons" :  [],
+                    "transcription_start_sites" : []}
             try:
-                for exon in self._db.children(gene, featuretype='exon'):
+                for exon in self._db.children(gene_id, featuretype='exon'):
                     exon_start = copy.deepcopy(exon)
                     exon_start.start = exon.start + 1
    
@@ -351,11 +365,11 @@ class GenomicFeatures():
                     if exon.strand == "-":
                         exon_start, exon_stop = exon_stop, exon_start 
                         
-                    gene_five_prime_ends.append(exon_start)
-                    gene_three_prime_ends.append(exon_stop)
+                    gene['five_prime_ends'].append(exon_start)
+                    gene['three_prime_ends'].append(exon_stop)
                 
                 #transcript vs mRNA need to look at the difference
-                for transcript in self._db.children(gene, featuretype=self._feature_names['transcript']):
+                for transcript in self._db.children(gene_id, featuretype=self._feature_names['transcript']):
                     transcript_start = copy.deepcopy(transcript)
                     transcript_start.stop = transcript.start + 1
                     
@@ -366,10 +380,10 @@ class GenomicFeatures():
                     if transcript.strand == "-":
                         transcript_start, transcript_stop = transcript_stop, transcript_start
                         
-                    gene_poly_a_sites.append(transcript_stop)
-                    gene_transcription_start_sites.append(transcript_start)
+                    gene['poly_a_sites'].append(transcript_stop)
+                    gene['transcription_start_sites'].append(transcript_start)
                 if self._species == "ce10": #need to generalize later
-                    for transcript in self._db.children(gene, featuretype=self._feature_names['transcript']):
+                    for transcript in self._db.children(gene_id, featuretype=self._feature_names['transcript']):
                         try:
                             cds = list(self._db.children(transcript, 
                                                          featuretype='CDS'))
@@ -381,43 +395,33 @@ class GenomicFeatures():
                                 
                             start_codon = first_cds
                             start_codon.stop = first_cds.start + 1
-                            gene_start_codons.append(start_codon)
+                            gene['start_codons'].append(start_codon)
                                 
                             stop_codon = last_cds
                             stop_codon.start = stop_codon.stop
                             stop_codon.stop  = stop_codon.stop + 1
-                            gene_stop_codons.append(stop_codon)
+                            gene['stop_codons'].append(stop_codon)
 
                         except:
                             pass
                 else: #for hg19 and mm9 gencode 
-                    for start_codon in self._db.children(gene, featuretype='start_codon'):
+                    for start_codon in self._db.children(gene_id, featuretype='start_codon'):
                         start_codon.stop = start_codon.start + 1
-                        gene_start_codons.append(start_codon)
+                        gene['start_codons'].append(start_codon)
                         
-                    for stop_codon in self._db.children(gene, featuretype='stop_codon'):
+                    for stop_codon in self._db.children(gene_id, featuretype='stop_codon'):
                         stop_codon.start = stop_codon.stop
                         stop_codon.stop  = stop_codon.stop + 1
-                        gene_stop_codons.append(stop_codon)
+                        gene['stop_codons'].append(stop_codon)
                     
             except IndexError:
                 pass
-            gene_id = gene.attributes[self._feature_names['gene_id']]
-            five_prime_ends += self._merge_and_rename_regions(gene_five_prime_ends, gene_id)
-            three_prime_ends += self._merge_and_rename_regions(gene_three_prime_ends, gene_id)
-            poly_a_sites += self._merge_and_rename_regions(gene_poly_a_sites, gene_id)
-            stop_codons += self._merge_and_rename_regions(gene_start_codons, gene_id)
-            start_codons += self._merge_and_rename_regions(gene_stop_codons, gene_id)
-            transcription_start_sites += self._merge_and_rename_regions(gene_transcription_start_sites, gene_id)
-        
-        results = { "five_prime_ends" : five_prime_ends,
-                    "three_prime_ends" : three_prime_ends,
-                    "poly_a_sites" : poly_a_sites,
-                    "stop_codons" :  stop_codons,
-                    "start_codons" :  start_codons,
-                    "transcription_start_sites" : transcription_start_sites}
+            gene_id = gene_id.attributes[self._feature_names['gene_id']]
+            for region in gene:
+                transcriptome[region] += self._merge_and_rename_regions(gene[region], gene_id)
 
-        for name, intervals in results.items():
-            results[name] = pybedtools.BedTool(map(self._to_bed, intervals)).remove_invalid().sort().each(self._fix_chrom).saveas("%s_%s.bed" % (region_and_species, name))
+        for name, intervals in transcriptome.items():
+            transcriptome[name] = pybedtools.BedTool(map(self._to_bed, intervals)).\
+                remove_invalid().sort().each(self._fix_chrom).saveas("%s_%s.bed" % (region_and_species, name))
 
-        return results   
+        return transcriptome
