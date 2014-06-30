@@ -61,7 +61,7 @@ extern "C" PyObject *peaks_shuffle(PyObject *self, PyObject *args)
     return NULL;
   }
   
-  //The equation in the initalizer is the estimated depth of the cutoff, initalizes all values to zero
+  //The equation in the initializer is the estimated depth of the cutoff, initializes all values to zero
   int num_reads = PyList_Size(reads); 
   if (num_reads == 0) {
         PyErr_SetString(PyExc_ValueError, "List must not be null");
@@ -72,13 +72,13 @@ extern "C" PyObject *peaks_shuffle(PyObject *self, PyObject *args)
  
   std::vector<int> GENE(L, 0L); //will store the height at every position of the gene
 
-  //This is height distribution, no reason to have length of gene, arbitrary starting depth choosen 
+  //This is height distribution, no reason to have length of gene, arbitrary starting depth chosen
   std::vector<long> HEIGHT(100, 0L); // will have the number of times you see every height across the gene  HEIGHT[3] = 10 means that there are 10 peaks with a height of 3
   
   srand(time(NULL)); // seed random-number generator with the current time
   for (int iteration = 1; iteration <= r; iteration++){
 
-    //re-initalize height and gene on each iteration
+    //re-initialize height and gene on each iteration
     for(int i = 0; i < L; i++) {
       GENE[i] = 0;
     }
@@ -99,7 +99,7 @@ extern "C" PyObject *peaks_shuffle(PyObject *self, PyObject *args)
       }
       int ran;
       
-      //Pick a random location witin the gene that the read can map to
+      //Pick a random location within the gene that the read can map to
       ran = rand() % (L - len - 1); //correct possible positions of reads based on size of gene and size of read
       
       if (ran + len >= L) {
@@ -141,10 +141,10 @@ extern "C" PyObject *peaks_shuffle(PyObject *self, PyObject *args)
 
     for (int height = 1; height < max_height; height++){
       
-      //Initalize p-value to 1 for all heights
+      //Initialize p-value to 1 for all heights
       PVAL[height] = 1;
 
-      //counts number of peaks that are heigher than height
+      //counts number of peaks that are higher than height
       int bigger_peaks = 0; 
       for (int height2=height; height2 < max_height; height2++){
 	bigger_peaks += HEIGHT[height2];
@@ -198,7 +198,7 @@ extern "C" PyObject *peaks_shuffle(PyObject *self, PyObject *args)
   
   PyObject *returnList = PyList_New(OBS_CUTOFF.size());
   
-  //constuct return list
+  //construct return list
   for (int cut = 0; cut < OBS_CUTOFF.size(); cut++) {
     PyList_SetItem(returnList, cut, PyInt_FromLong(OBS_CUTOFF[cut]));
   }
@@ -206,7 +206,7 @@ extern "C" PyObject *peaks_shuffle(PyObject *self, PyObject *args)
   return returnList;
 }
 
-/* Find contigous (within margin) regions that have reads, the area between covered locations is defined as regions without any coverage
+/* Find contiguous (within margin) regions that have reads, the area between covered locations is defined as regions without any coverage
 
 Input: data - wiggle track in list form each value is the coverage at that location
 margin - distance between section
@@ -214,18 +214,18 @@ margin - distance between section
 Output:
 A list of strings in the form "start_location|stop_location"
 
-TODO: Modify to allow for thresholded margins"
+TODO: Modify to allow for threshold-ed margins
 
 */
 extern "C" PyObject *peaks_find_sections(PyObject *self, PyObject *args) {
   std::vector<PyObject*> sections(0); //vector of sections because appending to a python list takes a very long time
-  PyObject *wiggle; //list of reads
+  PyObject *wiggle; //list of read densities
   int margin;
   int start = 0;
   int stop = 0;
   bool in_section = false;
   int gap = 0;
-  int loc = 0; //initalize outside because we need to use for the end catch
+  int loc = 0; //initialize outside because we need to use for the end catch
 
   //parse args
   if(!PyArg_ParseTuple(args, "Oi", &wiggle, &margin)) {
@@ -244,7 +244,7 @@ extern "C" PyObject *peaks_find_sections(PyObject *self, PyObject *args) {
       
       //if not in section mark this location as the first part of a section
       if(!in_section) {
-	start = loc;
+	    start = loc;
       }
 
       in_section = true;
@@ -252,25 +252,21 @@ extern "C" PyObject *peaks_find_sections(PyObject *self, PyObject *args) {
       
     } else {
       gap += 1;
-
       //sets new section if any only if we just left a section 
       if(in_section && gap > margin ) {
-	in_section = false;
-	stop = loc - gap + 1; //sets the stop to the last location that a real value has been seen
-	
-	//adds section to list
-	PyObject *section = PyTuple_New(2);
-	PyTuple_SetItem(section, 0, PyInt_FromLong(start));
-	PyTuple_SetItem(section, 1, PyInt_FromLong(stop));
-     
-	sections.push_back(section);
+         in_section = false;
+         stop = loc - gap + 1; //sets the stop to the last location that a real value has been seen
+	 //adds section to list
+	 PyObject *section = PyTuple_New(2);
+	 PyTuple_SetItem(section, 0, PyInt_FromLong(start));
+	 PyTuple_SetItem(section, 1, PyInt_FromLong(stop));
+	 sections.push_back(section);
       }
     }
   }
 
-  //catch last potental section
+  //catch last potential section
   if ( in_section ) {
- 
     PyObject *section = PyTuple_New(2);
     PyTuple_SetItem(section, 0, PyInt_FromLong(start));
     PyTuple_SetItem(section, 1, PyInt_FromLong(loc - (gap + 1)));
@@ -293,14 +289,14 @@ extern "C" PyObject *peaks_find_sections(PyObject *self, PyObject *args) {
 extern "C" PyObject *peaks_readsToWiggle_pysam(PyObject *self, PyObject *args) {
   
   
-  //Define argunments passed in
+  //Define arguments passed in
   PyObject *reads; //list of reads
   int tx_start;
   int tx_end;
   char *keepstrand;
   char *usePos;
   PyObject *fractional_input;
-  bool makeFractional; //flag to return either whole number coverage or coverage normalzied by length of reads
+  bool makeFractional; //flag to return either whole number coverage or coverage normalized by length of reads
   //parse args
   if(!PyArg_ParseTuple(args, "OiissO", &reads, &tx_start, &tx_end, &keepstrand, &usePos, &fractional_input)) {
     PyErr_SetString(PyExc_TypeError, "One of the argunments is null");  
@@ -312,7 +308,7 @@ extern "C" PyObject *peaks_readsToWiggle_pysam(PyObject *self, PyObject *args) {
     	PyErr_SetString(PyExc_NameError, "usePos must be either center, start or end");
 	return NULL;
   }
-  makeFractional = PyObject_IsTrue(fractional_input);
+ makeFractional = PyObject_IsTrue(fractional_input);
   //set list sizes to do calculations on (NEVER SET BEFORE parsing the tuple)
   
   std::vector<double> wiggle(tx_end - tx_start + 1, 0);    
@@ -447,7 +443,7 @@ extern "C" PyObject *peaks_readsToWiggle_pysam(PyObject *self, PyObject *args) {
     Py_DECREF(item);
 
   }
-  Py_DECREF(iterator); // iteration has ended, garbage collet it
+  Py_DECREF(iterator); // iteration has ended, garbage collect it
   
   //return reads;
   //all 3 items have been generated, convert them into PyLists and return them as a tuple 

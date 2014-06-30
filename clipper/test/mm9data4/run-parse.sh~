@@ -1,6 +1,0 @@
-#!/bin/sh
-
-for chr in `seq 1 19` "X" "Y"
-do
-    perl /nas3/ppliu/projects/ASparser/parser_to_gff.pl mm9.tx.$chr.AS.STRUCTURE > mm9.tx.$chr.AS.STRUCTURE.gff
-done

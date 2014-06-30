@@ -39,6 +39,8 @@ def check_for_index(bamfile):
     
     if os.path.exists(bamfile + ".bai"):
         return 
+    if not bamfile.endswith(".bam"):
+        raise NameError("file %s not of correct type" % (bamfile))
     else:
         logging.info("Index for %s does not exist, indexing bamfile" % (bamfile))
         
@@ -176,7 +178,6 @@ def build_transcript_data_gtf_as_structure(species, pre_mrna):
     x = clipper.data_file(species + ".AS.STRUCTURE.COMPILED.gff")
     gtf_file = pybedtools.BedTool(x)
     for gene in gtf_file:
-        
         effective_length = gene.attrs['premrna_length'] if pre_mrna else gene.attrs['mrna_length']
         attrs = "gene_id=%s;" % (gene.attrs['gene_id'])
         if "transcript_ids" in gene.attrs:
@@ -266,7 +267,7 @@ def build_transcript_data_bed(bed_file, pre_mrna):
     TODO just turn this totally into a pybedtools object instead of converting 
     it to a dictionary
     """
-    
+    raise NotImplementedError("use custom gff file")
     gene_info = {}
     gene_lengths = {}
     
@@ -306,7 +307,7 @@ def build_transcript_data(species, gene_bed, gene_mrna, gene_pre_mrna, pre_mrna)
     """
     
     #error checking 
-    
+
     acceptable_species = get_acceptable_species()
     if (species is None and 
         gene_bed is None and 
@@ -323,7 +324,7 @@ def build_transcript_data(species, gene_bed, gene_mrna, gene_pre_mrna, pre_mrna)
             gene_bed      = clipper.data_file(species + ".AS.STRUCTURE_genes.BED.gz")
             gene_mrna     = clipper.data_file(species + ".AS.STRUCTURE_mRNA.lengths")
             gene_pre_mrna = clipper.data_file(species + ".AS.STRUCTURE_premRNA.lengths")
-            
+
         except ValueError:
             raise ValueError("Defaults don't exist for your species: %s. Please choose from: %s or supply \"geneBed\"+\"geneMRNA\"+\"genePREMRNA\"" % (species, acceptable_species))
 
@@ -571,7 +572,7 @@ def main(options):
                options.threshold, options.binom, options.method, options.minreads, options.poisson_cutoff,
                options.plotit, 10, 1000, options.SloP, False,
                options.max_width, options.min_width,
-               options.algorithm)
+               options.algorithm, options.verbose)
               for gene in gene_tool]
     
     jobs = []
@@ -588,7 +589,7 @@ def main(options):
         
         for job in jobs:
             try:
-                results.append(job.get(timeout=360))
+                results.append(job.get(timeout=1000))
             except Exception as error:
                 logging.error("transcript timed out %s" % (error))
         
@@ -598,7 +599,7 @@ def main(options):
     logging.info("finished with calling peaks")
 
     if options.save_pickle is True:
-        with open(options.outfile + ".pickle", 'w') as pickle_file:  
+        with open(options.outfile + ".all_peaks.pickle", 'w') as pickle_file:  
             pickle.dump(results, file=pickle_file)                
     
     transcriptome_reads = count_transcriptome_reads(results)
@@ -656,7 +657,8 @@ def call_main():
     parser.add_option("--processors", dest="np", default="autodetect", help="Number of processors to use. Default: All processors on machine", type="str", metavar="NP")
     parser.add_option("--superlocal", action="store_true", dest="SloP", default=False, help="Use super-local p-values, counting reads in a 1KB window around peaks")
     parser.add_option("--plot", "-p", dest="plotit", action="store_true", help="make figures of the fits", default=False)
-    parser.add_option("--verbose", "-q", dest="verbose", action="store_true", help="suppress notifications")
+    parser.add_option("--verbose", "-v", dest="verbose", action="store_true", default=False)
+    parser.add_option("--quiet", "-q", dest="quiet", action="store_true", default=False, help="suppress notifications")
     parser.add_option("--save-pickle", dest="save_pickle", default=False, action="store_true", help="Save a pickle file containing the analysis")
     parser.add_option("--debug", dest="debug", default=False, action="store_true", help="disables multipcoressing in order to get proper error tracebacks")
     parser.add_option("--max_width", dest="max_width", type="int", default=75, help="Defines max width for classic algorithm, default: %default")

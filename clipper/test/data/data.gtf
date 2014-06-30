@@ -1,0 +1,5 @@
+chrI	ce10_refGene	exon	7741936	7741953	0.000000	+	.	gene_id "NR_070240"; transcript_id "NR_070240"; 
+chrI	ce10_refGene	exon	7950940	7950951	0.000000	+	.	gene_id=NR_070240; transcript_id=NR_070240; 
+chrI	ce10_refGene	stop_codon	8378299	8378301		0.000000	-		   .	   gene_id "NM_001129046"; transcript_id "NM_001129046"; 
+chrI	ce10_refGene	CDS	8378302	8378421	0.000000		-	2	gene_id "NM_001129046"; transcript_id "NM_001129046"; 
+chrI	ce10_refGene	exon	8378299	8378421	0.000000		-	.	gene_id "NM_001129046"; transcript_id "NM_001129046"; 

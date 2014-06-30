@@ -14,15 +14,15 @@ long_description = "CLIPPER - clip peak enrichment"
 setup(
     name = "clipper",
     long_description = long_description,
-    version = "0.1.1",
+    version = "0.1.2",
     packages = find_packages(),
     cmdclass = {'build_ext' : build_ext},
     ext_modules = [readsToWiggle, peaks],
 
     package_data = {
-        '' : ['*.lengths', '*.gz', '*.bam', '*.bai', 'gff']
+        'clipper' : ['data/*.gff', 'data/regions/*.bed']
         },
-    
+
     install_requires = ['setuptools', 
                         'pysam >= 0.6',
                         'numpy >= 1.5.1 ',
@@ -49,6 +49,6 @@ setup(
     url = "https://github.com/YeoLab/clipper",
     
     #Other stuff I feel like including here
-    include_package_data = True
+    #include_package_data = True
     #zip_safe = True #True I think
 )
