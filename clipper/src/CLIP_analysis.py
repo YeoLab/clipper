@@ -27,6 +27,13 @@ from clipper.src.kmerdiff import kmer_diff
 from clipper.src.get_genomic_regions import GenomicFeatures
 from gscripts.general.pybedtools_helpers import small_peaks, shuffle_and_adjust, closest_by_feature, get_three_prime_end, get_five_prime_end, convert_to_mRNA_position, adjust_after_shuffle
 
+import matplotlib as mpl
+from matplotlib import rc
+
+mpl.rcParams['svg.fonttype'] = 'none'
+rc('text', usetex=False)
+rc('font',**{'family':'sans-serif','sans-serif':['Helvetica']})
+
 def name_to_chrom(interval):
     interval.chrom = interval.name
     return interval
@@ -1096,6 +1103,7 @@ def calculate_phastcons(regions, cluster_regions, phastcons_location, sample_siz
 
     return phast_values
 
+
 def calculate_motif_distance(cluster_regions, region_sizes, motif_tool, slopsize = 200):
     
     """
@@ -1471,7 +1479,7 @@ def call_main():
     parser.add_option("--motif_directory", dest="motif_location",  help="directory of pre-computed motifs for analysis", default=os.getcwd())
     parser.add_option("--reAssign", dest="assign", action="store_true", default=False, help="re-assign clusters, if not set it will re-use existing assigned clusters")
     parser.add_option("--metrics", dest="metrics", default="CLIP_Analysis.metrics", help="file name to output metrics to")
-    parser.add_option("--extension", dest="extension", default="png", help="file extension to use (svg, png, pdf...)")
+    parser.add_option("--extension", dest="extension", default="svg", help="file extension to use (svg, png, pdf...)")
     parser.add_option("--bw_pos",  help="bigwig file, on the positive strand")
     parser.add_option("--bw_neg", help="bigwige file on the negative strand")
 
@@ -1481,7 +1489,6 @@ def call_main():
     if options.clusters is None or options.bam is None or options.species is None:
         parser.print_help()
         exit()
-        
     main(options)
 
 if __name__== "__main__":
