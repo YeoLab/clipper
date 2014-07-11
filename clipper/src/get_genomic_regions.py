@@ -324,11 +324,12 @@ class GenomicFeatures():
                     "stop_codons" :  [],
                     "start_codons" :  [],
                     "transcription_start_sites" : []}
-
+        
+        region_and_species = os.path.join(self._regions_dir, self._species)
         try:
             if flush_cashe:
                 raise ValueError
-            region_and_species = os.path.join(self._regions_dir, self._species)
+         
             return {region : pybedtools.BedTool("%s_%s.bed" % (region_and_species, 
                                                                region)) for region in transcriptome}
     
