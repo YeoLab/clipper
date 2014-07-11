@@ -1,4 +1,5 @@
 
+
 """
 
 Analizes CLIP data given a bed file and a bam file
@@ -1277,13 +1278,10 @@ def main(options):
     regions["distintron500"] = "Distal\nIntron"
     
     db = gffutils.FeatureDB(options.db)
-    #db = None #hack to get working on tscc without access to sqlite3
-
-    print "getting regions"
-    features = GenomicFeatures(options.regions_location, species, db)
+    
+    features = GenomicFeatures(species, db,  regions_dir=options.regions_location)
     genomic_regions = features.get_genomic_regions()
     features = features.get_feature_locations()
-    print "done"
     
      #all catagory would break some analysies, create copy and remove it
     assigned_regions = regions.copy()
