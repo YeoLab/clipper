@@ -219,9 +219,9 @@ class PeakGenerator(object):
 class SmoothingSpline(PeakGenerator):
     """Class to fit data to a smooth curve"""
     
-    def __init__(self, xRange, yData, smoothingFactor=None,
-                 lossFunction = "get_turn_penalized_residuals",
-                 threshold = 0):
+    def __init__(self, xRange, yData, smoothing_factor=None,
+                 lossFunction = "get_norm_penalized_residuals",
+                 threshold=0):
         
         """
         
@@ -234,12 +234,12 @@ class SmoothingSpline(PeakGenerator):
         
         super(SmoothingSpline,self).__init__(xRange, yData)
         
-        if smoothingFactor is None:
+        if smoothing_factor is None:
             #smoothingFactor = 0.25 * numpy.sum(yData) #
-            smoothingFactor = len(xRange)
+            smoothing_factor = len(xRange)
         
         self.k = 3 #degree of spline (cubic)
-        self.smoothingFactor = smoothingFactor
+        self.smoothing_factor = smoothing_factor
         self.spline = None
         self.threshold = threshold
         
@@ -251,8 +251,7 @@ class SmoothingSpline(PeakGenerator):
         else:
             raise TypeError("loss function not implemented")
 
-
-    def get_norm_penalized_residuals(self, spline, norm_weight = 1, residual_weight = 10):
+    def get_norm_penalized_residuals(self, spline, norm_weight=1, residual_weight=10):
 
         """
 
@@ -290,7 +289,7 @@ class SmoothingSpline(PeakGenerator):
 
         return err
 
-    def fit_univariate_spline(self, smoothingFactor = None, weight = None):
+    def fit_univariate_spline(self, smoothingFactor=None, weight=None):
 
         """
 
@@ -310,7 +309,7 @@ class SmoothingSpline(PeakGenerator):
         """
 
         if smoothingFactor is None:
-            smoothingFactor = self.smoothingFactor
+            smoothingFactor = self.smoothing_factor
 
         try:
             spline = interpolate.UnivariateSpline(self.xRange,
@@ -330,19 +329,19 @@ class SmoothingSpline(PeakGenerator):
 
         return spline
 
-    def fit_loss(self, smoothingFactor=None, weight = None):
+    def fit_loss(self, smoothing_factor=None, weight=None):
         """fit a curve with a given smoothing parameter, return the result of the loss fxn"""
 
-        if smoothingFactor == None:
-            smoothingFactor = self.smoothingFactor
+        if smoothing_factor is None:
+            smoothing_factor = self.smoothing_factor
 
-        spline = self.fit_univariate_spline(smoothingFactor=smoothingFactor, weight=weight)
+        spline = self.fit_univariate_spline(smoothingFactor=smoothing_factor, weight=weight)
         err = self.lossFunction(spline)
 
         return err
 
 
-    def optimize_fit(self, s_estimate=None, method = 'L-BFGS-B', bounds=((1,None),),
+    def optimize_fit(self, s_estimate=None, method='L-BFGS-B', bounds=((1, None),),
                      weight=None):
         """
 
@@ -351,35 +350,36 @@ class SmoothingSpline(PeakGenerator):
         """
         import scipy
         from scipy import optimize
-        if s_estimate == None:
-            s_estimate = self.smoothingFactor
+        if s_estimate is None:
+            s_estimate = self.smoothing_factor
 
-        minOpts = {'disp':False,
-                   'maxiter':1000}
+        min_opts = {'disp': False,
+                    'maxiter': 5000}
 
-        minimizeResult = scipy.optimize.minimize(self.fit_loss, s_estimate,
-                                          #args = (weight),
-                                          options = minOpts,
-                                          method = method,
-                                          bounds = bounds,
-                                          )
+        minimize_result = scipy.optimize.minimize(self.fit_loss,
+                                                  s_estimate,
+                                                  #args = (weight),
+                                                  options=min_opts,
+                                                  method=method,
+                                                  bounds=bounds,
+                                                  )
 
-        if minimizeResult.success:
-            optimizedSmoothingFactor = minimizeResult.x
+        if minimize_result.success:
+            optimized_smoothing_factor = minimize_result.x
 
         else:
-
             #if optimization fails then we revert back to the estimate, probably should log this
-            optimizedSmoothingFactor = s_estimate
-
-            #logging.error("Problem spline fitting. Here is the message:\n%s" % (minimizeResult.message))
+            optimized_smoothing_factor = s_estimate
+            #print "smoothing factor", self.smoothing_factor, s_estimate
+            logging.error("Problem spline fitting. Here is the message:\n%s" % (minimize_result.message))
             #raise Exception
 
-        optimizedSpline = self.fit_univariate_spline(optimizedSmoothingFactor, weight)
-        self.smoothingFactor = optimizedSmoothingFactor
-        self.spline = optimizedSpline
+        optimized_spline = self.fit_univariate_spline(optimized_smoothing_factor, weight)
+        self.smoothing_factor = optimized_smoothing_factor
+        self.spline = optimized_spline
         #print "optimized: %f" % optimizedSmoothingFactor
-        return optimizedSpline
+        self.result = minimize_result
+        return optimized_spline
 
     def get_regions_above_threshold(self, threshold, values):
 
@@ -406,8 +406,8 @@ class SmoothingSpline(PeakGenerator):
         #threshold is at or equal to values, need to correct this
         starts = xlocs[r_[True, diff(values >= threshold)] & (values >= threshold)]
         stops = xlocs[r_[diff(values >= threshold), True] & (values >= threshold)]
-        stops = stops + 1 #add to fix off by one bug
-
+        #add to fix off by one bug
+        stops += + 1
 
         #error correction incase my logic is wrong here, assuming that starts
         #and stops are always paired, and the only two cases of not being
@@ -455,6 +455,7 @@ class SmoothingSpline(PeakGenerator):
         starts = array([x[0] for x in starts_and_stops])
         stops  = array([x[1] for x in starts_and_stops])
         return starts_and_stops, starts, stops
+
     def find_local_maxima(self, arr):
 
         """
@@ -528,7 +529,7 @@ class SmoothingSpline(PeakGenerator):
 
         return minima
 
-    def peaks(self, threshold=0, plotit = False):
+    def peaks(self, threshold=0, plotit=False):
 
         """
 
@@ -538,46 +539,43 @@ class SmoothingSpline(PeakGenerator):
         """
 
         #step 1, identify good initial value
-        initial_smoothing_value = self.smoothingFactor
-        #print "initial SF: %f" % initial_smoothing_value
-        bestSmoothingEstimate = initial_smoothing_value
-
+        initial_smoothing_value = self.smoothing_factor
+        best_smoothing_estimate = initial_smoothing_value
 
         #step 1 naive spline
-
         spline = self.fit_univariate_spline()
         self.spline = spline
 
-        if plotit == True:
+        if plotit:
             self.plot()
 
         #step 2, refine to avoid local minima later
         #high-temp optimize
-
         best_error = self.lossFunction(spline)
 
         #tries to find optimal initial smoothing parameter in this loop
-        for i in range(2, 50):
+        for i in range(1, 50):
 
             cur_smoothing_value = initial_smoothing_value * i
 
             cur_error = self.fit_loss(cur_smoothing_value)
             self.spline = self.fit_univariate_spline(cur_smoothing_value)
-
-            if plotit == True:
+            #print cur_smoothing_value
+            #print cur_error
+            if plotit:
                 self.plot(label=str(cur_smoothing_value))
 
             if cur_error < best_error:
-                bestSmoothingEstimate = cur_smoothing_value
+                best_smoothing_estimate = cur_smoothing_value
                 best_error = cur_error
 
         try:
-            #fine optimization of smooting paramater
+            #fine optimization of smoothing parameter
             #low-temp optimize
-            optimizedSpline = self.optimize_fit(s_estimate=bestSmoothingEstimate)
+            optimizedSpline = self.optimize_fit(s_estimate=best_smoothing_estimate)
             self.spline = optimizedSpline
             if plotit:
-                self.plot(title = "optimized spline", threshold=self.threshold)
+                self.plot(title="optimized spline", threshold=self.threshold)
 
         except Exception as error:
             logging.error("failed spline fitting optimization at section (major crash)")
@@ -595,13 +593,11 @@ class SmoothingSpline(PeakGenerator):
         peak_definitions = []
         for peak_start, peak_stop in starts_and_stops:
             peak_center = [x + peak_start for x in self.xRange[self.find_local_maxima(spline_values[peak_start:(peak_stop + 1)])]]
-
-            assert len(peak_center) in (0,1)
-
             if len(peak_center) == 1:
                 peak_definitions.append((peak_start, peak_stop, peak_center[0]))
         self.peakCalls = peak_definitions
         return peak_definitions
+
     def plot(self, ax=None):
         self.peakCalls = self.peaks()
         if ax==None:
@@ -1065,7 +1061,7 @@ def peaks_from_info(wiggle, pos_counts, lengths, interval, gene_length,
             data = map(float, data)
             initial_smoothing_value = ((sectstop - sectstart + 1)**(1/3)) + 10
             logging.info("initial smoothing value: %.2f" % initial_smoothing_value)
-            fitter = SmoothingSpline(xvals, data, smoothingFactor=initial_smoothing_value,
+            fitter = SmoothingSpline(xvals, data, smoothing_factor=initial_smoothing_value,
                             lossFunction="get_turn_penalized_residuals",
                             threshold=threshold)
 
@@ -1079,7 +1075,7 @@ def peaks_from_info(wiggle, pos_counts, lengths, interval, gene_length,
 
         try:
             peak_definitions = fitter.peaks()
-            logging.info("optimized smoothing value: %.2f" % fitter.smoothingFactor)
+            logging.info("optimized smoothing value: %.2f" % fitter.smoothing_factor)
 
             if peak_definitions is None:
                 numpeaks = 0
