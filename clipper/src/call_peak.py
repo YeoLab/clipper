@@ -270,7 +270,7 @@ class SmoothingSpline(PeakGenerator):
         err = (norm_weight*norm(spline(self.xRange))**2) + (residual_weight*sqrt(spline.get_residual()))
         return err
 
-    def get_turn_penalized_residuals(self, spline):
+    def get_turn_penalized_residuals(self, spline, residual_weight=1, turn_weight=1, turn_exp=4):
 
         """
 
@@ -282,10 +282,11 @@ class SmoothingSpline(PeakGenerator):
         """
 
         func = spline(self.xRange)
-
         turns = sum(abs(diff(sign(diff(func))))) / 2
 
-        err = sqrt((spline.get_residual()) * (turns ** 4))
+        #print "turns", turns,
+        #print "residual", (residual_weight * sqrt((spline.get_residual()))), "turns score", (turn_weight * (turns ** turn_exp))
+        err = (residual_weight * sqrt((spline.get_residual()))) * (turn_weight * (turns ** turn_exp))
 
         return err
 
@@ -335,13 +336,14 @@ class SmoothingSpline(PeakGenerator):
         if smoothing_factor is None:
             smoothing_factor = self.smoothing_factor
 
+        print "smoothing_factor", smoothing_factor
         spline = self.fit_univariate_spline(smoothingFactor=smoothing_factor, weight=weight)
         err = self.lossFunction(spline)
 
         return err
 
 
-    def optimize_fit(self, s_estimate=None, method='L-BFGS-B', bounds=((1, None),),
+    def optimize_fit(self, s_estimate=None, method='bounded', bounds=((1, None),),
                      weight=None):
         """
 
@@ -356,12 +358,18 @@ class SmoothingSpline(PeakGenerator):
         min_opts = {'disp': False,
                     'maxiter': 5000}
 
-        minimize_result = scipy.optimize.minimize(self.fit_loss,
+        def con(t):
+            return t[0] > 1
+
+        cons = {'type': "ineq",
+                'fun': con}
+        minimize_result = scipy.optimize.minimize_scalar(self.fit_loss,
                                                   s_estimate,
                                                   #args = (weight),
                                                   options=min_opts,
                                                   method=method,
-                                                  bounds=bounds,
+                                                  #constraints=cons,
+                                                  bounds=(1, 10000),
                                                   )
 
         if minimize_result.success:
@@ -453,7 +461,7 @@ class SmoothingSpline(PeakGenerator):
             starts = starts[starts >= stop]
 
         starts = array([x[0] for x in starts_and_stops])
-        stops  = array([x[1] for x in starts_and_stops])
+        stops = array([x[1] for x in starts_and_stops])
         return starts_and_stops, starts, stops
 
     def find_local_maxima(self, arr):
@@ -560,8 +568,7 @@ class SmoothingSpline(PeakGenerator):
 
             cur_error = self.fit_loss(cur_smoothing_value)
             self.spline = self.fit_univariate_spline(cur_smoothing_value)
-            #print cur_smoothing_value
-            #print cur_error
+
             if plotit:
                 self.plot(label=str(cur_smoothing_value))
 
@@ -569,6 +576,9 @@ class SmoothingSpline(PeakGenerator):
                 best_smoothing_estimate = cur_smoothing_value
                 best_error = cur_error
 
+        print "starting optimization"
+        print
+        print
         try:
             #fine optimization of smoothing parameter
             #low-temp optimize
