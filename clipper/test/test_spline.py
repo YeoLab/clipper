@@ -54,10 +54,10 @@ class Test(unittest.TestCase):
         self.assertRaises(TypeError, SmoothingSpline.__init__, [], [], lossFunction = "foo")
         
         smoothing_spline = SmoothingSpline([5,5,5,5], [1,2,3,4])
-        self.assertEqual(smoothing_spline.smoothingFactor , 4) 
+        self.assertEqual(smoothing_spline.smoothing_factor , 4)
         
-        smoothing_spline = SmoothingSpline([5,5,5,5], [1,2,3,4], smoothingFactor = 6 )
-        self.assertEqual(smoothing_spline.smoothingFactor , 6)        
+        smoothing_spline = SmoothingSpline([5,5,5,5], [1,2,3,4], smoothing_factor= 6 )
+        self.assertEqual(smoothing_spline.smoothing_factor , 6)
         
     def test_fit_univariate_spline(self):
         
