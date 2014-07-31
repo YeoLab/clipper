@@ -220,8 +220,9 @@ class SmoothingSpline(PeakGenerator):
     """Class to fit data to a smooth curve"""
     
     def __init__(self, xRange, yData, smoothing_factor=None,
-                 lossFunction = "get_norm_penalized_residuals",
-                 threshold=0):
+                 lossFunction="get_turn_penalized_residuals",
+                 threshold=0,
+                 num_reads=0):
         
         """
         
@@ -232,13 +233,15 @@ class SmoothingSpline(PeakGenerator):
         
         """
         
-        super(SmoothingSpline,self).__init__(xRange, yData)
+        super(SmoothingSpline, self).__init__(xRange, yData)
         
         if smoothing_factor is None:
             #smoothingFactor = 0.25 * numpy.sum(yData) #
             smoothing_factor = len(xRange)
-        
-        self.k = 3 #degree of spline (cubic)
+
+        #degree of spline (cubic)
+        self.k = 3
+        self.num_reads = num_reads
         self.smoothing_factor = smoothing_factor
         self.spline = None
         self.threshold = threshold
@@ -336,7 +339,7 @@ class SmoothingSpline(PeakGenerator):
         if smoothing_factor is None:
             smoothing_factor = self.smoothing_factor
 
-        print "smoothing_factor", smoothing_factor
+        #print "smoothing_factor", smoothing_factor
         spline = self.fit_univariate_spline(smoothingFactor=smoothing_factor, weight=weight)
         err = self.lossFunction(spline)
 
@@ -363,14 +366,19 @@ class SmoothingSpline(PeakGenerator):
 
         cons = {'type': "ineq",
                 'fun': con}
+
+        #I think that the smoothing bounds are linear
+        bound_scale = self.num_reads * 50
+        bound_scale = 100 if bound_scale <= 1 else bound_scale
+        #print bound_scale
         minimize_result = scipy.optimize.minimize_scalar(self.fit_loss,
-                                                  s_estimate,
-                                                  #args = (weight),
-                                                  options=min_opts,
-                                                  method=method,
-                                                  #constraints=cons,
-                                                  bounds=(1, 10000),
-                                                  )
+                                                          s_estimate,
+                                                          #args = (weight),
+                                                          options=min_opts,
+                                                          method=method,
+                                                          #constraints=cons,
+                                                          bounds=(1, bound_scale),
+                                                          )
 
         if minimize_result.success:
             optimized_smoothing_factor = minimize_result.x
@@ -384,6 +392,7 @@ class SmoothingSpline(PeakGenerator):
 
         optimized_spline = self.fit_univariate_spline(optimized_smoothing_factor, weight)
         self.smoothing_factor = optimized_smoothing_factor
+        #print "final smoothing factor", str(self.smoothing_factor), "bar"
         self.spline = optimized_spline
         #print "optimized: %f" % optimizedSmoothingFactor
         self.result = minimize_result
@@ -576,9 +585,6 @@ class SmoothingSpline(PeakGenerator):
                 best_smoothing_estimate = cur_smoothing_value
                 best_error = cur_error
 
-        print "starting optimization"
-        print
-        print
         try:
             #fine optimization of smoothing parameter
             #low-temp optimize
@@ -1070,10 +1076,15 @@ def peaks_from_info(wiggle, pos_counts, lengths, interval, gene_length,
         if algorithm == "spline":
             data = map(float, data)
             initial_smoothing_value = ((sectstop - sectstart + 1)**(1/3)) + 10
+
+            peak_dict['sections'][sect]['smoothing_factor'] = initial_smoothing_value
+
             logging.info("initial smoothing value: %.2f" % initial_smoothing_value)
+            #print sect, xvals, data, initial_smoothing_value, threshold
             fitter = SmoothingSpline(xvals, data, smoothing_factor=initial_smoothing_value,
                             lossFunction="get_turn_penalized_residuals",
-                            threshold=threshold)
+                            threshold=threshold,
+                            num_reads=Nreads)
 
         elif algorithm == "gaussian":
             cts = map(float, cts)
