@@ -753,10 +753,13 @@ def calculate_peak_locations(bedtool, genes, regions, features):
     feature_tool = pybedtools.BedTool(bedtool_list)
     
     #gets and counts closest features to each peak
-    #this doesn't take into account badly placed peaks, we'll know if this is a problem if there a lot of ignoring error messages
+    #this doesn't take into account badly placed peaks,
+    #we'll know if this is a problem if there a lot of ignoring error messages
     types = Counter([interval[-1] for interval in bedtool.closest(feature_tool, s=True)])
     
-    return types, premRNA_positions, mRNA_positions, exon_positions, intron_positions, features_transcript_closest, features_mrna_closest, distributions
+    return types, premRNA_positions, mRNA_positions, exon_positions, \
+           intron_positions, features_transcript_closest, \
+           features_mrna_closest, distributions
 
 
 #here we start a small module for getting read densities:
@@ -1387,6 +1390,9 @@ def main(options):
     except:
         pass
 
+    features_transcript_closest = {name: bedtool['dist'].saveas("%s_%_transcript.bed" % (clusters, name)) for name, bedtool in features_transcript_closest.items() if bedtool['dist'] is not None}
+    features_mrna_closest = {name: bedtool['dist'].saveas("%s_%s_mrna.bed" % (clusters, name)) for name, bedtool in features_mrna_closest.items() if bedtool['dist'] is not None}
+
     #save all analysies in a pickle dict
     out_dict = {}
     out_dict["region_sizes"] = region_sizes
@@ -1405,17 +1411,14 @@ def main(options):
     out_dict["motifs"] = motifs
     out_dict["phast_values"] = phast_values
     out_dict["motif_distances"] = motif_distances
-    for name, feature in features_transcript_closest.items():
-        if feature['dist'] is not None:
-            feature['dist'].saveas(clusters + "_" + name + "_transcript.bed")
-
-    for name, feature in features_mrna_closest.items():
-        if feature['dist'] is not None:
-            feature['dist'].saveas(clusters + "_" + name + "_mrna.bed")
+    out_dict['features_transcript_closest'] = {name: bedtool['dist'].fn for name, bedtool in features_transcript_closest.items() if bedtool['dist'] is not None}
+    out_dict['features_mrna_closest'] = {name: bedtool['dist'].fn for name, bedtool in features_mrna_closest.items() if bedtool['dist'] is not None}
     out_dict['distributions'] = distributions
     out_dict['data'] = np.array(read_densities)
     out_dict['classes'] = classes
     out_dict['region_read_counts'] = region_read_counts
+    out_dict['homerout'] = homerout
+    out_dict['regions'] = homerout
     out_file = open(os.path.join("%s.clip_analysis.pickle" %(clusters)), 'w')
     pickle.dump(out_dict, file=out_file)
     
@@ -1429,7 +1432,8 @@ def main(options):
                     regions, np.array(read_densities), classes]
     
     QCfig = CLIP_analysis_display.CLIP_QC_figure(*QCfig_params)
-    distribution_fig = CLIP_analysis_display.plot_distributions(features_transcript_closest, features_mrna_closest, distributions)
+    distribution_fig = CLIP_analysis_display.plot_distributions(features_transcript_closest,
+                                                                features_mrna_closest, distributions)
     QCfig.savefig(os.path.join(outdir, clusters + ".QCfig." + options.extension))
     distribution_fig.savefig(os.path.join(outdir, clusters + ".DistFig." + options.extension))  
       
