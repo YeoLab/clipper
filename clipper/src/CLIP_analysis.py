@@ -80,15 +80,6 @@ def adjust_offsets(tool, offsets=None):
     
     clusters = []
     for bed_line in tool:
-
-        #handles multiple different types of bed files
-        if len(bed_line.fields) < 8:
-            thick_start = 0
-            thick_stop = 0
-        else:
-            thick_start = int(bed_line[6])
-            thick_stop = int(bed_line[7])
-        
         #the ; represents two merged locations 
         if "," in bed_line.name and bed_line.name not in offsets:
             offset = offsets[bed_line.name.split(",")[0]]
@@ -243,7 +234,7 @@ def assign_to_regions(tool, clusters, speciesFA, regions_dir, regions,
     bed_dict['all']['real'] = pybedtools.BedTool("", from_string = True)
     
     offsets = get_offsets_bed12(tool)
-    tool = tool.merge(s=True, nms=True, scores="max")
+    tool = tool.merge(s=True, c="4,5,6,7,8", o="collapse,collapse,min,min,min")
     remaining_clusters = adjust_offsets(tool, offsets)
     
     print "There are a total %d clusters I'll examine" % (len(tool))
@@ -366,7 +357,7 @@ def build_assigned_from_existing(assigned_dir, clusters, regions, nrand):
 
     return CLUS_regions, sizes, Gsizes
 
-def is_valid_bed12(x):
+def is_valid_bed12(interval):
     
     """
     
@@ -378,12 +369,10 @@ def is_valid_bed12(x):
     
     """
     
-    chr, start, stop, name, score, strand, tstart, tstop = str(x).split("\t")
-    start, stop, tstart, tstop = map(int, (start, stop, tstart, tstop))
-    if start < tstart and stop > tstop:
-        return True
-    else:
-        return False
+    tstart = int(interval[6])
+    tstop = int(interval[7])
+    return interval.start < tstart and interval.stop > tstop
+
 
 def get_offsets_bed12(tool):
     
@@ -400,6 +389,7 @@ def get_offsets_bed12(tool):
     
     offset_dict = {}
     for line in tool:
+
         if line.strand == "+":
             #get difference between thick start and start
             offset = int(line[6]) - int(line[1]) 

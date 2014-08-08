@@ -22,7 +22,7 @@ import seaborn as sns
 
 class ClipVisualization():
 
-    def __init__(self, pickle_file):
+    def __init__(self, pickle_file=None):
         """
 
         :param pickle:
@@ -38,6 +38,9 @@ class ClipVisualization():
         self.regions["five_prime_utrs"] = "5' UTR"
         self.regions["proxintron500"] = "Proximal\nIntron"
         self.regions["distintron500"] = "Distal\nIntron"
+
+        if pickle_file is None:
+            return
 
         data = pickle.load(pickle_file)
 
