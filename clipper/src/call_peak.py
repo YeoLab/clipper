@@ -585,6 +585,7 @@ class SmoothingSpline(PeakGenerator):
                 best_smoothing_estimate = cur_smoothing_value
                 best_error = cur_error
 
+
         try:
             #fine optimization of smoothing parameter
             #low-temp optimize
