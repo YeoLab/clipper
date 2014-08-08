@@ -273,7 +273,7 @@ class SmoothingSpline(PeakGenerator):
         err = (norm_weight*norm(spline(self.xRange))**2) + (residual_weight*sqrt(spline.get_residual()))
         return err
 
-    def get_turn_penalized_residuals(self, spline, residual_weight=1, turn_weight=1, turn_exp=4):
+    def get_turn_penalized_residuals(self, spline, residual_weight=1, turn_weight=1, turn_exp=10000):
 
         """
 
@@ -286,7 +286,8 @@ class SmoothingSpline(PeakGenerator):
 
         func = spline(self.xRange)
         turns = sum(abs(diff(sign(diff(func))))) / 2
-
+        turn_exp = 4
+        residual_weight = 1000
         #print "turns", turns,
         #print "residual", (residual_weight * sqrt((spline.get_residual()))), "turns score", (turn_weight * (turns ** turn_exp))
         err = (residual_weight * sqrt((spline.get_residual()))) * (turn_weight * (turns ** turn_exp))
@@ -368,7 +369,7 @@ class SmoothingSpline(PeakGenerator):
                 'fun': con}
 
         #I think that the smoothing bounds are linear
-        bound_scale = self.num_reads * 50
+        bound_scale = self.num_reads * 20
         bound_scale = 100 if bound_scale <= 1 else bound_scale
         #print bound_scale
         minimize_result = scipy.optimize.minimize_scalar(self.fit_loss,
@@ -392,7 +393,7 @@ class SmoothingSpline(PeakGenerator):
 
         optimized_spline = self.fit_univariate_spline(optimized_smoothing_factor, weight)
         self.smoothing_factor = optimized_smoothing_factor
-        #print "final smoothing factor", str(self.smoothing_factor), "bar"
+        #print "final smoothing factor", str(self.smoothing_factor), bound_scale
         self.spline = optimized_spline
         #print "optimized: %f" % optimizedSmoothingFactor
         self.result = minimize_result
