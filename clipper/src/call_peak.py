@@ -336,7 +336,7 @@ class SmoothingSpline(PeakGenerator):
         if smoothing_factor is None:
             smoothing_factor = self.smoothing_factor
 
-        print "smoothing_factor", smoothing_factor
+        #print "smoothing_factor", smoothing_factor
         spline = self.fit_univariate_spline(smoothingFactor=smoothing_factor, weight=weight)
         err = self.lossFunction(spline)
 
@@ -576,9 +576,9 @@ class SmoothingSpline(PeakGenerator):
                 best_smoothing_estimate = cur_smoothing_value
                 best_error = cur_error
 
-        print "starting optimization"
-        print
-        print
+        #print "starting optimization"
+        #print
+        #print
         try:
             #fine optimization of smoothing parameter
             #low-temp optimize
