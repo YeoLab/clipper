@@ -553,7 +553,7 @@ def main(options):
     
     #gets all the gene_tool to call peaks on
     if options.gene:
-        gene_tool = gene_tool.filter(lambda x : x.attrs['gene_id'] in options.gene)
+        gene_tool = gene_tool.filter(lambda x: x.attrs['gene_id'] in options.gene)
 
     #truncates for max gene_tool
     if options.maxgenes:
@@ -566,15 +566,12 @@ def main(options):
     
 
     transcriptome_size = sum(int(x.attrs['effective_length']) if "effective_length" in x.attrs else x.length for x in gene_tool)
-    #do the parralization
 
-    tasks =  [(gene, gene.attrs['effective_length'], None, bamfile, options.max_gap, options.FDR_alpha, 
-               options.threshold, options.binom, options.method, options.minreads, options.poisson_cutoff,
-               options.plotit, 10, 1000, options.SloP, False,
-               options.max_width, options.min_width,
-               options.algorithm, options.verbose)
-              for gene in gene_tool]
-    
+    tasks = [(gene, gene.attrs['effective_length'], None, bamfile, options.max_gap, options.FDR_alpha,
+              options.threshold, options.binom, options.method, options.minreads, options.poisson_cutoff,
+              options.plotit, 10, 1000, options.SloP, False, options.max_width, options.min_width, options.algorithm,
+              options.verbose) for gene in gene_tool]
+
     jobs = []
     results = []
     if options.debug:
@@ -651,7 +648,7 @@ def call_main():
     parser.add_option("--disable_global_cutoff", dest="use_global_cutoff", action="store_false", help="disables global transcriptome level cutoff to CLIP-seq peaks, Default:On", default=True, metavar="P")
     parser.add_option("--FDR", dest="FDR_alpha", type="float", default=0.05, help="FDR cutoff for significant height estimation, default=%default")
     parser.add_option("--threshold-method", dest="method", default="random", help="Method used for determining height threshold, Can use default=random or binomial")
-    parser.add_option("--binomial", dest="binom", type="float", default=0.001, help ="Alpha significance threshold for using Binomial distribution for determining height threshold, default=%default")
+    parser.add_option("--binomial", dest="binom", type="float", default=0.05, help ="Alpha significance threshold for using Binomial distribution for determining height threshold, default=%default")
     parser.add_option("--threshold", dest="threshold", type="int", default=None, help="Skip FDR calculation and set a threshold yourself")
     parser.add_option("--maxgenes", dest="maxgenes", default=None, type="int", help="stop computation after this many genes, for testing", metavar="NGENES")
     parser.add_option("--processors", dest="np", default="autodetect", help="Number of processors to use. Default: All processors on machine", type="str", metavar="NP")
