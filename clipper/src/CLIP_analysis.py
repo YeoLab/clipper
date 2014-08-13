@@ -51,11 +51,9 @@ def intersection(A, B=None):
     """
     
     overlapping = A.intersect(B, wa=True, u=True).saveas()
-    remaining   = A.intersect(B, wa=True, v=True).saveas()
-    #overlapping = A.subtract(B, s=True, A=True).saveas() #without regions that overlap
-    #print len(less)
-    #remaining = A.subtract(less, s=True, A=True) #only regions that overlap
-    return remaining, overlapping 
+    remaining = A.intersect(B, wa=True, v=True).saveas()
+
+    return remaining, overlapping
 
 
 def adjust_offsets(tool, offsets=None):
@@ -75,7 +73,7 @@ def adjust_offsets(tool, offsets=None):
     
     """
     
-    if offsets == None:
+    if offsets is None:
         raise Exception, "no offsets"
     
     clusters = []
@@ -130,7 +128,7 @@ def count_genomic_types(as_structure_dict):
 
 
 
-def count_genomic_region_sizes(regions_dir, regions, species="hg19"):
+def count_genomic_region_sizes(regions, species="hg19"):
     
     """
     
@@ -146,52 +144,7 @@ def count_genomic_region_sizes(regions_dir, regions, species="hg19"):
         genomic_region_sizes[region] = region_tool.total_coverage()
     return genomic_region_sizes
 
-def build_genomic_regions(tool, prox_distance=500):
-    
-    """
-    
-    Makes dict of seperated genomic regions from gtf file
-    
-    tool: gtf formatted bedfile with gene definitions.  Must contain defenitions 3UTR, 5UTR, CDS and exon
-    prox_distance, the distance to define an intron as proximal
-    returns dict of regions 5UTR, 3UTR, CDS, proxintron, distintron
-    
-    """
-    
-    prev_line = None
-    proximal_introns = ""
-    distal_introns   = ""
-    
-    for line in tool.filter(lambda read: read[2] == "exon"):
-        if prev_line is None or not prev_line.name == line.name:
-            prev_line = line
-            continue
-        
-        #adjust by one to prevent overlapping regions
-        
-        if line.start - prev_line.stop < prox_distance * 2:
-             proximal_introns += "\t".join([str(x) for x in [prev_line.chrom, "stdin", "proxintron", prev_line.stop + 1, line.start - 1, prev_line.name, prev_line.strand, "gene_id \"%s\";" % (line.name), "\n"]])
-        else:
-            #May be an off by one bug here, but it doesn't matter to much... (hopefully)
-            proximal_introns += "\t".join([str(x) for x in [prev_line.chrom, "stdin", "proxintron", prev_line.stop + 1, prev_line.stop + prox_distance, prev_line.name, prev_line.strand, "gene_id \"%s\";" % (line.name),  "\n"]])
-            proximal_introns += "\t".join([str(x) for x in [line.chrom, "stdin", "proxintron", line.start - prox_distance, line.start - 1, line.name, line.strand, "gene_id \"%s\";" % (line.name), "\n"]])
-            
-            #adjust by 2 bp so we don't overlap the stop / start site of either the exon or the proxintron
-            distal_introns += "\t".join([str(x) for x in [line.chrom, "stdin", "proxintron",  prev_line.stop + prox_distance + 2, line.start - prox_distance - 2, line.name, line.strand, "gene_id \"%s\";" % (line.name), "\n"]])
-
-        prev_line = line
-        
-    proximal_introns = pybedtools.BedTool(proximal_introns, from_string=True)
-    distal_introns   = pybedtools.BedTool(distal_introns, from_string=True)
-    UTR_5 = tool.filter(lambda read: read[2] == "5UTR").saveas()
-    UTR_3 = tool.filter(lambda read: read[2] == "3UTR").saveas()
-    CDS  = tool.filter(lambda read: read[2] == "CDS").saveas()
-    
-    return {"CDS" : CDS, "UTR5" : UTR_5, "UTR3" : UTR_3, "proxintron" : proximal_introns, "distintron" : distal_introns}
-
-def assign_to_regions(tool, clusters, speciesFA, regions_dir, regions, 
-                      assigned_dir, fasta_dir, species="hg19", nrand = 3, 
-                      getseq=False):
+def assign_to_regions(tool, clusters, speciesFA, regions, assigned_dir, fasta_dir, species="hg19", nrand=3):
     
     """
     
@@ -214,24 +167,22 @@ def assign_to_regions(tool, clusters, speciesFA, regions_dir, regions,
     shuffling for background, should still be factored out
     
     """
-    
-    
-    
+
     bedtracks = {}
 
+    #TODO refactor this to use get_genomic_regions
     for region in regions:
         bedtracks[region] = pybedtools.BedTool(os.path.join(clipper.data_dir(), "regions", species + "_" + region + ".bed"))
               
     #creates the basics of bed dict
-    bed_dict = {}
-    bed_dict['all'] = {}
+    bed_dict = {'all': {}}
     bed_dict['all']['rand'] = {}
 
     #can't append None to string so hack a null bed tool
     for n in range(nrand):
         bed_dict['all']['rand'][n] = pybedtools.BedTool("", from_string=True)
 
-    bed_dict['all']['real'] = pybedtools.BedTool("", from_string = True)
+    bed_dict['all']['real'] = pybedtools.BedTool("", from_string=True)
     
     offsets = get_offsets_bed12(tool)
     tool = tool.merge(s=True, c="4,5,6,7,8", o="collapse,collapse,min,min,min")
@@ -245,32 +196,30 @@ def assign_to_regions(tool, clusters, speciesFA, regions_dir, regions,
         
         #handles case of no more things to assign... I think
  
-        remaining_clusters, overlapping = intersection(remaining_clusters, 
-                                                  B = bedtracks[region])  
+        remaining_clusters, overlapping = intersection(remaining_clusters,
+                                                       B=bedtracks[region])
 
-        
         #if for some reason there isn't a peak in the region skip it
         if len(overlapping) == 0:
-            print "ignoring %s " % (region)
+            print "ignoring %s " % region
             continue
         
         #sets up bed dict for this region
         bed_dict[region] = {}
         bed_dict[region]['rand'] = {}
-        
-        bed_dict[region]['real'] = overlapping.filter(is_valid_bed12).sort().saveas(os.path.join(assigned_dir, output_file))
-        remaining_clusters = pybedtools.BedTool(str(remaining_clusters.filter(is_valid_bed12)), from_string=True)
-        
+        bed_dict[region]['real'] = overlapping.sort().sort().saveas(os.path.join(assigned_dir, output_file))
+        remaining_clusters = remaining_clusters.saveas()
+
         no_overlapping_count = len(remaining_clusters)
         overlapping_count = len(bed_dict[region]['real'])
         print "For region: %s I found %d that overlap and %d that don't" % (region, overlapping_count, no_overlapping_count)
               
-        bed_dict['all']['real'] = pybedtools.BedTool(str(bed_dict['all']['real']) + str(bed_dict[region]['real']), from_string=True)    
+        bed_dict['all']['real'] = bed_dict['all']['real'].cat(bed_dict[region]['real'], postmerge=False)
         
         #this should be factored out
         sizes[region] = bed_dict[region]['real'].total_coverage()
         
-        region_fa = fa_file(clusters, region = region, directory=fasta_dir, type="real")
+        region_fa = fa_file(clusters, region=region, directory=fasta_dir, type="real")
         bed_dict[region]['real'].sequence(fi=speciesFA, s=True).save_seqs(region_fa)
 
         #saves offsets so after shuffling the offsets can be readjusted    
@@ -294,7 +243,7 @@ def assign_to_regions(tool, clusters, speciesFA, regions_dir, regions,
             
             rand_list.append(bed_dict[region]['rand'][i].sequence(fi=speciesFA, s=True))
             
-        write_seqs(fa_file(clusters, region = region, directory=fasta_dir, type="random"), rand_list)
+        write_seqs(fa_file(clusters, region=region, directory=fasta_dir, type="random"), rand_list)
         
         #if there are no more clusters to assign stop trying
         if no_overlapping_count == 0:
@@ -320,58 +269,6 @@ def assign_to_regions(tool, clusters, speciesFA, regions_dir, regions,
     write_seqs(fa_file(clusters, region = "all", directory=fasta_dir, type="random"), rand_list)
     
     return bed_dict, sizes
-
-def build_assigned_from_existing(assigned_dir, clusters, regions, nrand):
-    
-    """
-    
-    Loads results produced from above analysis from saved file - can either be switched to
-    piclking or removed 
-    
-    assigned_dir - location of files
-    clusters - name of experiment
-    regions - list of genic regions 
-    nrand - number of shuffled datsets to look for
-    
-    """
-    
-    CLUS_regions = {}
-    for region in regions:
-        CLUS_regions[region]={}
-        for n in range(nrand):
-            CLUS_regions[region]['rand']={}
-    for region, region_descrip in regions:
-        bedfile = os.path.join(assigned_dir, "%s.%s.real.BED" %(clusters, region))
-        CLUS_regions[region]['real'] = pybedtools.BedTool(bedfile)
-        for n in range(nrand):
-            randbedfile = os.path.join(assigned_dir, "%s.%s.rand.%s.BED" %(clusters, region, str(n)))                
-            CLUS_regions[region]['rand'][n] = pybedtools.BedTool(randbedfile)
-    try:
-        sizes = pickle.load(open(os.path.join(assigned_dir, "%s.sizes.pickle" %(clusters)), 'rb'))
-    except:
-        sizes=[1,1,1,1,1]
-    try:
-        Gsizes = pickle.load(open(os.path.join(assigned_dir, "Gsizes.pickle"), 'rb'))
-    except:
-        Gsizes=[1,1,1,1,1]
-
-    return CLUS_regions, sizes, Gsizes
-
-def is_valid_bed12(interval):
-    
-    """
-    
-    Removes clusters that start in invalid locations for bed12 formatted files
-    
-    x - bedline
-    
-    returns either true if line is valid 
-    
-    """
-    
-    tstart = int(interval[6])
-    tstop = int(interval[7])
-    return interval.start < tstart and interval.stop > tstop
 
 
 def get_offsets_bed12(tool):
@@ -1281,37 +1178,16 @@ def main(options):
     del assigned_regions['all']
     
     genes_dict, genes_bed = parse_AS_STRUCTURE_dict(species, options.as_structure)
-    
-    if not options.assign:
-        try:
-            cluster_regions, region_sizes, genic_region_sizes = build_assigned_from_existing(assigned_dir, clusters, regions, options.nrand)
-            
-            print "I used a pre-assigned set output_file BED files... score!"
-        except:
-            
-            print "I had problems retreiving region-assigned BED files from %s, i'll rebuild" % (assigned_dir)
-            options.assign = True
-    
-    if options.assign:
-        print "Assigning Clusters to Genic Regions"
+    cluster_regions, region_sizes = assign_to_regions(tool=clusters_bed,
+                                                      clusters=clusters,
+                                                      speciesFA=options.genome_location,
+                                                      regions=assigned_regions,
+                                                      assigned_dir=assigned_dir,
+                                                      fasta_dir=fasta_dir,
+                                                      species=species,
+                                                      nrand=options.nrand)
         
-       
-        
-        
-        cluster_regions, region_sizes = assign_to_regions(clusters_bed,
-                                                   clusters,
-                                                   options.genome_location, 
-                                                   options.regions_location, 
-                                                   assigned_regions,
-                                                   assigned_dir=assigned_dir,
-                                                   fasta_dir=fasta_dir,
-                                                   species=species, 
-                                                   getseq=True, 
-                                                   nrand=options.nrand,
-                                                   )
-        
-        genic_region_sizes = count_genomic_region_sizes(options.regions_location, assigned_regions,
-                                                            species)
+    genic_region_sizes = count_genomic_region_sizes(assigned_regions, species)
 
 
             
