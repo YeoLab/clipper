@@ -35,9 +35,11 @@ mpl.rcParams['svg.fonttype'] = 'none'
 rc('text', usetex=False)
 rc('font',**{'family':'sans-serif','sans-serif':['Helvetica']})
 
+
 def name_to_chrom(interval):
     interval.chrom = interval.name
     return interval
+
 
 def intersection(A, B=None):
     
@@ -50,59 +52,10 @@ def intersection(A, B=None):
     
     """
     
-    overlapping = A.intersect(B, wa=True, u=True).saveas()
-    remaining = A.intersect(B, wa=True, v=True).saveas()
+    overlapping = A.intersect(B, wa=True, u=True, stream=True).saveas()
+    remaining = A.intersect(B, wa=True, v=True, stream=True).saveas()
 
     return remaining, overlapping
-
-
-def adjust_offsets(tool, offsets=None):
-    
-    """
-    
-    For finding motiff position relative to center of peaks
-    Handles merging overlapping peaks, merge > bed12 -> bed6
-    picks first offset from merged peak and assigns tqhat to 
-    new peaks
-    
-    Input:
-    tool - a bed tool (bed12) object
-    offset - dict of key:peak, value:int 
-    Adjusts the offsets for each transcript in a bedtool
-    
-    
-    """
-    
-    if offsets is None:
-        raise Exception, "no offsets"
-    
-    clusters = []
-    for bed_line in tool:
-        #the ; represents two merged locations 
-        if "," in bed_line.name and bed_line.name not in offsets:
-            offset = offsets[bed_line.name.split(",")[0]]
-        else:
-            offset = offsets[bed_line.name]
-        
-        if bed_line.strand == "+":
-            thick_start = bed_line.start + offset
-            thick_stop = thick_start + 4
-        else:
-            thick_stop = bed_line.stop - offset
-            thick_start = thick_stop - 4
-            
-        clusters.append("\t".join([str(x) for x in (bed_line.chrom, 
-                                                    bed_line.start, 
-                                                    bed_line.stop, 
-                                                    bed_line.name, 
-                                                    bed_line.score, 
-                                                    bed_line.strand, 
-                                                    thick_start, 
-                                                    thick_stop)]))
-    
-    return pybedtools.BedTool("\n".join(clusters), from_string=True)
-    
-
 
 
 def count_genomic_types(as_structure_dict):
@@ -144,6 +97,59 @@ def count_genomic_region_sizes(regions, species="hg19"):
         genomic_region_sizes[region] = region_tool.total_coverage()
     return genomic_region_sizes
 
+
+def get_sizes(cluster_regions):
+    """
+
+    :param cluster_regions: Dict of clusters generatd by assign_to_regions
+    :return: dict of {region: size of region}
+
+    """
+
+    return {region: bedtools['real'].total_coverage() for region, bedtools in cluster_regions.items()}
+
+
+def make_fasta_files_from_regions(cluster_regions, clusters, fasta_dir, speciesFA):
+    """
+    Makes and saves fasta files given a cluster regions dict
+    :param cluster_regions:
+    :return:  nothing, but saves lots of fasta files to a dir
+    """
+
+    for region in cluster_regions:
+        region_fa = fa_file(clusters, region=region, directory=fasta_dir, type="real")
+        cluster_regions[region]['real'].sequence(fi=speciesFA, s=True).save_seqs(region_fa)
+
+        if "rand" not in cluster_regions[region]:
+            continue
+
+        rand_list = []
+        for n_rand in cluster_regions[region]['rand']:
+            rand_list.append(cluster_regions[region]['rand'][n_rand].sequence(fi=speciesFA, s=True))
+
+        write_seqs(fa_file(clusters, region=region, directory=fasta_dir, type="random"), rand_list)
+
+
+def save_bedtools(cluster_regions, clusters, assigned_dir):
+    """
+    Given cluster regions file saves all bedtools sanely and returns result
+    :param cluster_regions:
+    :return:
+    """
+    for region in cluster_regions:
+        output_file = "%s.%s.real.BED" % (clusters, region)
+        cluster_regions[region]['real'] = cluster_regions[region]['real'].saveas(os.path.join(assigned_dir, output_file))
+
+        if "rand" not in cluster_regions[region]:
+            continue
+
+        for n_rand in cluster_regions[region]['rand']:
+            output_file = "%s.%s.rand.%s.BED" % (clusters, region, n_rand)
+            cluster_regions[region]['rand'][n_rand] = cluster_regions[region]['rand'][n_rand].saveas(os.path.join(assigned_dir, output_file))
+
+    return cluster_regions
+
+
 def assign_to_regions(tool, clusters, speciesFA, regions, assigned_dir, fasta_dir, species="hg19", nrand=3):
     
     """
@@ -172,11 +178,11 @@ def assign_to_regions(tool, clusters, speciesFA, regions, assigned_dir, fasta_di
 
     #TODO refactor this to use get_genomic_regions
     for region in regions:
-        bedtracks[region] = pybedtools.BedTool(os.path.join(clipper.data_dir(), "regions", species + "_" + region + ".bed"))
+        bedtracks[region] = pybedtools.BedTool(os.path.join(clipper.data_dir(), "regions", "%s_%s.bed" % (species,
+                                                                                                          region)))
               
     #creates the basics of bed dict
-    bed_dict = {'all': {}}
-    bed_dict['all']['rand'] = {}
+    bed_dict = {'all': {'rand': {}}}
 
     #can't append None to string so hack a null bed tool
     for n in range(nrand):
@@ -185,19 +191,13 @@ def assign_to_regions(tool, clusters, speciesFA, regions, assigned_dir, fasta_di
     bed_dict['all']['real'] = pybedtools.BedTool("", from_string=True)
     
     offsets = get_offsets_bed12(tool)
-    tool = tool.merge(s=True, c="4,5,6,7,8", o="collapse,collapse,min,min,min")
+    tool = tool.merge(s=True, c="4,5,6,7,8", o="collapse,collapse,min,min,min", stream=True).saveas()
     remaining_clusters = adjust_offsets(tool, offsets)
     
     print "There are a total %d clusters I'll examine" % (len(tool))
-    sizes = {}
-    
     for region in regions:
-        output_file = clusters + "." + region + ".real.BED"
-        
-        #handles case of no more things to assign... I think
- 
-        remaining_clusters, overlapping = intersection(remaining_clusters,
-                                                       B=bedtracks[region])
+
+        remaining_clusters, overlapping = intersection(remaining_clusters, B=bedtracks[region])
 
         #if for some reason there isn't a peak in the region skip it
         if len(overlapping) == 0:
@@ -205,70 +205,41 @@ def assign_to_regions(tool, clusters, speciesFA, regions, assigned_dir, fasta_di
             continue
         
         #sets up bed dict for this region
-        bed_dict[region] = {}
-        bed_dict[region]['rand'] = {}
-        bed_dict[region]['real'] = overlapping.sort().sort().saveas(os.path.join(assigned_dir, output_file))
-        remaining_clusters = remaining_clusters.saveas()
+        bed_dict[region] = {'real': overlapping.sort(stream=True).saveas(),
+                            'rand': {}}
 
         no_overlapping_count = len(remaining_clusters)
         overlapping_count = len(bed_dict[region]['real'])
-        print "For region: %s I found %d that overlap and %d that don't" % (region, overlapping_count, no_overlapping_count)
-              
-        bed_dict['all']['real'] = bed_dict['all']['real'].cat(bed_dict[region]['real'], postmerge=False)
-        
-        #this should be factored out
-        sizes[region] = bed_dict[region]['real'].total_coverage()
-        
-        region_fa = fa_file(clusters, region=region, directory=fasta_dir, type="real")
-        bed_dict[region]['real'].sequence(fi=speciesFA, s=True).save_seqs(region_fa)
+        print "For region: %s found %d that overlap and %d that don't" % (region,
+                                                                          overlapping_count,
+                                                                          no_overlapping_count)
 
-        #saves offsets so after shuffling the offsets can be readjusted    
-        offset_dict = get_offsets_bed12(overlapping)
-    
+        bed_dict['all']['real'] = bed_dict['all']['real'].cat(bed_dict[region]['real'], stream=True, postmerge=False)
+
+        #saves offsets so after shuffling the offsets can be readjusted
+        offset_dict = get_offsets_bed12(bed_dict[region]['real'])
         #TODO refactor to different function
         rand_list = []
         for i in range(nrand):
-            output_file = clusters + "." + region + ".rand." + str(i) + ".BED"
-            
-            #for each region shuffles all peaks in that region around the region 
-            #then pulls out sequences if requested 
-            random_intervals = bed_dict[region]['real'].shuffle(genome=species, incl=bedtracks[region].fn).sort()
-
-            #shuffling doesn't change offsets so we adjust bed 11 and 12 lines here to correct 
+            random_intervals = bed_dict[region]['real'].shuffle(genome=species, incl=bedtracks[region].fn).sort(stream=True)
             random_intervals = adjust_offsets(random_intervals, offset_dict)
-            
-            #saves intervals, makes the all interval by appending all regions together
-            bed_dict[region]['rand'][i] = random_intervals.saveas(os.path.join(assigned_dir, output_file))
-            bed_dict['all']['rand'][i] = pybedtools.BedTool(str(bed_dict['all']['rand'][i]) + str(bed_dict[region]['rand'][i]), from_string=True)
-            
-            rand_list.append(bed_dict[region]['rand'][i].sequence(fi=speciesFA, s=True))
-            
-        write_seqs(fa_file(clusters, region=region, directory=fasta_dir, type="random"), rand_list)
-        
+            bed_dict[region]['rand'][i] = random_intervals.saveas()
+
+            bed_dict['all']['rand'][i] = bed_dict['all']['rand'][i].cat(bed_dict[region]['rand'][i], stream=True, postmerge=False)
+
         #if there are no more clusters to assign stop trying
         if no_overlapping_count == 0:
             break
-    print "After assigning, I\'m left with %d un-categorized regions" %(len(remaining_clusters))
+
+    print "After assigning %d un-categorized regions" % len(remaining_clusters)
 
     if len(remaining_clusters) > 0:
-        bed_dict['uncatagorized'] = remaining_clusters.sort()
+        bed_dict['uncatagorized'] = {'real': remaining_clusters.sort(stream=True)}
 
-    #Save results for the all section
- 
-    real_fa = fa_file(clusters, region = "all", directory=fasta_dir, type="real")
+    make_fasta_files_from_regions(bed_dict, clusters, fasta_dir, speciesFA)
+    bed_dict = save_bedtools(bed_dict, clusters, assigned_dir)
 
-    bed_dict['all']['real'] = bed_dict['all']['real'].sort()
-    bed_dict['all']['real'].sequence(fi=speciesFA,  s=True).save_seqs(real_fa)
-    
-    rand_list = []
-    for i in range(nrand):
-        output_file = clusters + ".all.rand." + str(i) + ".BED" 
-        bed_dict['all']['rand'][i] = bed_dict['all']['rand'][i].sort()
-        rand_list.append(bed_dict['all']['rand'][i].sequence(fi=speciesFA, s=True))
-  
-    write_seqs(fa_file(clusters, region = "all", directory=fasta_dir, type="random"), rand_list)
-    
-    return bed_dict, sizes
+    return bed_dict
 
 
 def get_offsets_bed12(tool):
@@ -283,22 +254,69 @@ def get_offsets_bed12(tool):
     returns offset for each cluster
     
     """
-    
-    offset_dict = {}
-    for line in tool:
 
-        if line.strand == "+":
-            #get difference between thick start and start
-            offset = int(line[6]) - int(line[1]) 
+    try:
+        offset_dict = {}
+        for line in tool:
+
+            if line.strand == "+":
+                offset = int(line[6]) - int(line[1])
+            else:
+                offset = int(line[2]) - int(line[7])
+
+            offset_dict[line.name] = offset
+
+        return offset_dict
+    except:
+        print "Not Valid bed12 file, continuing processing, some things may be strange"
+        return None
+
+
+def adjust_offsets(tool, offsets=None):
+
+    """
+
+    For finding motiff position relative to center of peaks
+    Handles merging overlapping peaks, merge > bed12 -> bed6
+    picks first offset from merged peak and assigns tqhat to
+    new peaks
+
+    Input:
+    tool - a bed tool (bed12) object
+    offset - dict of key:peak, value:int
+    Adjusts the offsets for each transcript in a bedtool
+
+
+    """
+
+    if offsets is None:
+        return tool
+
+    clusters = []
+    for bed_line in tool:
+        #the ; represents two merged locations
+        if "," in bed_line.name and bed_line.name not in offsets:
+            offset = offsets[bed_line.name.split(",")[0]]
         else:
-            #get difference between thick start and start
-            offset = int(line[2]) - int(line[7])
-        
-        #need a primary key...
-        offset_dict[line.name] = offset
-        
-    return offset_dict
+            offset = offsets[bed_line.name]
 
+        if bed_line.strand == "+":
+            thick_start = bed_line.start + offset
+            thick_stop = thick_start + 4
+        else:
+            thick_stop = bed_line.stop - offset
+            thick_start = thick_stop - 4
+
+        clusters.append("\t".join([str(x) for x in (bed_line.chrom,
+                                                    bed_line.start,
+                                                    bed_line.stop,
+                                                    bed_line.name,
+                                                    bed_line.score,
+                                                    bed_line.strand,
+                                                    thick_start,
+                                                    thick_stop)]))
+
+    return pybedtools.BedTool("\n".join(clusters), from_string=True)
 
 def RNA_position_interval(interval, location_dict):
     
@@ -732,26 +750,27 @@ def run_homer(foreground, background, k = list([5,6,7,8,9]), outloc = os.getcwd(
                                   outloc, "-nofacts", "-p", "4", "-rna", "-S", "20",
                                    "-len", k, "-noconvert", "-nogo", "-fasta", background], shell=False, stdout=fnull)
             
-        print "Homer Finished, output here: %s" %(outloc)
+        print "Homer Finished, output here: %s" % outloc
     except OSError:
         print "Homer not installed, ignoring motif generation, install homer for this to work"  
         raise   
-    
+
+
 def write_seqs(outfile, bedtool_list):
     
     """
     
     outputs bedtools file to another file 
     
-    Combines all sequences because its the punative background that gets used by other analysies
+    Combines all sequences because its the punitive background that gets used by other analyses
     """
     
     #TODO refactor to just the bedtools save function
-    f = open(outfile, "w")
-    for bedtool in bedtool_list:
-        f.write(open(bedtool.seqfn).read())
-    f.close()
-    return
+    with open(outfile, "w") as fn:
+        for bedtool in bedtool_list:
+            with open(bedtool.seqfn) as fasta:
+                fn.write(fasta.read())
+
 
 def bedlengths(tool):
     
@@ -815,7 +834,7 @@ def get_mean_phastcons(bedtool, phastcons_location, sample_size = 1000):
     return data
 
 
-def fa_file(filename, region = None, directory=None, type = "real"):
+def fa_file(filename, region=None, directory=None, type="real"):
     
     """
     
@@ -1178,7 +1197,7 @@ def main(options):
     del assigned_regions['all']
     
     genes_dict, genes_bed = parse_AS_STRUCTURE_dict(species, options.as_structure)
-    cluster_regions, region_sizes = assign_to_regions(tool=clusters_bed,
+    cluster_regions = assign_to_regions(tool=clusters_bed,
                                                       clusters=clusters,
                                                       speciesFA=options.genome_location,
                                                       regions=assigned_regions,
@@ -1186,7 +1205,9 @@ def main(options):
                                                       fasta_dir=fasta_dir,
                                                       species=species,
                                                       nrand=options.nrand)
-        
+
+    region_sizes = get_sizes(cluster_regions)
+
     genic_region_sizes = count_genomic_region_sizes(assigned_regions, species)
 
 
