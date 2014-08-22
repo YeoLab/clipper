@@ -10,6 +10,8 @@ import os
 import gffutils
 import pybedtools
 from clipper import data_dir
+
+
 class GenomicFeatures():
     """
 
@@ -55,7 +57,8 @@ class GenomicFeatures():
                              "transcript" : "mRNA",
                              }
             self._fix_chrom = self._fix_chrom_ce10
-    
+
+        self.featuretypes = list(self._db.featuretypes())
     def _to_bed(self, interval):
         """
         interval: gffutils interval
@@ -102,11 +105,11 @@ class GenomicFeatures():
     
         prox_introns = []
         dist_introns = []
-    
+
         for intron in introns:
             #want distal introns to have size at least one, otherwise
             if len(intron) <= (prox_size * 2) + 3: 
-                #they are poximal
+                #they are proximal
                 prox_introns.append(intron)
             else:
                 #create prox and dist intron ranges from intron 
@@ -125,7 +128,6 @@ class GenomicFeatures():
                 dist_introns.append(dist_intron)
         return prox_introns, dist_introns
 
-    
     def _rename_regions(self, intervals, gene_id):
         """
         
@@ -169,8 +171,7 @@ class GenomicFeatures():
         """
         mrna_five_prime_utrs = []
         mrna_three_prime_utrs = []
-        if (self._feature_names['five_prime_utr']  in feature_types and
-            self._feature_names['three_prime_utr'] in feature_types):
+        if (self._feature_names['five_prime_utr'] in feature_types and self._feature_names['three_prime_utr'] in feature_types):
             
             mrna_five_prime_utrs = (list(self._db.children(mrna, featuretype=self._feature_names['five_prime_utr'])))
             mrna_three_prime_utrs = (list(self._db.children(mrna, featuretype=self._feature_names['three_prime_utr'])))
@@ -203,7 +204,44 @@ class GenomicFeatures():
                     else:
                         print "odd in the negative strand"
         return mrna_five_prime_utrs, mrna_three_prime_utrs
-    
+
+    def _interval_key(self, interval):
+        return interval.start
+
+    def _gene_regions(self, gene, prox_size=500):
+        gene_five_prime_utrs = []
+        gene_three_prime_utrs = []
+        gene_cds = []
+        gene_exons = []
+        gene_introns = []
+        gene_dist_introns = []
+        gene_prox_introns = []
+        for mrna in self._db.children(gene, featuretype=self._feature_names['transcript']):
+            mrna_cds = list(self._db.children(mrna, featuretype=self._feature_names['CDS']))
+            mrna_exons = list(self._db.children(mrna, featuretype=self._feature_names['exon']))
+            gene_exons += mrna_exons
+            gene_cds += mrna_cds
+            mrna_five_prime_utrs, mrna_three_prime_utrs = self._get_utrs(mrna, mrna_cds, self.featuretypes)
+            gene_five_prime_utrs += mrna_five_prime_utrs
+            gene_three_prime_utrs += mrna_three_prime_utrs
+            mrna_introns = list(self._db.interfeatures(self._db.merge(sorted(mrna_exons, key=self._interval_key))))
+            gene_introns += mrna_introns
+            mrna_prox_introns, mrna_dist_introns = self._get_proximal_distal_introns(mrna_introns, prox_size)
+            gene_dist_introns += mrna_dist_introns
+            gene_prox_introns += mrna_prox_introns
+
+        gene_id = gene.attributes[self._feature_names['gene_id']]
+
+
+
+        return self._merge_and_rename_regions(gene_cds, gene.id), \
+               self._merge_and_rename_regions(gene_dist_introns, gene_id), \
+               self._merge_and_rename_regions(gene_exons, gene_id),  \
+               self._merge_and_rename_regions(gene_five_prime_utrs, gene_id), \
+               self._merge_and_rename_regions(gene_introns, gene_id), \
+               self._merge_and_rename_regions(gene_prox_introns, gene_id), \
+               self._merge_and_rename_regions(gene_three_prime_utrs, gene_id)
+
     def get_genomic_regions(self, prox_size=500, limit_genes=False, flush_cashe=False):
         
         """
@@ -242,56 +280,37 @@ class GenomicFeatures():
         prox_introns = []
         gene_list = []
         introns = []
-        feature_types = list(self._db.featuretypes())
         for i, gene in enumerate(self._db.features_of_type('gene')):
+            gene_list.append(gene)
             if i % 2000 == 0:
                 print "processed %d genes" % (i)
                 if i == 2000 and limit_genes:
                     break
-                
-            gene_list.append(gene)
-            gene_five_prime_utrs = []
-            gene_three_prime_utrs = []
-            gene_cds = []
-            gene_exons = []
-            
-            for mrna in self._db.children(gene, featuretype=self._feature_names['transcript']):
-                mrna_cds = list(self._db.children(mrna, featuretype=self._feature_names['CDS']))
-                mrna_exons = list(self._db.children(mrna, featuretype=self._feature_names['exon']))
-                gene_exons += mrna_exons
-                gene_cds += mrna_cds
-                mrna_five_prime_utrs, mrna_three_prime_utrs = self._get_utrs(mrna, mrna_cds, feature_types)
-                gene_five_prime_utrs += mrna_five_prime_utrs
-                gene_three_prime_utrs += mrna_three_prime_utrs
-                   
-            gene_id = gene.attributes[self._feature_names['gene_id']]
-            merged_exons = self._merge_and_rename_regions(gene_exons, gene_id)
-            gene_introns = list(self._db.interfeatures(merged_exons))
-            gene_prox_introns, gene_dist_introns = self._get_proximal_distal_introns(gene_introns, 
-                                                                                     prox_size)
-            
-            exons += merged_exons
+
+
+            gene_cds, gene_dist_introns, gene_exons, gene_five_prime_utrs, gene_introns, gene_prox_introns, gene_three_prime_utrs = self._gene_regions(gene)
+            three_prime_utrs += gene_three_prime_utrs
+            five_prime_utrs += gene_five_prime_utrs
+            cds += gene_cds
+            exons += gene_exons
+            dist_introns += gene_dist_introns
+            prox_introns += gene_prox_introns
             introns += gene_introns
-            prox_introns += self._rename_regions(gene_prox_introns, gene_id)
-            dist_introns += self._rename_regions(gene_dist_introns, gene_id)
-            cds += self._merge_and_rename_regions(gene_cds, gene.id)       
-            five_prime_utrs += self._merge_and_rename_regions(gene_five_prime_utrs, gene_id)
-            three_prime_utrs += self._merge_and_rename_regions(gene_three_prime_utrs, gene_id)
 
         #make exons and introns
-        results = {"genes" : gene_list,
-                   "five_prime_utrs" : five_prime_utrs,
-                   "three_prime_utrs" : three_prime_utrs,
-                   "cds" : cds, 
-                   "proxintron" : prox_introns, 
+        results = {"genes": gene_list,
+                   "five_prime_utrs": five_prime_utrs,
+                   "three_prime_utrs": three_prime_utrs,
+                   "cds": cds,
+                   "proxintron": prox_introns,
                    "distintron": dist_introns,
-                   "exons" : exons,
-                   "introns" : introns}
+                   "exons": exons,
+                   "introns": introns}
         
         for name, intervals in results.items():
             intervals = pybedtools.BedTool(map(self._to_bed, intervals)).remove_invalid().sort().each(self._fix_chrom)
             
-            if name in ["prox_introns", "dist_introns"]:
+            if name in ["proxintron", "distintron"]:
                 results[name] = intervals.saveas(region_and_species + "_%s%d.bed" % (name, 
                                                                                      prox_size))
             else:
