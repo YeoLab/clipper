@@ -236,8 +236,9 @@ def assign_to_regions(tool, clusters, speciesFA, regions, assigned_dir, fasta_di
     if len(remaining_clusters) > 0:
         bed_dict['uncatagorized'] = {'real': remaining_clusters.sort(stream=True)}
 
-    make_fasta_files_from_regions(bed_dict, clusters, fasta_dir, speciesFA)
     bed_dict = save_bedtools(bed_dict, clusters, assigned_dir)
+    make_fasta_files_from_regions(bed_dict, clusters, fasta_dir, speciesFA)
+
 
     return bed_dict
 
