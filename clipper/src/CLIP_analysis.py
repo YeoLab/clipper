@@ -1338,17 +1338,13 @@ def main(options):
         outfile.write("FRiP\n")
         outfile.write("\t".join([str(float(reads_in_clusters) / float(total_reads))]) + "\n")
     
-    
-    #fin
+
 def call_main():  
     parser = OptionParser()
     
     parser.add_option("--clusters", dest="clusters", help="BED file of clusters", metavar="BED")
     parser.add_option("--bam", dest="bam", help="The bam file from the CLIP analysis")
     parser.add_option("--species", "-s", dest="species", help = "genome version")
-    ##to-do. this should be auto-set if the creation date of "clusters" is after creation date fo assigned files
-    #parser.add_option("--reAssign", dest="assign", action="store_true", default=False, help="re-assign clusters, if not set it will re-use existing assigned clusters") 
-    ##to-do. this should be auto-set if the creation date of "clusters" is after creation date fo assigned files
     parser.add_option("--rePhast", dest="rePhast", action="store_true", default=False, help="re-calculate conservation, must have been done before") 
     parser.add_option("--runPhast", dest="runPhast", action="store_true", default=False, help="Run Phastcons ") 
     parser.add_option("--runMotif", dest="reMotif", action="store_true", default=False, help="Calculate Motif scores")
@@ -1367,7 +1363,6 @@ def call_main():
     parser.add_option("--phastcons_location", dest="phastcons_location",  help="location of phastcons file", default=None)
     parser.add_option("--regions_location", dest="regions_location",  help="directory of genomic regions for a species", default=None)
     parser.add_option("--motif_directory", dest="motif_location",  help="directory of pre-computed motifs for analysis", default=os.getcwd())
-    parser.add_option("--reAssign", dest="assign", action="store_true", default=False, help="re-assign clusters, if not set it will re-use existing assigned clusters")
     parser.add_option("--metrics", dest="metrics", default="CLIP_Analysis.metrics", help="file name to output metrics to")
     parser.add_option("--extension", dest="extension", default="svg", help="file extension to use (svg, png, pdf...)")
     parser.add_option("--bw_pos",  help="bigwig file, on the positive strand")
