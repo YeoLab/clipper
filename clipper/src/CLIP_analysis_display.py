@@ -44,29 +44,26 @@ class ClipVisualization():
 
         data = pickle.load(pickle_file)
 
-        self.reads_in_clusters = data['reads_in_clusters']
-        self.reads_out_clusters = data['reads_out_clusters']
-        self.cluster_lengths = data['cluster_lengths']
-        self.reads_per_cluster = data['reads_per_cluster']
-        self.premRNA = data['distributions']['genes']['total']
-        self.mRNA = data['distributions']['exons']['total']
-        self.exondist = data['distributions']['exons']['individual']
-        self.introndist = data['distributions'] ['introns']['individual']
-        self.genomic_locs = data['genic_region_sizes']
-        self.clusters_locs = data['region_sizes']
-        self.genomic_types = data['genomic_type_count']
-        self.clusters_types = data['type_count']
-        #self.homer_location = data['homerout']
-        self.kmer_results = data['kmer_results']
-        self.motifs = data['motifs']
-        self.phastcons_values = data['phast_values']
-        #self.regions = data['regions']
-        self.read_densities = np.array(data['data'])
-        self.classes = data['classes']
-        self.distributions = data['distributions']
+        self.reads_in_clusters = data['reads_in_clusters'] if "reads_in_clusters" in data else None
+        self.reads_out_clusters = data['reads_out_clusters'] if "reads_out_clusters" in data else None
+        self.cluster_lengths = data['cluster_lengths'] if "cluster_lengths" in data else None
+        self.reads_per_cluster = data['reads_per_cluster'] if "reads_per_cluster" in data else None
+        self.premRNA = data['distributions']['genes']['total'] if "distributions" in data else None
+        self.mRNA = data['distributions']['exons']['total'] if "distributions" in data else None
+        self.exondist = data['distributions']['exons']['individual'] if "distributions" in data else None
+        self.introndist = data['distributions'] ['introns']['individual'] if "distributions" in data else None
+        self.distributions = data['distributions'] if "distributions" in data else None
+        self.genomic_locs = data['genic_region_sizes'] if "genic_region_sizes" in data else None
+        self.clusters_locs = data['region_sizes'] if "region_sizes" in data else None
+        self.genomic_types = data['genomic_type_count'] if "genomic_type_count" in data else None
+        self.clusters_types = data['type_count'] if "type_count" in data else None
+        self.kmer_results = data['kmer_results'] if "kmer_results" in data else None
+        self.motifs = data['motifs'] if "motifs" in data else None
+        self.phastcons_values = data['phast_values'] if "phast_values" in data else None
+        self.read_densities = np.array(data['data']) if "data" in data else None
+        self.classes = data['classes'] if "classes" in data else None
 
-        #TODO Need to load in transcripts and mrnas for plotting
-
+        #TODO Need to load in transcripts and mrnas for plotting, unsure if this is still needed
         #out_dict["premRNA_positions"] = premRNA_positions
         #out_dict["mRNA_positions"] = mRNA_positions
         #out_dict["exon_positions"] = exon_positions
@@ -90,6 +87,9 @@ class ClipVisualization():
         if reads_out_clusters is None:
             reads_out_clusters = self.reads_out_clusters
 
+        if reads_out_clusters is None or reads_out_clusters is None:
+            raise NotImplementedError("Pickle file doesn't have data to generate this figure")
+
         ax.pie([reads_in_clusters, reads_out_clusters],
                labels=["In Clusters", "Outside of\nClusters"])
         return ax
@@ -107,6 +107,9 @@ class ClipVisualization():
         """
         if reads_per_cluster is None:
             reads_per_cluster = self.reads_per_cluster
+
+        if reads_per_cluster is None:
+            raise NotImplementedError("Pickle file doesn't have data to generate this figure")
 
         ax_nreads.hist(reads_per_cluster,
                        bins=50,
@@ -135,6 +138,8 @@ class ClipVisualization():
         if cluster_lengths is None:
             cluster_lengths = self.cluster_lengths
 
+        if cluster_lengths is None:
+            raise NotImplementedError("Pickle file doesn't have data to generate this figure")
         ax_lengths.set_yscale('log')
         ax_lengths.boxplot(random.sample(cluster_lengths,
                                          min(2000, len(cluster_lengths))),
@@ -161,6 +166,10 @@ class ClipVisualization():
             premrna = self.premRNA
         if mrna is None:
             mrna = self.mRNA
+
+        if premrna is None or mrna is None:
+            raise NotImplementedError("Pickle file doesn't have data to generate this figure")
+
         ax, alt_ax = self.build_distribution(ax, premrna, mrna)
 
         ax.set_xlabel("Fraction of region")
@@ -186,6 +195,10 @@ class ClipVisualization():
             exon = self.exondist
         if intron is None:
             intron = self.introndist
+
+        if exon is None or intron is None:
+            raise NotImplementedError("Pickle file doesn't have data to generate this figure")
+
         ax, alt_ax = self.build_distribution(ax, exon, intron)
 
         ax.set_xlabel("Fraction of region")
@@ -248,6 +261,9 @@ class ClipVisualization():
         if regions is None:
             regions = self.regions
 
+        if genomic_locs is None or regions is None:
+            raise NotImplementedError("Pickle file doesn't have data to generate this figure")
+
         ax = self.build_pie_chart_content(ax, genomic_locs, regions)
         return ax
 
@@ -267,6 +283,9 @@ class ClipVisualization():
             cluster_locs = self.clusters_locs
         if regions is None:
             regions = self.regions
+
+        if cluster_locs is None or regions is None:
+            raise NotImplementedError("Pickle file doesn't have data to generate this figure")
 
         ax = self.build_pie_chart_content(ax, cluster_locs, regions)
         return ax
@@ -293,8 +312,14 @@ class ClipVisualization():
                   "proxintron500": "#48843D",
                   "distintron500": "#852882"}
 
-        ax.pie(regions_count.values(), colors=[colors[region] for region in regions_count.keys()],
-               labels=[regions[region] for region in regions_count.keys()])
+        values = []
+        color_list = []
+        labels = []
+        for region in regions_count.viewitems() & regions_count.viewkeys():
+            values.append(regions_count[region])
+            color_list.append(color_list.append(colors[region]))
+            labels.append(region)
+        ax.pie(values, colors=color_list, labels=labels)
         return ax
 
     def build_nearest_exon(self, ax, genomic_types=None, clusters_types=None):
@@ -317,6 +342,9 @@ class ClipVisualization():
             genomic_types = self.genomic_types
         if clusters_types is None:
             clusters_types = self.clusters_types
+
+        if genomic_types is None or clusters_types is None:
+            raise NotImplementedError("Pickle file doesn't have data to generate this figure")
 
         clusters_types = 100 * np.array(clusters_types, dtype="float") / np.sum(clusters_types)
         genomic_types = 100 * np.array(genomic_types, dtype="float") / np.sum(genomic_types)
@@ -347,6 +375,9 @@ class ClipVisualization():
             homer_location = self.homer_location
         if regions is None:
             regions = self.regions
+
+        if homer_location is None or regions is None:
+            raise NotImplementedError("Pickle file doesn't have data to generate this figure")
 
         for i, region in enumerate(regions.keys()):
 
@@ -393,6 +424,9 @@ class ClipVisualization():
             phastcons_values = self.phastcons_values
         if regions is None:
             regions = self.regions
+
+        if phastcons_values is None or regions is None:
+            raise NotImplementedError("Pickle file doesn't have data to generate this figure")
 
         intersecting_regions = set(phastcons_values['real'].keys()).intersection(set(phastcons_values['rand'].keys()))
 
@@ -494,6 +528,9 @@ class ClipVisualization():
             highlight_motifs = self.motifs
         if regions is None:
             regions = self.regions
+
+        if kmer_results is None or highlight_motifs is None or regions is None:
+            raise NotImplementedError("Pickle file doesn't have data to generate this figure")
 
         colorcycle = ["red", "orange", "green", "blue",
                       "purple", "brown", "black", "pink",
@@ -615,6 +652,9 @@ class ClipVisualization():
         if classes is None:
             classes = self.classes
 
+        if read_densities is None or classes is None:
+            raise NotImplementedError("Pickle file doesn't have data to generate this figure")
+
         reordered = read_densities[classes.argsort()]
         cluster = ax.matshow(reordered, aspect='auto', origin='lower')
         divider = make_axes_locatable(ax)
@@ -640,7 +680,7 @@ class ClipVisualization():
                                     'exons': "Exons",
                                     'introns': "Introns",
                                     'cds': 'CDS',
-        }
+                                    }
 
         gs_x = 4
         gs_y = 6
@@ -848,23 +888,54 @@ class ClipVisualization():
                                                       wspace=0)
 
         #Pass specific axies + data off for plotting
-        self.build_reads_in_clusters(ax_pie_inout)
-        self.build_reads_per_cluster(ax_nreads)
-        self.build_cluster_lengths(ax_lengths)
-        if self.phastcons_values is not None:
+        try:
+            self.build_reads_in_clusters(ax_pie_inout)
+        except NotImplementedError:
+            pass
+        try:
+            self.build_reads_per_cluster(ax_nreads)
+        except NotImplementedError:
+            pass
+        try:
+            self.build_cluster_lengths(ax_lengths)
+        except NotImplementedError:
+            pass
+        try:
             self.build_phastcons_values(ax_cons)
-        self.build_gene_distribution(ax_genedist)
-        self.build_exon_exon_distribution(ax_exondist)
-        self.build_peak_densities(ax_read_densities)
-        self.build_genomic_content(ax_pie_genomic)
+        except NotImplementedError:
+            pass
+        try:
+            self.build_gene_distribution(ax_genedist)
+        except NotImplementedError:
+            pass
+        try:
+            self.build_exon_exon_distribution(ax_exondist)
+        except NotImplementedError:
+            pass
+        try:
+            self.build_peak_densities(ax_read_densities)
+        except NotImplementedError:
+            pass
+        try:
+            self.build_genomic_content(ax_pie_genomic)
+        except NotImplementedError:
+            pass
 
         #filter out intronic regions
         exonic_locs = {name: value for name, value in self.genomic_locs.items() if name not in ['proxintron500',
                                                                                            'distintron500']}
-        self.build_genomic_content(ax_pie_exonic, exonic_locs, self.regions)
-
-        self.build_cluster_content(ax_pie_clusters)
-        self.build_nearest_exon(ax_bar_exontypes)
+        try:
+            self.build_genomic_content(ax_pie_exonic, exonic_locs, self.regions)
+        except NotImplementedError:
+            pass
+        try:
+            self.build_cluster_content(ax_pie_clusters)
+        except NotImplementedError:
+            pass
+        try:
+            self.build_nearest_exon(ax_bar_exontypes)
+        except NotImplementedError:
+            pass
         try:
             self.build_common_motifs(motif_grid)
         except AttributeError:

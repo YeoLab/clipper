@@ -12,10 +12,10 @@ from itertools import izip_longest
 from optparse import OptionParser
 import os
 import pickle
-from random import sample
 import subprocess
 
 from bx.bbi.bigwig_file import BigWigFile
+import HTSeq
 import gffutils
 import numpy as np
 import pandas as pd
@@ -26,14 +26,14 @@ import clipper
 from clipper.src import CLIP_analysis_display
 from clipper.src.kmerdiff import kmer_diff
 from clipper.src.get_genomic_regions import GenomicFeatures
-from gscripts.general.pybedtools_helpers import small_peaks, shuffle_and_adjust, closest_by_feature, get_three_prime_end, get_five_prime_end, convert_to_mRNA_position, adjust_after_shuffle
+from gscripts.general.pybedtools_helpers import small_peaks, convert_to_mRNA_position
 
 import matplotlib as mpl
 from matplotlib import rc
 
 mpl.rcParams['svg.fonttype'] = 'none'
 rc('text', usetex=False)
-rc('font',**{'family':'sans-serif','sans-serif':['Helvetica']})
+rc('font', **{'family': 'sans-serif', 'sans-serif': ['Helvetica']})
 
 
 def name_to_chrom(interval):
@@ -41,7 +41,7 @@ def name_to_chrom(interval):
     return interval
 
 
-def intersection(A, B=None):
+def intersection(a, b=None):
     
     """
     
@@ -52,8 +52,8 @@ def intersection(A, B=None):
     
     """
     
-    overlapping = A.intersect(B, wa=True, u=True, stream=True).saveas()
-    remaining = A.intersect(B, wa=True, v=True, stream=True).saveas()
+    overlapping = a.intersect(b, wa=True, u=True, stream=True).saveas()
+    remaining = a.intersect(b, wa=True, v=True, stream=True).saveas()
 
     return remaining, overlapping
 
@@ -78,7 +78,6 @@ def count_genomic_types(as_structure_dict):
             genomic_types[exon_type] += 1
     
     return genomic_types
-
 
 
 def count_genomic_region_sizes(regions, species="hg19"):
@@ -138,19 +137,19 @@ def save_bedtools(cluster_regions, clusters, assigned_dir):
     """
     for region in cluster_regions:
         output_file = "%s.%s.real.BED" % (clusters, region)
-        cluster_regions[region]['real'] = cluster_regions[region]['real'].saveas(os.path.join(assigned_dir, output_file))
+        cluster_regions[region]['real'] = cluster_regions[region]['real'].sort().saveas(os.path.join(assigned_dir, output_file))
 
         if "rand" not in cluster_regions[region]:
             continue
 
         for n_rand in cluster_regions[region]['rand']:
             output_file = "%s.%s.rand.%s.BED" % (clusters, region, n_rand)
-            cluster_regions[region]['rand'][n_rand] = cluster_regions[region]['rand'][n_rand].saveas(os.path.join(assigned_dir, output_file))
+            cluster_regions[region]['rand'][n_rand] = cluster_regions[region]['rand'][n_rand].sort().saveas(os.path.join(assigned_dir, output_file))
 
     return cluster_regions
 
 
-def assign_to_regions(tool, clusters, speciesFA, regions, assigned_dir, fasta_dir, species="hg19", nrand=3):
+def assign_to_regions(tool, clusters, regions, assigned_dir, species="hg19", nrand=3):
     
     """
     
@@ -161,11 +160,9 @@ def assign_to_regions(tool, clusters, speciesFA, regions, assigned_dir, fasta_di
     
     tool - a bed tool (each line represnting a cluster)
     clusters - name of cluster file
-    speciesFA - the species fasta file
     regions_dir - the directory that has genomic regions already processed
     regions - dict [str] regions to process, not used now but should be after refactoring 
     assigned_dir - location to save files in
-    fasta_dir -location to save fasta files in
     species - str species to segment
     nrand - int number offsets times to shuffle for null hypothesis
     getseq - boolean gets the full sequence to store
@@ -197,7 +194,7 @@ def assign_to_regions(tool, clusters, speciesFA, regions, assigned_dir, fasta_di
     print "There are a total %d clusters I'll examine" % (len(tool))
     for region in regions:
 
-        remaining_clusters, overlapping = intersection(remaining_clusters, B=bedtracks[region])
+        remaining_clusters, overlapping = intersection(remaining_clusters, b=bedtracks[region])
 
         #if for some reason there isn't a peak in the region skip it
         if len(overlapping) == 0:
@@ -237,9 +234,6 @@ def assign_to_regions(tool, clusters, speciesFA, regions, assigned_dir, fasta_di
         bed_dict['uncatagorized'] = {'real': remaining_clusters.sort(stream=True)}
 
     bed_dict = save_bedtools(bed_dict, clusters, assigned_dir)
-    make_fasta_files_from_regions(bed_dict, clusters, fasta_dir, speciesFA)
-
-
     return bed_dict
 
 
@@ -319,6 +313,7 @@ def adjust_offsets(tool, offsets=None):
 
     return pybedtools.BedTool("\n".join(clusters), from_string=True)
 
+
 def RNA_position_interval(interval, location_dict):
     
     """
@@ -332,8 +327,8 @@ def RNA_position_interval(interval, location_dict):
     will return distribution across entire region + just across specific region
     Might be able to use my ribo-seq stuff for genic -> transcriptomic location conversion
     
-    this is based off as structure, which provides sequences ordered with first exon being the first exon on the gene, not 
-    first in the chromosome (like gff does) THIS WILL NOT WORK WITH RAW GFF DATA
+    this is based off as structure, which provides sequences ordered with first exon being the first exon on the gene,
+    not first in the chromosome (like gff does) THIS WILL NOT WORK WITH RAW GFF DATA
     
     """
     
@@ -364,7 +359,7 @@ def RNA_position_interval(interval, location_dict):
     for region in location_dict[gene]:
         length = float(region.length) 
 
-        if peak_center >= int(region.start) and peak_center <= int(region.stop):
+        if int(region.start) <= peak_center <= int(region.stop):
             if interval.strand == "+":
                 total_location = running_length + (peak_center - region.start)
                 total_fraction = np.round((total_location / total_length), 3)
@@ -390,6 +385,7 @@ def RNA_position_interval(interval, location_dict):
         running_length += length
         
     return None, None #clusters fall outside of regions integrated
+
 
 def RNA_position(interval, location_dict):
     
@@ -464,6 +460,7 @@ def RNA_position(interval, location_dict):
         
     return None, None #clusters fall outside of regions integrated 
 
+
 def generate_region_dict(bedtool):
     region_dict = defaultdict(list)
     
@@ -476,6 +473,7 @@ def generate_region_dict(bedtool):
             
     return region_dict
 
+
 def convert_to_transcript(feature_dict):
     
     """
@@ -486,6 +484,7 @@ def convert_to_transcript(feature_dict):
         
     """
     return { name : bedtool.each(name_to_chrom).saveas() for name, bedtool in feature_dict.items()}
+
 
 def convert_to_mrna(feature_dict, exon_dict):
     
@@ -498,11 +497,13 @@ def convert_to_mrna(feature_dict, exon_dict):
     
     """
 
-    return { name : bedtool.each(convert_to_mRNA_position, exon_dict).filter(lambda x: x.chrom != "none").saveas() for name, bedtool in feature_dict.items()}
+    return { name: bedtool.each(convert_to_mRNA_position, exon_dict).filter(lambda x: x.chrom != "none").saveas() for name, bedtool in feature_dict.items()}
+
 
 def invert_neg(interval):
     interval[-1] = str(int(interval[-1]) * -1)
     return interval
+
 
 def get_distributions(bedtool, region_dict):
     
@@ -536,6 +537,7 @@ def get_distributions(bedtool, region_dict):
     return {'individual' : exon_distributions, 'total' : total_distributions, 
             'errors' : num_errors, 'missed' : num_missed}
 
+
 def calculate_peak_locations(bedtool, genes, regions, features):
     
     """
@@ -550,7 +552,7 @@ def calculate_peak_locations(bedtool, genes, regions, features):
     cluster_regions - bedtool describing locations of peaks / clusters
     
     """
-    
+    #TODO GET RID OF GENES, USE get_genomic_regions object
 
     mRNA_positions = []
     premRNA_positions = []
@@ -670,7 +672,7 @@ def calculate_peak_locations(bedtool, genes, regions, features):
 
 #here we start a small module for getting read densities:
 
-def get_peak_wiggle(tool, data_pos, data_neg, size = 1000, num_peaks=100):
+def get_peak_wiggle(tool, data_pos, data_neg, size=1000, num_peaks=100):
     
     """
     
@@ -700,6 +702,7 @@ def get_peak_wiggle(tool, data_pos, data_neg, size = 1000, num_peaks=100):
             pass
     return pd.DataFrame(results, index=index)
 
+
 def cluser_peaks(bedtool, bw_pos, bw_neg, k=16):
     
     """
@@ -723,6 +726,7 @@ def cluser_peaks(bedtool, bw_pos, bw_neg, k=16):
     kmeansClassifier = KMeans(k)
     classes = kmeansClassifier.fit_predict(data)
     return bedtool_df_mag_normalized, classes
+
 
 def run_homer(foreground, background, k = list([5,6,7,8,9]), outloc = os.getcwd()):
     
@@ -787,7 +791,6 @@ def bedlengths(tool):
     return x
 
 
-
 def chop(chr, start,end, wsize=5):
     
     """
@@ -806,7 +809,8 @@ def chop(chr, start,end, wsize=5):
         file.write("\t".join(map(str, [chr, i, (i+wsize-1), p])) + "\n")
         i += wsize
     file.close()
- 
+
+
 def get_mean_phastcons(bedtool, phastcons_location, sample_size = 1000):
     
     """
@@ -855,6 +859,7 @@ def fa_file(filename, region=None, directory=None, type="real"):
         full_name = filename + "." + type + ".fa"
         return os.path.join(directory, full_name)
 
+
 def make_dir(dir_name):
     
     """ makes a dir, dir_name if it doesn't exist otherwise does nothing """
@@ -875,6 +880,7 @@ def count_total_reads(bam, gene_definition):
     """
     
     return len(bam.intersect(gene_definition, u=True))
+
 
 def count_reads_per_cluster(bedtool, bamtool):
     
@@ -905,6 +911,7 @@ def count_reads_per_cluster(bedtool, bamtool):
             
     reads_in_clusters = sum(reads_per_cluster)
     return reads_in_clusters, reads_per_cluster
+
 
 def calculate_kmer_diff(kmer_list, regions, clusters, fasta_dir):
     
@@ -940,7 +947,8 @@ def calculate_kmer_diff(kmer_list, regions, clusters, fasta_dir):
                 print "Ignoring: %s" % (region)
  
     return kmer_results
- 
+
+
 def calculate_homer_motifs(kmer_list, regions, clusters, fasta_dir, homerout):
     
     """
@@ -964,6 +972,7 @@ def calculate_homer_motifs(kmer_list, regions, clusters, fasta_dir, homerout):
 
         region_homer_out = os.path.join(homerout, region)
         run_homer(real_fa, rand_fa, kmer_list, outloc=region_homer_out)
+
 
 def calculate_phastcons(regions, cluster_regions, phastcons_location, sample_size=1000):
     
@@ -1062,7 +1071,8 @@ def calculate_motif_distance(cluster_regions, region_sizes, motif_tool, slopsize
         dist_dict['all']['rand']['dist'] += dist_dict[region]['rand']['dist']
 
     return dist_dict
-    
+
+
 def get_motif_distance(clusters, motif, slop=500):
     
     """
@@ -1127,12 +1137,23 @@ def generate_motif_distances(cluster_regions, region_sizes, motifs, motif_locati
     
     return motif_distance_list
 
+
 def make_unique(feature):
         global uniq_count
-        uniq_count +=1
+        uniq_count += 1
         feature.name = feature.name + "_" + str(uniq_count)
         return feature
-    
+
+
+def visualize(clusters, extension, out_dir):
+    with open(os.path.join("%s.clip_analysis.pickle" % clusters)) as out_file:
+        clip_viz = CLIP_analysis_display.ClipVisualization(out_file)
+    qc_fig = clip_viz.CLIP_QC_figure()
+    distribution_fig = clip_viz.plot_distributions()
+    qc_fig.savefig(os.path.join(out_dir, clusters + ".qc_fig." + extension))
+    distribution_fig.savefig(os.path.join(out_dir, clusters + ".DistFig." + extension))
+
+
 def main(options):
     
     """
@@ -1146,14 +1167,15 @@ def main(options):
     #gets clusters in a bed tools + names species 
     clusters = os.path.basename(options.clusters)
     species = options.species
-    
+    out_dict = {}
     #In case names aren't unique make them all unique
     global uniq_count
     uniq_count = 0
     clusters_bed = pybedtools.BedTool(options.clusters).each(make_unique).saveas()
     bamtool = pybedtools.BedTool(options.bam)
-    bw_pos = BigWigFile(open(options.bw_pos))
-    bw_neg = BigWigFile(open(options.bw_neg))
+    bamtool_htseq = HTSeq.BAM_Reader(options.bam)
+    #bw_pos = BigWigFile(open(options.bw_pos))
+    #bw_neg = BigWigFile(open(options.bw_neg))
     
     #makes output file names 
     clusters = str.replace(clusters, ".BED", "")
@@ -1186,9 +1208,11 @@ def main(options):
     regions["five_prime_utrs"] = "5' UTR"
     regions["proxintron500"] = "Proximal\nIntron"
     regions["distintron500"] = "Distal\nIntron"
-    
-    db = gffutils.FeatureDB(options.db)
-    
+    if options.db is not None:
+        db = gffutils.FeatureDB(options.db)
+    else:
+        print "gff utils db not defined, this is fine, but falling back onto pre-set region defentions"
+        db = None
     features = GenomicFeatures(species, db,  regions_dir=options.regions_location)
     genomic_regions = features.get_genomic_regions()
     features = features.get_feature_locations()
@@ -1196,14 +1220,16 @@ def main(options):
      #all catagory would break some analysies, create copy and remove it
     assigned_regions = regions.copy()
     del assigned_regions['all']
-    
-    genes_dict, genes_bed = parse_AS_STRUCTURE_dict(species, options.as_structure)
+
+    if options.as_structure is not None:
+        genes_dict, genes_bed = parse_AS_STRUCTURE_dict(species, options.as_structure)
+    else:
+        print "AS STRUCTURE file not listed, alt-splicing figure will not be generated"
+
     cluster_regions = assign_to_regions(tool=clusters_bed,
                                                       clusters=clusters,
-                                                      speciesFA=options.genome_location,
                                                       regions=assigned_regions,
                                                       assigned_dir=assigned_dir,
-                                                      fasta_dir=fasta_dir,
                                                       species=species,
                                                       nrand=options.nrand)
 
@@ -1211,13 +1237,8 @@ def main(options):
 
     genic_region_sizes = count_genomic_region_sizes(assigned_regions, species)
 
-
-            
-    print "Counting reads in clusters...",
     reads_in_clusters, reads_per_cluster = count_reads_per_cluster(cluster_regions['all']['real'], bamtool)
-    
-    #might want to actually count genes_dict, not clusters...
-    total_reads = count_total_reads(bamtool, genes_bed)
+    total_reads = count_total_reads(bamtool, genomic_regions['genes'])
     region_read_counts = {}
     for region_name, cur_region in genomic_regions.items():
         region_read_counts[region_name] = count_total_reads(bamtool, cur_region)  
@@ -1225,36 +1246,51 @@ def main(options):
     #one stat is just generated here
     #generates cluster lengths (figure 3)
     cluster_lengths = bedlengths(cluster_regions['all']['real'])
-    print "done"
-    
-    #also builds figure 10 (exon distances)
-    genomic_types = count_genomic_types(genes_dict)
-    
+
     #figures 5 and 6, builds pre-mrna, mrna exon and intron distributions
-    (types, premRNA_positions, mRNA_positions, exon_positions, 
-     intron_positions, features_transcript_closest, 
-     features_mrna_closest, distributions) = calculate_peak_locations(cluster_regions['all']['real'], 
-                                                                      genes_dict, 
-                                                                      genomic_regions, 
-                                                                      features)
-    
-    read_densities, classes = cluser_peaks(cluster_regions['all']['real'], bw_pos, bw_neg)
-    
-    #gtypes is total genomic content 
-    #types is what clusters are
-    #generates figure 10 (exon distances)
-    
-    type_count = [types["CE:"], types["SE:"], 
+    if options.as_structure is not None:
+
+        #also builds figure 10 (exon distances)
+        genomic_types = count_genomic_types(genes_dict)
+
+        (types, premRNA_positions, mRNA_positions, exon_positions,
+         intron_positions, features_transcript_closest,
+         features_mrna_closest, distributions) = calculate_peak_locations(cluster_regions['all']['real'],
+                                                                          genes_dict,
+                                                                          genomic_regions,
+                                                                          features)
+        features_transcript_closest = {name: bedtool['dist'].saveas("%s_%_transcript.bed" % (clusters, name)) for name, bedtool in features_transcript_closest.items() if bedtool['dist'] is not None}
+        features_mrna_closest = {name: bedtool['dist'].saveas("%s_%s_mrna.bed" % (clusters, name)) for name, bedtool in features_mrna_closest.items() if bedtool['dist'] is not None}
+
+        #generates figure 10 (exon distances)
+        type_count = [types["CE:"], types["SE:"],
                   types["MXE:"], types["A5E:"], types["A3E:"]]
-    
-    genomic_type_count = [genomic_types["CE:"], genomic_types["SE:"], 
-                          genomic_types["MXE:"], genomic_types["A5E:"], 
-                          genomic_types["A3E:"]]    
+
+        genomic_type_count = [genomic_types["CE:"], genomic_types["SE:"],
+                            genomic_types["MXE:"], genomic_types["A5E:"],
+                            genomic_types["A3E:"]]
+
+        out_dict["premRNA_positions"] = premRNA_positions
+        out_dict["mRNA_positions"] = mRNA_positions
+        out_dict["exon_positions"] = exon_positions
+        out_dict["intron_positions"] = intron_positions
+        out_dict["genomic_type_count"] = genomic_type_count
+        out_dict["type_count"] = type_count
+        out_dict['features_transcript_closest'] = {name: bedtool['dist'].fn for name, bedtool in features_transcript_closest.items() if bedtool['dist'] is not None}
+        out_dict['features_mrna_closest'] = {name: bedtool['dist'].fn for name, bedtool in features_mrna_closest.items() if bedtool['dist'] is not None}
+        out_dict['distributions'] = distributions
+
+    #TODO fix function to work off htseq instead of bw files
+    #read_densities, classes = cluser_peaks(cluster_regions['all']['real'], bamtool_htseq)
+    read_densities = None
+    classes = None
+
     kmer_results = None
     if options.reMotif:
         kmer_results = calculate_kmer_diff(options.k, regions, clusters, fasta_dir)        
     
     if options.homer:
+        make_fasta_files_from_regions(cluster_regions, clusters, fasta_dir, options.genome_location)
         calculate_homer_motifs(options.k, regions, clusters, fasta_dir, homerout)
     
     phast_values = None
@@ -1273,60 +1309,35 @@ def main(options):
     motif_distances = []
     try:
         if motifs:
-            motif_distances = generate_motif_distances(cluster_regions, region_sizes, motifs, options.motif_location, options.species)
-                    
+            motif_distances = generate_motif_distances(cluster_regions, region_sizes, motifs, options.motif_location,
+                                                       options.species)
     except:
         pass
 
-    features_transcript_closest = {name: bedtool['dist'].saveas("%s_%_transcript.bed" % (clusters, name)) for name, bedtool in features_transcript_closest.items() if bedtool['dist'] is not None}
-    features_mrna_closest = {name: bedtool['dist'].saveas("%s_%s_mrna.bed" % (clusters, name)) for name, bedtool in features_mrna_closest.items() if bedtool['dist'] is not None}
-
-    #save all analysies in a pickle dict
-    out_dict = {}
     out_dict["region_sizes"] = region_sizes
     out_dict["reads_in_clusters"] = reads_in_clusters
     out_dict["reads_out_clusters"] = (total_reads - reads_in_clusters)
     out_dict["cluster_lengths"] = cluster_lengths
     out_dict["reads_per_cluster"] = reads_per_cluster
-    out_dict["premRNA_positions"] = premRNA_positions
-    out_dict["mRNA_positions"] = mRNA_positions
-    out_dict["exon_positions"] = exon_positions
-    out_dict["intron_positions"] = intron_positions
     out_dict["genic_region_sizes"] = genic_region_sizes
-    out_dict["genomic_type_count"] = genomic_type_count
-    out_dict["type_count"] = type_count
     out_dict["kmer_results"] = kmer_results
     out_dict["motifs"] = motifs
     out_dict["phast_values"] = phast_values
     out_dict["motif_distances"] = motif_distances
-    out_dict['features_transcript_closest'] = {name: bedtool['dist'].fn for name, bedtool in features_transcript_closest.items() if bedtool['dist'] is not None}
-    out_dict['features_mrna_closest'] = {name: bedtool['dist'].fn for name, bedtool in features_mrna_closest.items() if bedtool['dist'] is not None}
-    out_dict['distributions'] = distributions
     out_dict['data'] = np.array(read_densities)
     out_dict['classes'] = classes
     out_dict['region_read_counts'] = region_read_counts
     out_dict['homerout'] = homerout
-    out_dict['regions'] = homerout
-    out_file = open(os.path.join("%s.clip_analysis.pickle" %(clusters)), 'w')
-    pickle.dump(out_dict, file=out_file)
-    
+    out_dict['regions'] = regions
+
+    with open(os.path.join("%s.clip_analysis.pickle" % clusters), 'w') as out_file:
+        pickle.dump(out_dict, file=out_file)
     print "file saved"
-    #build qc figure
-    QCfig_params = [reads_in_clusters, (total_reads - reads_in_clusters), 
-                    cluster_lengths, reads_per_cluster, distributions['genes']['total'], 
-                    distributions['exons']['total'], distributions['exons']['individual'], 
-                    distributions['introns']['individual'], genic_region_sizes, region_sizes, 
-                    genomic_type_count, type_count, homerout, kmer_results, motifs, phast_values, 
-                    regions, np.array(read_densities), classes]
-    
-    QCfig = CLIP_analysis_display.CLIP_QC_figure(*QCfig_params)
-    distribution_fig = CLIP_analysis_display.plot_distributions(features_transcript_closest,
-                                                                features_mrna_closest, distributions)
-    QCfig.savefig(os.path.join(outdir, clusters + ".QCfig." + options.extension))
-    distribution_fig.savefig(os.path.join(outdir, clusters + ".DistFig." + options.extension))  
+
+    visualize(clusters, options.extension, outdir)
       
     #prints distance of clusters from various motifs in a different figure
-    
+    #TODO use homer / MEME results to print this out by default?  Make different sub package?
     try:
         if motifs:
             motif_fig = CLIP_analysis_display.plot_motifs(motif_distances)
@@ -1361,12 +1372,10 @@ def call_main():
     parser.add_option("--genome_location", dest="genome_location", help="location of all.fa file for genome of interest", default=None)
     parser.add_option("--homer_path", dest="homer_path", action="append", help="path to homer, if not in default path", default=None)
     parser.add_option("--phastcons_location", dest="phastcons_location",  help="location of phastcons file", default=None)
-    parser.add_option("--regions_location", dest="regions_location",  help="directory of genomic regions for a species", default=None)
+    parser.add_option("--regions_location", dest="regions_location",  help="directory of genomic regions for a species (default: clipper defined regions)", default=None)
     parser.add_option("--motif_directory", dest="motif_location",  help="directory of pre-computed motifs for analysis", default=os.getcwd())
     parser.add_option("--metrics", dest="metrics", default="CLIP_Analysis.metrics", help="file name to output metrics to")
     parser.add_option("--extension", dest="extension", default="svg", help="file extension to use (svg, png, pdf...)")
-    parser.add_option("--bw_pos",  help="bigwig file, on the positive strand")
-    parser.add_option("--bw_neg", help="bigwige file on the negative strand")
 
     (options, args) = parser.parse_args()
     
@@ -1376,5 +1385,5 @@ def call_main():
         exit()
     main(options)
 
-if __name__== "__main__":
+if __name__ == "__main__":
     call_main()
