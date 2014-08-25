@@ -57,8 +57,10 @@ class GenomicFeatures():
                              "transcript" : "mRNA",
                              }
             self._fix_chrom = self._fix_chrom_ce10
-
-        self.featuretypes = list(self._db.featuretypes())
+        if self._db is not None:
+            self.featuretypes = list(self._db.featuretypes())
+        else:
+            self.featuretypes = None
     def _to_bed(self, interval):
         """
         interval: gffutils interval
