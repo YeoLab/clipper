@@ -148,7 +148,12 @@ def save_bedtools(cluster_regions, clusters, assigned_dir):
 
     return cluster_regions
 
-
+def fix_strand(interval):
+    strands = list(set(interval.strand.split(",")))
+    if len(strands) > 1:
+        raise NameError("Both strands are present, something went wrong during the merge")
+    interval.strand = strands[0]
+    return interval
 def assign_to_regions(tool, clusters, regions, assigned_dir, species="hg19", nrand=3):
     
     """
@@ -188,7 +193,7 @@ def assign_to_regions(tool, clusters, regions, assigned_dir, species="hg19", nra
     bed_dict['all']['real'] = pybedtools.BedTool("", from_string=True)
     
     offsets = get_offsets_bed12(tool)
-    tool = tool.merge(s=True, c="4,5,6,7,8", o="collapse,collapse,min,min,min", stream=True).saveas()
+    tool = tool.merge(s=True, c="4,5,6,7,8", o="collapse,collapse,collapse,min,min", stream=True).each(fix_strand).saveas()
     remaining_clusters = adjust_offsets(tool, offsets)
     
     print "There are a total %d clusters I'll examine" % (len(tool))
@@ -432,7 +437,7 @@ def RNA_position(interval, location_dict):
     for start, stop in location_dict[gene]['regions']:
         length = float(stop - start) 
 
-        if peak_center >= int(start) and peak_center <= int(stop):
+        if int(start) <= peak_center <= int(stop):
             if interval.strand == "+":
                 total_location = running_length + (peak_center - start)
                 total_fraction = np.round((total_location / total_length), 3)
@@ -483,7 +488,7 @@ def convert_to_transcript(feature_dict):
     returns modified dict
         
     """
-    return { name : bedtool.each(name_to_chrom).saveas() for name, bedtool in feature_dict.items()}
+    return {name: bedtool.each(name_to_chrom).saveas() for name, bedtool in feature_dict.items()}
 
 
 def convert_to_mrna(feature_dict, exon_dict):
@@ -497,7 +502,7 @@ def convert_to_mrna(feature_dict, exon_dict):
     
     """
 
-    return { name: bedtool.each(convert_to_mRNA_position, exon_dict).filter(lambda x: x.chrom != "none").saveas() for name, bedtool in feature_dict.items()}
+    return {name: bedtool.each(convert_to_mRNA_position, exon_dict).filter(lambda x: x.chrom != "none").saveas() for name, bedtool in feature_dict.items()}
 
 
 def invert_neg(interval):
@@ -689,9 +694,9 @@ def get_peak_wiggle(tool, data_pos, data_neg, size=1000, num_peaks=100):
         pad_amt = size / 2
         try:
             if line.strand == "+":
-                result = data_pos.get_as_array(line.chrom, peak_center - pad_amt , peak_center + pad_amt)
+                result = data_pos.get_as_array(line.chrom, peak_center - pad_amt, peak_center + pad_amt)
             if line.strand == "-":
-                result = data_neg.get_as_array(line.chrom, peak_center - pad_amt , peak_center + pad_amt)[::-1]
+                result = data_neg.get_as_array(line.chrom, peak_center - pad_amt, peak_center + pad_amt)[::-1]
                 
             result = [0 if np.isnan(x) else x for x in result]
         
@@ -703,7 +708,60 @@ def get_peak_wiggle(tool, data_pos, data_neg, size=1000, num_peaks=100):
     return pd.DataFrame(results, index=index)
 
 
-def cluser_peaks(bedtool, bw_pos, bw_neg, k=16):
+from HTSeq import SAM_Alignment
+import pysam
+
+
+class Robust_BAM_Reader(HTSeq.BAM_Reader):
+
+    def __iter__( self ):
+        sf = pysam.Samfile(self.filename, "rb")
+        self.record_no = 0
+        for pa in sf:
+            try:
+                yield SAM_Alignment.from_pysam_AlignedRead( pa, sf )
+            except OverflowError:
+                pass
+            self.record_no += 1
+
+
+def get_bam_coverage(bamfile):
+    """
+
+    Given a bam file returns a properly covered htseq coverage file (this is slow)
+
+    """
+    bam = Robust_BAM_Reader(bamfile)
+    coverage = HTSeq.GenomicArray("auto", typecode="i", stranded=True)
+    for read in bam:
+        if read.aligned:
+            for cigop in read.cigar:
+                if cigop.type != "M":
+                    continue
+                coverage[cigop.ref_iv] += 1
+    return coverage
+
+
+def bed_to_genomic_interval(bed):
+    for interval in bed:
+        yield HTSeq.GenomicInterval(interval.chrom, interval.start, interval.stop, interval.strand)
+
+
+def get_densities(intervals, coverage):
+    for interval in bed_to_genomic_interval(intervals):
+        density = np.fromiter(coverage[interval], dtype="i")
+        if interval.strand == "-":
+            density = density[::-1]
+        yield density
+
+
+def adjust_width(interval, width=250):
+    interval.start -= width
+    interval.stop += width
+    return interval
+
+
+def cluster_peaks(bedtool, htseq_bam, k=16):
     
     """
     
@@ -711,12 +769,15 @@ def cluser_peaks(bedtool, bw_pos, bw_neg, k=16):
     gets read densities around peaks, normalizes them and outputs clusters and dataframe 
     
     """
-    bed_center = bedtool.each(small_peaks).saveas()
-    bedtool_df = get_peak_wiggle(bed_center, bw_pos, bw_neg, num_peaks=1000000)
 
-    bedtool_df_mag_normalized = bedtool_df.div(bedtool_df.sum(axis=1), axis=0).fillna(0)
+    #TODO change small peaks so they can automatically fall back on center of peak if bed format isn't present
+    bed_center = bedtool.each(small_peaks).saveas()
+    coverage = get_bam_coverage(htseq_bam)
+    bedtool_df = pd.DataFrame(list(get_densities(bed_center.each(adjust_width), coverage)))
+
+    bedtool_df_mag_normalized = bedtool_df.div(bedtool_df.sum(axis=1), axis=0)
     bedtool_df_mag_normalized[bedtool_df_mag_normalized > .1] = .1
-    
+    #TODO Write Test, tested slowly in ipython notebook, but need to make some sample data to test with
     data = np.array(bedtool_df_mag_normalized)
     
     #fixes bad test case
@@ -728,7 +789,7 @@ def cluser_peaks(bedtool, bw_pos, bw_neg, k=16):
     return bedtool_df_mag_normalized, classes
 
 
-def run_homer(foreground, background, k = list([5,6,7,8,9]), outloc = os.getcwd()):
+def run_homer(foreground, background, k=list([5,6,7,8,9]), outloc=os.getcwd()):
     
     """
     
@@ -744,7 +805,6 @@ def run_homer(foreground, background, k = list([5,6,7,8,9]), outloc = os.getcwd(
     
     """
     #findMotifs.pl clusters.fa fasta outloc -nofacts p 4 -rna -S 10 -len 5,6,7,8,9 -noconvert -nogo -fasta background.fa
-    
     #converts k to a string for use in subprocess
     k = ",".join([str(x) for x in k])
     print "starting Homer"
@@ -944,7 +1004,7 @@ def calculate_kmer_diff(kmer_list, regions, clusters, fasta_dir):
                 kmer_results[region][k] = kmers
             except IOError as e:
                 print e
-                print "Ignoring: %s" % (region)
+                print "Ignoring: %s" % region
  
     return kmer_results
 
@@ -1000,14 +1060,14 @@ def calculate_phastcons(regions, cluster_regions, phastcons_location, sample_siz
         try: #gracefully fail if the region isn't represented
             phast_values["real"][region] = get_mean_phastcons(cluster_regions[region]['real'], 
                                                               phastcons_location, 
-                                                              sample_size = sample_size)
+                                                              sample_size=sample_size)
             
             #can't concatanate zero length arrays, so prime it
             randPhast = np.array([])
             for rand_bed in cluster_regions[region]['rand'].values():                
                 randPhast = np.concatenate((randPhast, get_mean_phastcons(rand_bed, 
                                                                           phastcons_location,  
-                                                                          sample_size = sample_size)), axis=1)
+                                                                          sample_size=sample_size)), axis=1)
             phast_values["rand"][region] = randPhast
         except KeyError as e:
             print "ignoring: ", e
@@ -1202,7 +1262,7 @@ def main(options):
     
     #lazy refactor, this used to be a list, but the dict acts the same until I don't want it to...
     regions = OrderedDict()
-    regions["all" ] = "All"
+    regions["all"] = "All"
     regions["cds"] = "CDS"
     regions["three_prime_utrs"] = "3' UTR"
     regions["five_prime_utrs"] = "5' UTR"
@@ -1281,9 +1341,7 @@ def main(options):
         out_dict['distributions'] = distributions
 
     #TODO fix function to work off htseq instead of bw files
-    #read_densities, classes = cluser_peaks(cluster_regions['all']['real'], bamtool_htseq)
-    read_densities = None
-    classes = None
+    read_densities, classes = cluster_peaks(cluster_regions['all']['real'], bamtool_htseq)
 
     kmer_results = None
     if options.reMotif:
