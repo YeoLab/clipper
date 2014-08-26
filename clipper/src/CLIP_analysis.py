@@ -148,12 +148,15 @@ def save_bedtools(cluster_regions, clusters, assigned_dir):
 
     return cluster_regions
 
+
 def fix_strand(interval):
     strands = list(set(interval.strand.split(",")))
     if len(strands) > 1:
         raise NameError("Both strands are present, something went wrong during the merge")
     interval.strand = strands[0]
     return interval
+
+
 def assign_to_regions(tool, clusters, regions, assigned_dir, species="hg19", nrand=3):
     
     """
@@ -220,8 +223,6 @@ def assign_to_regions(tool, clusters, regions, assigned_dir, species="hg19", nra
 
         #saves offsets so after shuffling the offsets can be readjusted
         offset_dict = get_offsets_bed12(bed_dict[region]['real'])
-        #TODO refactor to different function
-        rand_list = []
         for i in range(nrand):
             random_intervals = bed_dict[region]['real'].shuffle(genome=species, incl=bedtracks[region].fn).sort(stream=True)
             random_intervals = adjust_offsets(random_intervals, offset_dict)
@@ -564,7 +565,6 @@ def calculate_peak_locations(bedtool, genes, regions, features):
     intron_positions = []
     exon_positions = []
 
-
     exon_dict = generate_region_dict(regions['exons'])
     
     bed_center = bedtool.each(small_peaks).saveas()
@@ -674,40 +674,7 @@ def calculate_peak_locations(bedtool, genes, regions, features):
            intron_positions, features_transcript_closest, \
            features_mrna_closest, distributions
 
-
-#here we start a small module for getting read densities:
-
-def get_peak_wiggle(tool, data_pos, data_neg, size=1000, num_peaks=100):
-    
-    """
-    
-    returns matrix of (n,25) of wiggle and peak information
-    tool - bedtool contains location of peaks
-    data - bigwig file handle - contains bw data for the peaks
-
-    """
-    
-    results = []
-    index = []
-    for line in tool[:num_peaks]:
-        peak_center = line.start
-        pad_amt = size / 2
-        try:
-            if line.strand == "+":
-                result = data_pos.get_as_array(line.chrom, peak_center - pad_amt, peak_center + pad_amt)
-            if line.strand == "-":
-                result = data_neg.get_as_array(line.chrom, peak_center - pad_amt, peak_center + pad_amt)[::-1]
-                
-            result = [0 if np.isnan(x) else x for x in result]
-        
-            results.append(result)
-            index.append(line.name)
-            
-        except:
-            pass
-    return pd.DataFrame(results, index=index)
-
-
+#TODO Start small module for getting read densiites
 from HTSeq import SAM_Alignment
 import pysam
 
@@ -739,6 +706,21 @@ def get_bam_coverage(bamfile):
                 if cigop.type != "M":
                     continue
                 coverage[cigop.ref_iv] += 1
+    return coverage
+
+
+def get_bam_counts(bamfile):
+    """
+    Given a bam file returns a coverage file with just count of the number of reads that start at a specific location
+    :param bamfile:
+    :return HTSeq coverage :
+    """
+    bam = Robust_BAM_Reader(bamfile)
+    coverage = HTSeq.GenomicArray("auto", typecode="i")
+    for read in bam:
+        read.iv.length = 1
+        if read.aligned:
+            coverage[read.iv] += 1
     return coverage
 
 
@@ -784,8 +766,8 @@ def cluster_peaks(bedtool, htseq_bam, k=16):
     if len(data) < k:
         k = len(data) / 2
         
-    kmeansClassifier = KMeans(k)
-    classes = kmeansClassifier.fit_predict(data)
+    kmeans_classifier = KMeans(k)
+    classes = kmeans_classifier.fit_predict(data)
     return bedtool_df_mag_normalized, classes
 
 
@@ -928,21 +910,22 @@ def make_dir(dir_name):
         os.mkdir(dir_name)
             
 
-def count_total_reads(bam, gene_definition):
+def count_total_reads(bedtool, counts):
     
     """
     
     Counts total reads in genes 
     
     bam: bedtool (reading in a bam file) all the reads in the original clip-seq experiment
-    gene_definition: bedtool, defines locations of all genes to analize
+    counts: HTSeq Coverage file to count reads in, defines locations of all genes to analize
     
     """
-    
-    return len(bam.intersect(gene_definition, u=True))
+
+    result = get_densities(bedtool, counts)
+    return sum([sum(item) for item in result])
 
 
-def count_reads_per_cluster(bedtool, bamtool):
+def count_reads_per_cluster(bedtool, counts):
     
     """
     
@@ -960,15 +943,16 @@ def count_reads_per_cluster(bedtool, bamtool):
     reads_per_cluster = []
     try:
         for cluster in bedtool:
-           #handles merged clusters (taking the reads from only the first one)
-           first_cluster = cluster.name.split(";")[0]
-           number_reads_in_peak = first_cluster.split("_")[2]
-           reads_per_cluster.append(int(number_reads_in_peak))
-    except: #can't count based on reported number, reverting to bedtools 
-        cov = bamtool.coverage(bedtool, s=True, counts=True)
-        for cluster in cov:
-            reads_per_cluster.append(int(cluster[-1]))
-            
+            #handles merged clusters (taking the reads from only the first one)
+            first_cluster = cluster.name.split(";")[0]
+            number_reads_in_peak = first_cluster.split("_")[2]
+            reads_per_cluster.append(int(number_reads_in_peak))
+
+    #can't count based on reported number, reverting to HTSeq
+    except:
+        result = get_densities(bedtool, counts)
+        reads_per_cluster = [sum(item) for item in result]
+
     reads_in_clusters = sum(reads_per_cluster)
     return reads_in_clusters, reads_per_cluster
 
@@ -1049,15 +1033,16 @@ def calculate_phastcons(regions, cluster_regions, phastcons_location, sample_siz
     
     
     ###conservation --should use multiprocessing to speed this part up!
-#start output_file conservation logic, very slow...
-    phast_values = {"real" : {}, "rand" : {}}
+    #start output_file conservation logic, very slow...
+    phast_values = {"real": {}, "rand": {}}
     print "Fetching Phastcons Scores..."
     #phastcons values for all regions except "all"
-    
-    for region in regions: #skip "all" combine them later
-        print "%s..." % (region)
 
-        try: #gracefully fail if the region isn't represented
+    #skip "all" combine them later
+    for region in regions:
+        print "%s..." % region
+        #gracefully fail if the region isn't represented
+        try:
             phast_values["real"][region] = get_mean_phastcons(cluster_regions[region]['real'], 
                                                               phastcons_location, 
                                                               sample_size=sample_size)
@@ -1110,20 +1095,19 @@ def calculate_motif_distance(cluster_regions, region_sizes, motif_tool, slopsize
         
         dist_dict[region]['real']['dist'] = get_motif_distance(cluster_regions[region]['real'], motif_tool, slop=slopsize)
         dist_dict[region]['real']['size'] = region_sizes[region]
-        
-        
+
         nrand = len(cluster_regions[region]['rand'].keys())
         dist_dict[region]['rand']['dist'] = []
         for i in range(nrand):
             dist_dict[region]['rand']['dist'] += get_motif_distance(cluster_regions[region]['rand'][i], motif_tool, slop=slopsize)
         dist_dict[region]['rand']['size'] = region_sizes[region] * nrand
         
-        print "%s done" % (region)
+        print "%s done" % region
     
     #assigns 'all' information
     dist_dict['all'] = {}
-    dist_dict['all']['real'] = {'dist' : [], 'size' : 0}
-    dist_dict['all']['rand'] = {'dist' : [], 'size' : 0}
+    dist_dict['all']['real'] = {'dist': [], 'size': 0}
+    dist_dict['all']['rand'] = {'dist': [], 'size': 0}
     for region in dist_dict:
         dist_dict['all']['real']['size'] += dist_dict[region]['real']['size']
         dist_dict['all']['rand']['size'] += dist_dict[region]['rand']['size']
@@ -1158,7 +1142,7 @@ def get_motif_distance(clusters, motif, slop=500):
         distance = motif_center - cluster_center
 
         if line[5] == "-":
-            distance = distance * -1
+            distance *= -1
         distances.append(distance)
 
     return distances
@@ -1199,9 +1183,9 @@ def generate_motif_distances(cluster_regions, region_sizes, motifs, motif_locati
 
 
 def make_unique(feature):
-        global uniq_count
-        uniq_count += 1
-        feature.name = feature.name + "_" + str(uniq_count)
+        global unique_count
+        unique_count += 1
+        feature.name = feature.name + "_" + str(unique_count)
         return feature
 
 
@@ -1229,14 +1213,13 @@ def main(options):
     species = options.species
     out_dict = {}
     #In case names aren't unique make them all unique
-    global uniq_count
-    uniq_count = 0
+    global unique_count
+    unique_count = 0
     clusters_bed = pybedtools.BedTool(options.clusters).each(make_unique).saveas()
     bamtool = pybedtools.BedTool(options.bam)
     bamtool_htseq = HTSeq.BAM_Reader(options.bam)
-    #bw_pos = BigWigFile(open(options.bw_pos))
-    #bw_neg = BigWigFile(open(options.bw_neg))
-    
+    counts = get_bam_counts(options.bam)
+
     #makes output file names 
     clusters = str.replace(clusters, ".BED", "")
     options.k = [int(x) for x in options.k]
@@ -1286,22 +1269,18 @@ def main(options):
     else:
         print "AS STRUCTURE file not listed, alt-splicing figure will not be generated"
 
-    cluster_regions = assign_to_regions(tool=clusters_bed,
-                                                      clusters=clusters,
-                                                      regions=assigned_regions,
-                                                      assigned_dir=assigned_dir,
-                                                      species=species,
-                                                      nrand=options.nrand)
+    cluster_regions = assign_to_regions(tool=clusters_bed, clusters=clusters, regions=assigned_regions,
+                                        assigned_dir=assigned_dir, species=species, nrand=options.nrand)
 
     region_sizes = get_sizes(cluster_regions)
 
     genic_region_sizes = count_genomic_region_sizes(assigned_regions, species)
 
     reads_in_clusters, reads_per_cluster = count_reads_per_cluster(cluster_regions['all']['real'], bamtool)
-    total_reads = count_total_reads(bamtool, genomic_regions['genes'])
+    total_reads = count_total_reads(genomic_regions['genes'], counts)
     region_read_counts = {}
     for region_name, cur_region in genomic_regions.items():
-        region_read_counts[region_name] = count_total_reads(bamtool, cur_region)  
+        region_read_counts[region_name] = count_total_reads(cur_region, counts)
     
     #one stat is just generated here
     #generates cluster lengths (figure 3)
@@ -1323,12 +1302,10 @@ def main(options):
         features_mrna_closest = {name: bedtool['dist'].saveas("%s_%s_mrna.bed" % (clusters, name)) for name, bedtool in features_mrna_closest.items() if bedtool['dist'] is not None}
 
         #generates figure 10 (exon distances)
-        type_count = [types["CE:"], types["SE:"],
-                  types["MXE:"], types["A5E:"], types["A3E:"]]
+        type_count = [types["CE:"], types["SE:"], types["MXE:"], types["A5E:"], types["A3E:"]]
 
-        genomic_type_count = [genomic_types["CE:"], genomic_types["SE:"],
-                            genomic_types["MXE:"], genomic_types["A5E:"],
-                            genomic_types["A3E:"]]
+        genomic_type_count = [genomic_types["CE:"], genomic_types["SE:"], genomic_types["MXE:"], genomic_types["A5E:"],
+                              genomic_types["A3E:"]]
 
         out_dict["premRNA_positions"] = premRNA_positions
         out_dict["mRNA_positions"] = mRNA_positions
@@ -1340,7 +1317,6 @@ def main(options):
         out_dict['features_mrna_closest'] = {name: bedtool['dist'].fn for name, bedtool in features_mrna_closest.items() if bedtool['dist'] is not None}
         out_dict['distributions'] = distributions
 
-    #TODO fix function to work off htseq instead of bw files
     read_densities, classes = cluster_peaks(cluster_regions['all']['real'], bamtool_htseq)
 
     kmer_results = None
@@ -1355,7 +1331,7 @@ def main(options):
     #loads phastcons values output_file generates them again
     if not options.rePhast:
         try:
-            phast_values = pickle.load(open(os.path.join(misc_dir, "%s.phast.pickle" % (clusters))))
+            phast_values = pickle.load(open(os.path.join(misc_dir, "%s.phast.pickle" % clusters)))
         except:
             options.rePhast = True
 
@@ -1420,8 +1396,6 @@ def call_main():
     parser.add_option("--runHomer", dest="homer", action="store_true", help="Runs homer", default=False)
     parser.add_option("--motifs", dest="motifs", action="append", help="Motifs to use (files of motifs give must exist in motif_directory directory)", default=[])
     parser.add_option("--k", dest="k", action="append", help="k-mer and homer motif ananlysis", default=[6])
-    #parser.add_option("--conservation", dest="cons", help="Runs conservation (might not do anything)", action="store_true")
-    #parser.add_option("--structure", dest="structure", help="also doesn't do anything gets structure maps", action="store_true")
     parser.add_option("--nrand", dest="nrand", default=3, help="selects number of times to randomly sample genome", type="int")
     parser.add_option("--outdir", "-o", dest="outdir", default=os.getcwd(), help="directory for output, default:cwd")
     ##Below here are critical files that always need to be referenced
