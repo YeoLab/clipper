@@ -51,7 +51,7 @@ class ClipVisualization():
         self.premRNA = data['distributions']['genes']['total'] if "distributions" in data else None
         self.mRNA = data['distributions']['exons']['total'] if "distributions" in data else None
         self.exondist = data['distributions']['exons']['individual'] if "distributions" in data else None
-        self.introndist = data['distributions'] ['introns']['individual'] if "distributions" in data else None
+        self.introndist = data['distributions']['introns']['individual'] if "distributions" in data else None
         self.distributions = data['distributions'] if "distributions" in data else None
         self.genomic_locs = data['genic_region_sizes'] if "genic_region_sizes" in data else None
         self.clusters_locs = data['region_sizes'] if "region_sizes" in data else None
@@ -62,12 +62,9 @@ class ClipVisualization():
         self.phastcons_values = data['phast_values'] if "phast_values" in data else None
         self.read_densities = np.array(data['data']) if "data" in data else None
         self.classes = data['classes'] if "classes" in data else None
+        self.features_transcript_closest = data['features_transcript_closest'] if "features_transcript_closest" in data else None
+        self.features_mrna_closest = data['features_mrna_closest'] if "features_mrna_closest" in data else None
 
-        #TODO Need to load in transcripts and mrnas for plotting, unsure if this is still needed
-        #out_dict["premRNA_positions"] = premRNA_positions
-        #out_dict["mRNA_positions"] = mRNA_positions
-        #out_dict["exon_positions"] = exon_positions
-        #out_dict["intron_positions"] = intron_positions
 
     def build_reads_in_clusters(self, ax, reads_in_clusters=None, reads_out_clusters=None):
 
