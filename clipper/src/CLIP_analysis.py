@@ -470,7 +470,7 @@ def get_distributions(bedtool, region_dict):
             'errors': num_errors, 'missed': num_missed}
 
 
-def calculate_peak_locations(bedtool, regions, features):
+def get_feature_distances(bedtool, regions, features):
     
     """
     
@@ -489,10 +489,6 @@ def calculate_peak_locations(bedtool, regions, features):
     bed_center = bedtool.each(small_peaks).saveas()
     beds_center_transcripts = bed_center.each(name_to_chrom).saveas()
     beds_center_transcripts_mrna = beds_center_transcripts.each(convert_to_mRNA_position, exon_dict).filter(lambda x: x.chrom != "none").saveas()
-    
-    #####################
-    #Here be feature code
-    #####################
 
     features_transcript = convert_to_transcript(features)
     features_mrna = convert_to_mrna(features_transcript, exon_dict)
@@ -512,14 +508,15 @@ def calculate_peak_locations(bedtool, regions, features):
         except:
             features_mrna_closest[name] = {"dist": None}
 
+    return features_transcript_closest, features_mrna_closest
+
+
+def get_region_distributions(bedtool, regions):
     distributions = {}
-    for name, region in regions.items(): 
+    for name, region in regions.items():
         region_dict = generate_region_dict(region)
         distributions[name] = get_distributions(bedtool, region_dict)
-
-
-    
-    return features_transcript_closest, features_mrna_closest, distributions
+    return distributions
 
 
 def get_closest_exon_types(bedtool, as_structure_dict):
@@ -993,7 +990,7 @@ def get_motif_distance(clusters, motif, slop=500):
       
     clusters - bedtool (bed12)
     motif - bedtool (bed12)
-    
+
     returns distance from clusters to nearest motif 
     
     """
@@ -1154,10 +1151,11 @@ def main(bedtool, bam, species, rePhast=False, runPhast=False, reMotif=False, ho
     cluster_lengths = bedlengths(cluster_regions['all']['real'])
 
     print "getting peak locations"
-    features_transcript_closest, features_mrna_closest, distributions = calculate_peak_locations(cluster_regions['all']['real'], genomic_regions, features)
-
+    features_transcript_closest, features_mrna_closest = get_feature_distances(cluster_regions['all']['real'], genomic_regions, features)
     features_transcript_closest = {name:  pybedtools.BedTool(bedtool['dist'].saveas("%s_%s_transcript.bed" % (clusters, name)).fn) for name, bedtool in features_transcript_closest.items() if bedtool['dist'] is not None}
     features_mrna_closest = {name:  pybedtools.BedTool(bedtool['dist'].saveas("%s_%s_mrna.bed" % (clusters, name)).fn) for name, bedtool in features_mrna_closest.items() if bedtool['dist'] is not None}
+
+    distributions = get_region_distributions(cluster_regions['all']['real'], genomic_regions)
 
     if as_structure is not None:
         #also builds figure 10 (exon distances)
