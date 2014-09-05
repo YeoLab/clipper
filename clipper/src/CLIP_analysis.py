@@ -1268,7 +1268,7 @@ def call_main():
         parser.print_help()
         exit()
     main(bedtool=options.clusters, bam=options.bam, species=options.species, rePhast=options.rePhast,
-         runPhast=options.runPhast, reMotif=options.runMotif, homer=options.runHomer,
+         runPhast=options.runPhast, reMotif=options.reMotif, homer=options.homer,
          motifs=options.motifs, k=options.k, nrand=options.nrand, outdir=options.outdir, db=options.db,
          as_structure=options.as_structure,
          genome_location=options.genome_location, homer_path=options.homer_path,
