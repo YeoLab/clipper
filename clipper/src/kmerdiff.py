@@ -69,24 +69,28 @@ def kmer_diff(file1, file2, k):
     
     #call compseq
     with open(os.devnull, 'w') as fnull:
-        
-        subprocess.call(['compseq', 
-                     '-word', str(k), 
-                     '-sequence', file1,
-                     '-outfile', file1 + ".compseq"],
-                        shell=False,
-                        stdout=fnull,
-                        stderr=fnull
-                    )
-    
-        subprocess.call(['compseq', 
-                     '-word', str(k), 
-                     '-sequence', file2,
-                     '-outfile', file2 + ".compseq"],
-                        shell=False,
-                        stdout=fnull,
-                        stderr=fnull
-                    )
+        try:
+            subprocess.call(['compseq',
+                             '-word', str(k),
+                             '-sequence', file1,
+                             '-outfile', file1 + ".compseq"],
+                                shell=False,
+                                stdout=fnull,
+                                stderr=fnull
+                            )
+
+            subprocess.call(['compseq',
+                             '-word', str(k),
+                             '-sequence', file2,
+                             '-outfile', file2 + ".compseq"],
+                                shell=False,
+                                stdout=fnull,
+                                stderr=fnull
+                        )
+        except OSError as e:
+            print "compseq probably not installed, please install emboss package (http://emboss.sourceforge.net/download/) "
+            raise e
+
     
     n1, freq1 = parse_compseq(file1 + ".compseq")
     n2, freq2 = parse_compseq(file2 + ".compseq")
