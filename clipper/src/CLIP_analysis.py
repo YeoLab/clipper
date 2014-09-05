@@ -1168,9 +1168,12 @@ def main(bedtool, bam, species, runPhast=False, motifs=[], k=[6], nrand=3,
         out_dict["genomic_type_count"] = genomic_type_count
         out_dict["type_count"] = type_count
 
-    make_fasta_files_from_regions(cluster_regions, clusters, fasta_dir, genome_location)
-    calculate_homer_motifs(k, regions, clusters, fasta_dir, homerout)
-    kmer_results = calculate_kmer_diff(k, regions, clusters, fasta_dir)
+    if genome_location is not None:
+        make_fasta_files_from_regions(cluster_regions, clusters, fasta_dir, genome_location)
+        calculate_homer_motifs(k, regions, clusters, fasta_dir, homerout)
+        kmer_results = calculate_kmer_diff(k, regions, clusters, fasta_dir)
+    else:
+        print "No genome fasta file provide, motif identification will not be performed"
 
     phast_values = None
     print "starting phast"
