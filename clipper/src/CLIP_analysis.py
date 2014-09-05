@@ -1056,8 +1056,8 @@ def visualize(clusters, extension, out_dir):
     distribution_fig.savefig(os.path.join(out_dir, clusters + ".DistFig." + extension))
 
 
-def main(bedtool, bam, species, rePhast=False, runPhast=False, reMotif=False, homer=False, motifs=[], k=[6], nrand=3,
-         outdir=os.getcwd(), db=None, as_structure=None, genome_location=None, homer_path=None, phastcons_location=None,
+def main(bedtool, bam, species, runPhast=False, motifs=[], k=[6], nrand=3,
+         outdir=os.getcwd(), db=None, as_structure=None, genome_location=None, phastcons_location=None,
          regions_location=None, motif_location=os.getcwd(), metrics="CLIP_Analysis.metrics", extension="svg"):
     
     """
@@ -1168,22 +1168,11 @@ def main(bedtool, bam, species, rePhast=False, runPhast=False, reMotif=False, ho
         out_dict["genomic_type_count"] = genomic_type_count
         out_dict["type_count"] = type_count
 
-    kmer_results = None
-    if reMotif:
-        kmer_results = calculate_kmer_diff(k, regions, clusters, fasta_dir)
-
-    if homer:
-        make_fasta_files_from_regions(cluster_regions, clusters, fasta_dir, genome_location)
-        calculate_homer_motifs(k, regions, clusters, fasta_dir, homerout)
+    make_fasta_files_from_regions(cluster_regions, clusters, fasta_dir, genome_location)
+    calculate_homer_motifs(k, regions, clusters, fasta_dir, homerout)
+    kmer_results = calculate_kmer_diff(k, regions, clusters, fasta_dir)
 
     phast_values = None
-    #loads phastcons values output_file generates them again
-    if not rePhast:
-        try:
-            phast_values = pickle.load(open(os.path.join(misc_dir, "%s.phast.pickle" % clusters)))
-        except:
-            rePhast = True
-
     print "starting phast"
     if runPhast:
         phast_values = calculate_phastcons(assigned_regions, cluster_regions, phastcons_location)
@@ -1242,10 +1231,7 @@ def call_main():
     parser.add_option("--clusters", dest="clusters", help="BED file of clusters", metavar="BED")
     parser.add_option("--bam", dest="bam", help="The bam file from the CLIP analysis")
     parser.add_option("--species", "-s", dest="species", help = "genome version")
-    parser.add_option("--rePhast", dest="rePhast", action="store_true", default=False, help="re-calculate conservation, must have been done before") 
-    parser.add_option("--runPhast", dest="runPhast", action="store_true", default=False, help="Run Phastcons ") 
-    parser.add_option("--runMotif", dest="reMotif", action="store_true", default=False, help="Calculate Motif scores")
-    parser.add_option("--runHomer", dest="homer", action="store_true", help="Runs homer", default=False)
+    parser.add_option("--runPhast", dest="runPhast", action="store_true", default=False, help="Run Phastcons ")
     parser.add_option("--motifs", dest="motifs", action="append", help="Motifs to use (files of motifs give must exist in motif_directory directory)", default=[])
     parser.add_option("--k", dest="k", action="append", help="k-mer and homer motif ananlysis", default=[6])
     parser.add_option("--nrand", dest="nrand", default=3, help="selects number of times to randomly sample genome", type="int")
@@ -1254,7 +1240,6 @@ def call_main():
     parser.add_option("--gff_db", dest="db", help="gff database from gffutils to generate annotations with")
     parser.add_option("--AS_Structure", dest="as_structure",  help="Location of AS_Structure directory (chromosme files should be inside)", default=None)
     parser.add_option("--genome_location", dest="genome_location", help="location of all.fa file for genome of interest", default=None)
-    parser.add_option("--homer_path", dest="homer_path", action="append", help="path to homer, if not in default path", default=None)
     parser.add_option("--phastcons_location", dest="phastcons_location",  help="location of phastcons file", default=None)
     parser.add_option("--regions_location", dest="regions_location",  help="directory of genomic regions for a species (default: clipper defined regions)", default=None)
     parser.add_option("--motif_directory", dest="motif_location",  help="directory of pre-computed motifs for analysis", default=os.getcwd())
@@ -1267,11 +1252,11 @@ def call_main():
     if options.clusters is None or options.bam is None or options.species is None:
         parser.print_help()
         exit()
-    main(bedtool=options.clusters, bam=options.bam, species=options.species, rePhast=options.rePhast,
-         runPhast=options.runPhast, reMotif=options.reMotif, homer=options.homer,
+    main(bedtool=options.clusters, bam=options.bam, species=options.species,
+         runPhast=options.runPhast,
          motifs=options.motifs, k=options.k, nrand=options.nrand, outdir=options.outdir, db=options.db,
          as_structure=options.as_structure,
-         genome_location=options.genome_location, homer_path=options.homer_path,
+         genome_location=options.genome_location,
          phastcons_location=options.phastcons_location, regions_location=options.regions_location,
          motif_location=options.motif_location, metrics=options.metrics, extension=options.extension)
 
