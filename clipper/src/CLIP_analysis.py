@@ -320,79 +320,6 @@ def adjust_offsets(tool, offsets=None):
     return pybedtools.BedTool("\n".join(clusters), from_string=True)
 
 
-def RNA_position_interval(interval, location_dict):
-    
-    """
-    
-    makes mrna and pre-mrna peak_center figure 
-    interval - single interval
-    
-    location_dict = dict{gene_id : {strand : "+/-", regions : list((start,stop)
-    as_structure_dict - from build AS structure dict 
-    
-    will return distribution across entire region + just across specific region
-    Might be able to use my ribo-seq stuff for genic -> transcriptomic location conversion
-    
-    this is based off as structure, which provides sequences ordered with first exon being the first exon on the gene,
-    not first in the chromosome (like gff does) THIS WILL NOT WORK WITH RAW GFF DATA
-    
-    """
-    
-    #think about turning the location_dict into a gff file
-    #gets thickstart and stop
-    peak_center = (int(interval[6]) + int(interval[7])) / 2
-        
-    try:
-        gene = interval.name.split("_")[0]
-    except:
-        #takes first gene if there are multiple overlapping 
-        gene = interval.name.split(";")[0].split("_")[0]
-    
-    if gene not in location_dict:
-        raise KeyError(gene + " not in current region dict, ignoring cluster (regions must be either gencode genes or defined by hand")
-    
-    if not interval.strand == location_dict[gene][0].strand:
-        raise ValueError("strands not the same, there is some issue with gene annotations")
-    
-    total_length = float(sum(region.length for region in location_dict[gene]))
-    
-    running_length = 0
-    
-    #reverses list if negative strand so running count can work
-    #if location_dict[gene]['strand'] == "-":
-    #    location_dict[gene]['regions'].reverse()
-        
-    for region in location_dict[gene]:
-        length = float(region.length) 
-
-        if int(region.start) <= peak_center <= int(region.stop):
-            if interval.strand == "+":
-                total_location = running_length + (peak_center - region.start)
-                total_fraction = np.round((total_location / total_length), 3)
-
-                individual_fraction = (peak_center - region.start) / length
-
-            elif interval.strand == "-":
-                total_location = running_length + (region.stop - peak_center)
-                total_fraction = total_location / total_length
-                individual_fraction = (region.stop - peak_center) / length
-                
-            else:
-                raise ValueError("Strand not correct strand is %s" % interval.strand)
-
-            #probably not nessessary
-            if total_fraction < 0 or total_fraction > 1:
-                raise ValueError("total_fraction is bad: %f, gene %s, total_length: %s, total_location: %s" % (total_fraction, 
-                                                                                                               gene, 
-                                                                                                              total_length,
-                                                                                                               total_location))
-            return individual_fraction, total_fraction
-        
-        running_length += length
-        
-    return None, None #clusters fall outside of regions integrated
-
-
 def generate_region_dict(bedtool):
     region_dict = defaultdict(list)
     
@@ -437,51 +364,13 @@ def invert_neg(interval):
     return interval
 
 
-def get_distributions(bedtool, region_dict):
-    
-    """
-    
-    Gets distributions from RNA_position function
-
-    bedtool - clipper bed file to generate distributions from
-    region_dict - generate_region_dict dict defining regions 
-
-    """
-    
-    exon_distributions = []
-    total_distributions = []
-    num_errors = []
-    num_missed = []
-    for interval in bedtool:
-        try: 
-            #will need to redefine this to use intervals
-            exon, total = RNA_position_interval(interval, region_dict)
-  
-            if total is not None:
-                total_distributions.append(total)
-                exon_distributions.append(exon)
-            else:
-                num_missed.append(interval)
-        except Exception as e:
-            print e
-            num_errors.append(interval)
-
-    return {'individual': exon_distributions, 'total': total_distributions,
-            'errors': num_errors, 'missed': num_missed}
-
-
 def get_feature_distances(bedtool, regions, features):
-    
     """
-    
-    bedtools - bedtools of peaks, both  (only works with clipper defined peaks)
-    db - database of gff file from gffutils
-    
-    Counts peak locations returns mRNA, pre mRNA, exon and intron positions
-    and the nearest type of exon (CE SE ect...)
-    
-    cluster_regions - bedtool describing locations of peaks / clusters
-    
+
+    :param bedtool: bedtools of peaks, both  (only works with clipper defined peaks)
+    :param regions: dict of regions, used to convert genomic coordinates to mrna coordinates
+    :param features: dict of features to find distance from
+    :return:
     """
 
     exon_dict = generate_region_dict(regions['exons'])
@@ -512,11 +401,119 @@ def get_feature_distances(bedtool, regions, features):
 
 
 def get_region_distributions(bedtool, regions):
+    """
+    Gets location of each peak across different regions
+    :param bedtool: pybedtool of peaks
+    :param regions: dict of regions to
+    :return:
+    """
     distributions = {}
     for name, region in regions.items():
         region_dict = generate_region_dict(region)
         distributions[name] = get_distributions(bedtool, region_dict)
     return distributions
+
+
+def get_distributions(bedtool, region_dict):
+
+    """
+
+    Gets distributions from RNA_position function
+
+    bedtool - clipper bed file to generate distributions from
+    region_dict - generate_region_dict dict defining regions
+
+    """
+
+    exon_distributions = []
+    total_distributions = []
+    num_errors = []
+    num_missed = []
+    for interval in bedtool:
+        try:
+            #will need to redefine this to use intervals
+            exon, total = RNA_position_interval(interval, region_dict)
+
+            if total is not None:
+                total_distributions.append(total)
+                exon_distributions.append(exon)
+            else:
+                num_missed.append(interval)
+        except Exception as e:
+            print e
+            num_errors.append(interval)
+
+    return {'individual': exon_distributions, 'total': total_distributions,
+            'errors': num_errors, 'missed': num_missed}
+
+
+def RNA_position_interval(interval, location_dict):
+
+    """
+
+    makes mrna and pre-mrna peak_center figure
+    interval - single interval
+
+    location_dict = dict{gene_id : {strand : "+/-", regions : list((start,stop)
+    as_structure_dict - from build AS structure dict
+
+    will return distribution across entire region + just across specific region
+    Might be able to use my ribo-seq stuff for genic -> transcriptomic location conversion
+
+    this is based off as structure, which provides sequences ordered with first exon being the first exon on the gene,
+    not first in the chromosome (like gff does) THIS WILL NOT WORK WITH RAW GFF DATA
+
+    """
+
+    #think about turning the location_dict into a gff file
+    #gets thickstart and stop
+    peak_center = (int(interval[6]) + int(interval[7])) / 2
+
+    try:
+        gene = interval.name.split("_")[0]
+    except:
+        #takes first gene if there are multiple overlapping
+        gene = interval.name.split(";")[0].split("_")[0]
+
+    if gene not in location_dict:
+        raise KeyError(gene + """ not in current region dict, ignoring cluster (not to worry, this error gets thrown if the peak isn't in the region being looked at, or you have your annotations wrong, double check you're using a supported genome or make a regions file yourself""")
+
+    if not interval.strand == location_dict[gene][0].strand:
+        raise ValueError("strands not the same, there is some issue with gene annotations")
+
+    total_length = float(sum(region.length for region in location_dict[gene]))
+
+    running_length = 0
+    for region in location_dict[gene]:
+        length = float(region.length)
+
+        if int(region.start) <= peak_center <= int(region.stop):
+            if interval.strand == "+":
+                total_location = running_length + (peak_center - region.start)
+                total_fraction = np.round((total_location / total_length), 3)
+
+                individual_fraction = (peak_center - region.start) / length
+
+            elif interval.strand == "-":
+                total_location = running_length + (region.stop - peak_center)
+                total_fraction = total_location / total_length
+                individual_fraction = (region.stop - peak_center) / length
+
+            else:
+                raise ValueError("Strand not correct strand is %s" % interval.strand)
+
+            #probably not nessessary
+            if total_fraction < 0 or total_fraction > 1:
+                raise ValueError("total_fraction is bad: %f, gene %s, total_length: %s, total_location: %s" % (total_fraction,
+                                                                                                               gene,
+                                                                                                              total_length,
+                                                                                                               total_location))
+            return individual_fraction, total_fraction
+
+        running_length += length
+
+    #clusters fall outside of regions integrated
+    return None, None
 
 
 def get_closest_exon_types(bedtool, as_structure_dict):
