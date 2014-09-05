@@ -314,8 +314,11 @@ class ClipVisualization():
         labels = []
         for region in regions_count.viewkeys() & regions.viewkeys() & colors.viewkeys():
             values.append(regions_count[region])
-            color_list.append(color_list.append(colors[region]))
+            color_list.append(colors[region])
             labels.append(regions[region])
+        print values
+        print color_list
+        print labels
         ax.pie(values, colors=color_list, labels=labels)
         return ax
 
