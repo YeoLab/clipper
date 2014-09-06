@@ -64,7 +64,7 @@ class ClipVisualization():
         self.classes = data['classes'] if "classes" in data else None
         self.features_transcript_closest = data['features_transcript_closest'] if "features_transcript_closest" in data else None
         self.features_mrna_closest = data['features_mrna_closest'] if "features_mrna_closest" in data else None
-
+        self.homer_location = data['homerout']
 
     def build_reads_in_clusters(self, ax, reads_in_clusters=None, reads_out_clusters=None):
 
@@ -316,9 +316,6 @@ class ClipVisualization():
             values.append(regions_count[region])
             color_list.append(colors[region])
             labels.append(regions[region])
-        print values
-        print color_list
-        print labels
         ax.pie(values, colors=color_list, labels=labels)
         return ax
 
