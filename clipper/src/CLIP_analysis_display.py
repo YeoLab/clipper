@@ -668,7 +668,7 @@ class ClipVisualization():
         """
         feature_proper_name_dict = {"transcription_start_sites": "Transcription\nStart Sites",
                                     "start_codons": "Start Codons",
-                                    "stop_codons": "Start Codons",
+                                    "stop_codons": "Stop Codons",
                                     "five_prime_ends": "Five Prime Ends",
                                     "three_prime_ends": "Three Prime Ends",
                                     "poly_a_sites": "Poly A Sites",
