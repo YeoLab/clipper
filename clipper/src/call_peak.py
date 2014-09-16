@@ -288,8 +288,6 @@ class SmoothingSpline(PeakGenerator):
         turns = sum(abs(diff(sign(diff(func))))) / 2
         turn_exp = 4
         residual_weight = 1000
-        #print "turns", turns,
-        #print "residual", (residual_weight * sqrt((spline.get_residual()))), "turns score", (turn_weight * (turns ** turn_exp))
         err = (residual_weight * sqrt((spline.get_residual()))) * (turn_weight * (turns ** turn_exp))
 
         return err
@@ -623,6 +621,7 @@ class SmoothingSpline(PeakGenerator):
         for peak in self.peakCalls:
             ax.axvline(x=peak[2], color='red', alpha=1, linewidth=4) #peak middle
             ax.axvspan(peak[0]+1, peak[1]-1, facecolor='blue', linewidth=2, alpha=.2)#peak span
+        ax.axhline(y=self.threshold)
         ax.plot(self.yData, c='b', alpha=0.7)
         ax.plot(self.spline(self.xRange))
 
@@ -878,8 +877,8 @@ def poissonP(reads_in_gene, reads_in_peak, gene_length, peak_length):
 
 
 def call_peaks(interval, gene_length, bam_fileobj=None, bam_file=None, 
-               max_gap=25, fdr_alpha=0.05, user_threshold=None, binom_alpha=0.05, method="random",
-               min_reads=20, poisson_cutoff=0.05,
+               max_gap=25, fdr_alpha=0.05, user_threshold=None, binom_alpha=0.05, method="binomial",
+               min_reads=3, poisson_cutoff=0.05,
                plotit=False, w_cutoff=10, windowsize=1000, 
                SloP=False, correct_p=False, max_width=None, min_width=None,
                algorithm="spline", verbose=False):
@@ -949,9 +948,11 @@ def call_peaks(interval, gene_length, bam_fileobj=None, bam_file=None,
                              verbose=verbose)
     
     return result
+
+
 def peaks_from_info(wiggle, pos_counts, lengths, interval, gene_length,
                     max_gap=15, fdr_alpha=0.05, binom_alpha=0.05, method="binomial", user_threshold=None,
-                    min_reads=10, poisson_cutoff=0.05, plotit=False,
+                    min_reads=3, poisson_cutoff=0.05, plotit=False,
                     width_cutoff=10, windowsize=1000, SloP=False,
                     correct_p=False, max_width=None, min_width=None,
                     algorithm="spline", statistical_test="poisson", verbose=False):
@@ -1004,10 +1005,6 @@ def peaks_from_info(wiggle, pos_counts, lengths, interval, gene_length,
     #used for poisson calculation?
     nreads_in_gene = sum(pos_counts)
 
-    #decides FDR calculation, maybe move getFRD cutoff mean into c code
-    gene_threshold = 0
-
-
     if user_threshold is None:
         if method == "binomial":  #Uses Binomial Distribution to get cutoff if specified by user
             gene_threshold = get_FDR_cutoff_binom(lengths, gene_length, binom_alpha)
@@ -1020,8 +1017,6 @@ def peaks_from_info(wiggle, pos_counts, lengths, interval, gene_length,
     else:
         logging.info("using user threshold")
         gene_threshold = user_threshold
-
-
 
     if not isinstance(gene_threshold, int):
         raise TypeError
@@ -1052,7 +1047,6 @@ def peaks_from_info(wiggle, pos_counts, lengths, interval, gene_length,
         xvals = arange(len(data))
         Nreads = sum(cts)
         peak_dict['sections'][sect] = {}
-        threshold = int()
         peak_dict['sections'][sect]['nreads'] = int(Nreads)
 
         #makes sure there are enough reads
@@ -1072,10 +1066,10 @@ def peaks_from_info(wiggle, pos_counts, lengths, interval, gene_length,
                 sect_read_lengths = [sect_length - 1 if read > sect_length else read for read in sect_read_lengths]
 
                 if method == "binomial":  #Uses Binomial Distribution to get cutoff if specified by user
-                    threshold = max(gene_threshold, get_FDR_cutoff_binom(sect_read_lengths, sect_length, binom_alpha))
+                    threshold = min(gene_threshold, get_FDR_cutoff_binom(sect_read_lengths, sect_length, binom_alpha))
                 elif method == "random":
                     #use the minimum FDR cutoff between superlocal and gene-wide calculations
-                    threshold = max(gene_threshold, get_FDR_cutoff_mean(readlengths=sect_read_lengths, genelength=sect_length, alpha=fdr_alpha))
+                    threshold = min(gene_threshold, get_FDR_cutoff_mean(readlengths=sect_read_lengths, genelength=sect_length, alpha=fdr_alpha))
                 else:
                     raise ValueError("Method %s does not exist" % (method))
                 logging.info("Using super-local threshold %d" %(threshold))
@@ -1119,7 +1113,7 @@ def peaks_from_info(wiggle, pos_counts, lengths, interval, gene_length,
         try:
             peak_definitions = fitter.peaks()
             logging.info("optimized smoothing value: %.2f" % fitter.smoothing_factor)
-
+            peak_dict['sections'][sect]['final_smoothing_factor'] = fitter.smoothing_factor
             if peak_definitions is None:
                 numpeaks = 0
             else:
