@@ -356,25 +356,19 @@ class GenomicFeatures():
     
         except ValueError:
             pass
-        
-        five_prime_ends = []
-        three_prime_ends = []
-        poly_a_sites = []
-        stop_codons = []
-        start_codons = []
-        transcription_start_sites = []
+
         for i, gene_id in enumerate(self._db.features_of_type('gene')):
             if i % 2000 == 0:
                 print "processed %d genes" % (i)
                 if i == 2000 and limit_genes:
                     break
                 
-            gene = { "five_prime_ends" : [],
-                    "three_prime_ends" : [],
-                    "poly_a_sites" : [],
-                    "stop_codons" :  [],
-                    "start_codons" :  [],
-                    "transcription_start_sites" : []}
+            gene = { "five_prime_ends": [],
+                    "three_prime_ends": [],
+                    "poly_a_sites": [],
+                    "stop_codons":  [],
+                    "start_codons":  [],
+                    "transcription_start_sites": []}
             try:
                 for exon in self._db.children(gene_id, featuretype='exon'):
                     exon_start = copy.deepcopy(exon)
@@ -382,7 +376,7 @@ class GenomicFeatures():
    
                     exon_stop = copy.deepcopy(exon)
                     exon_stop.start = exon_stop.stop
-                    exon_stop.stop = exon_stop.stop + 1  
+                    exon_stop.stop += 1
                     
                     if exon.strand == "-":
                         exon_start, exon_stop = exon_stop, exon_start 
@@ -397,7 +391,7 @@ class GenomicFeatures():
                     
                     transcript_stop = copy.deepcopy(transcript)
                     transcript_stop.start = transcript_stop.stop
-                    transcript_stop.stop = transcript_stop.stop + 1
+                    transcript_stop.stop += 1
                  
                     if transcript.strand == "-":
                         transcript_start, transcript_stop = transcript_stop, transcript_start
