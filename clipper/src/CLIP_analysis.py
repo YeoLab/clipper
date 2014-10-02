@@ -429,22 +429,26 @@ def get_distributions(bedtool, region_dict):
     total_distributions = []
     num_errors = []
     num_missed = []
+    bound_in_regions = []
+    genes = []
     for interval in bedtool:
         try:
             #will need to redefine this to use intervals
-            exon, total = RNA_position_interval(interval, region_dict)
+            exon, total, bound_in_region, gene = RNA_position_interval(interval, region_dict)
 
             if total is not None:
                 total_distributions.append(total)
                 exon_distributions.append(exon)
+                bound_in_regions.append(bound_in_region)
+                genes.append(gene)
             else:
                 num_missed.append(interval)
         except Exception as e:
             print e
             num_errors.append(interval)
 
-    return {'individual': exon_distributions, 'total': total_distributions,
-            'errors': num_errors, 'missed': num_missed}
+    return {'individual': exon_distributions, 'total': total_distributions, "gene_ids": genes,
+            "region_numbers": bound_in_regions, 'errors': num_errors, 'missed': num_missed}
 
 
 def RNA_position_interval(interval, location_dict):
@@ -484,7 +488,7 @@ def RNA_position_interval(interval, location_dict):
     total_length = float(sum(region.length for region in location_dict[gene]))
 
     running_length = 0
-    for region in location_dict[gene]:
+    for region_number, region in enumerate(location_dict[gene]):
         length = float(region.length)
 
         if int(region.start) <= peak_center <= int(region.stop):
@@ -498,7 +502,6 @@ def RNA_position_interval(interval, location_dict):
                 total_location = running_length + (region.stop - peak_center)
                 total_fraction = total_location / total_length
                 individual_fraction = (region.stop - peak_center) / length
-
             else:
                 raise ValueError("Strand not correct strand is %s" % interval.strand)
 
@@ -508,7 +511,7 @@ def RNA_position_interval(interval, location_dict):
                                                                                                                gene,
                                                                                                               total_length,
                                                                                                                total_location))
-            return individual_fraction, total_fraction
+            return individual_fraction, total_fraction, region_number + 1, gene
 
         running_length += length
 
