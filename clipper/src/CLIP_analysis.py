@@ -772,20 +772,19 @@ def make_dir(dir_name):
         os.mkdir(dir_name)
             
 
-def count_total_reads(bedtool, counts):
-    
-    """
-    
-    Counts total reads in genes 
-    
-    bam: bedtool (reading in a bam file) all the reads in the original clip-seq experiment
-    counts: HTSeq Coverage file to count reads in, defines locations of all genes to analize
-    
-    """
+def count_total_reads(genomic_regions, counts):
+    gas = HTSeq.GenomicArrayOfSets( "auto", stranded=True)
 
-    result = get_densities(bedtool, counts)
-    return sum([sum(item) for item in result])
+    for region_name, cur_region in genomic_regions.items():
+        for interval in bed_to_genomic_interval(cur_region):
+            gas[interval] += region_name
 
+    total_counts = defaultdict(int)
+    for overlapping_interval, count in counts.steps():
+        for step in gas[overlapping_interval].steps():
+            for item in step[1]:
+                total_counts[item] += count
+    return total_counts
 
 def count_reads_per_cluster(bedtool, counts):
     
@@ -1139,10 +1138,7 @@ def main(bedtool, bam, species, runPhast=False, motifs=[], k=[6], nrand=3,
     reads_in_clusters, reads_per_cluster = count_reads_per_cluster(cluster_regions['all']['real'], counts)
 
     print "counting total reads in regions"
-    region_read_counts = {}
-    for region_name, cur_region in genomic_regions.items():
-        region_read_counts[region_name] = count_total_reads(cur_region, counts)
-
+    region_read_counts = count_total_reads(genomic_regions, counts)
     total_reads = region_read_counts['genes']
 
     print "clustering peaks"
