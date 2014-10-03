@@ -1077,6 +1077,8 @@ def main(bedtool, bam, species, runPhast=False, motifs=[], k=[6], nrand=3,
     out_dict = {}
     #In case names aren't unique make them all unique
     clusters_bed = pybedtools.BedTool(make_unique(pybedtools.BedTool(bedtool))).saveas()
+    if len(clusters_bed) <= 1:
+        raise IllegalArgunmentException("not enough reads to properly analyze bed file")
     coverage = get_bam_coverage(bam)
     counts = get_bam_counts(bam)
 
