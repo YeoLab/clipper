@@ -1,3 +1,5 @@
+[![DOI](https://zenodo.org/badge/6604/YeoLab/clipper.png)](http://dx.doi.org/10.5281/zenodo.12231)
+
 CLIPper - CLIP peak enrichment recognition
 
 A tool to detect CLIP-seq peaks.
