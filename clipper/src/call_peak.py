@@ -1017,6 +1017,7 @@ def peaks_from_info(wiggle, pos_counts, lengths, interval, gene_length,
 
     peak_number = 0
 
+
     sections = find_sections(wiggle, max_gap)
     if plotit:
         plot_sections(wiggle, sections, gene_threshold)
