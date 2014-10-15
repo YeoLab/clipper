@@ -12,7 +12,7 @@ import random
 import sys
 from subprocess import call
 import time
-
+import pandas as pd
 import pybedtools
 
 import clipper
@@ -20,8 +20,7 @@ from clipper import data_dir
 from clipper.src.call_peak import call_peaks, poissonP
 
 logging.captureWarnings(True)
-    
-#TODO add in pre-trim step 
+
 
 def check_for_index(bamfile):
     
@@ -359,41 +358,6 @@ def build_transcript_data(species, gene_bed, gene_mrna, gene_pre_mrna, pre_mrna)
 
     return pybedtools.BedTool(gtf_list)
 
-def transcriptome_filter(transcriptome_size, transcriptome_reads, cluster):
-    
-    """
-    filters each cluster by if it passes a transciptome wide cutoff or not, returns true if it passes
-    transcriptome cutoff, false if not
-    
-    poisson_cutoff - float,user set cutoff 
-    transcriptome_size - int number of genes in transcriptome
-    transcritpmoe_reads - int total number of reads analized
-    cluster - named tuple , namedtuple('Peak', ['chrom', 
-                                      'genomic_start', 
-                                      'genomic_stop', 
-                                      'gene_name', 
-                                      'super_local_poisson_p', 
-                                      'strand',
-                                      'thick_start',
-                                      'thick_stop',
-                                      'peak_number',
-                                      'number_reads_in_peak',
-                                      'gene_poisson_p',
-                                      'size'
-                                      'p'
-                                      ])
-    """
-        
-    transcriptome_p = poissonP(transcriptome_reads, 
-                               cluster.number_reads_in_peak, 
-                               transcriptome_size, 
-                               cluster.size)
-    
-    if math.isnan(transcriptome_p):
-        logging.info("""Transcriptome P is NaN, transcriptome_reads = %d, cluster reads = %d, transcriptome_size = %d, cluster_size = %d""" % (transcriptome_reads, cluster.number_reads_in_peak, transcriptome_size, cluster.size))
-        return np.Inf
-    
-    return transcriptome_p
 
 def count_transcriptome_reads(results):
     
@@ -413,14 +377,59 @@ def count_transcriptome_reads(results):
         if gene_result is not None:
             logging.info("nreads: %d" % (gene_result['nreads']))
             transcriptome_reads += gene_result['nreads']
-    
-    
+
     return transcriptome_reads
 
 
+def count_transcriptome_length(results):
+    transcriptome_length = 0
+
+    for gene_result in results:
+        if gene_result is not None:
+            transcriptome_length += int(gene_result['loc'].attrs['effective_length'])
+
+    return transcriptome_length
+
+
+def transcriptome_poissonP(cluster):
+    return poissonP(cluster.transcriptome_reads,
+                    cluster.number_reads_in_peak,
+                    cluster.transcriptome_size,
+                    cluster['size'])
+
+
+def transcript_poissonP(cluster):
+    return poissonP(cluster.nreads_in_gene,
+                    cluster.number_reads_in_peak,
+                    cluster.effective_length,
+                    cluster['size'])
+
+
+def superlocal_poissonP(cluster):
+    return poissonP(cluster.area_reads,
+                    cluster.number_reads_in_peak,
+                    cluster.area_size,
+                    cluster['size'])
+
+
+def write_peak(cluster):
+    return "\t".join([str(x) for x in [
+        cluster.chrom,
+        cluster.genomic_start,
+        cluster.genomic_stop,
+        cluster.gene_name  + "_" + str(cluster.peak_number) + "_" + str(cluster.number_reads_in_peak),
+        cluster.final_p_value,
+        cluster.strand,
+        cluster.thick_start,
+        cluster.thick_stop,
+        ]])
+
+def dictify(some_named_tuple):
+    return dict((s, getattr(some_named_tuple, s)) for s in some_named_tuple._fields)
+
 def filter_results(results, poisson_cutoff, transcriptome_size, 
                    transcriptome_reads, use_global_cutoff, 
-                   bonferroni_correct, algorithm = "spline"):
+                   bonferroni_correct, algorithm="spline", superlocal=False, min_width=50):
     
     """
     
@@ -433,63 +442,36 @@ def filter_results(results, poisson_cutoff, transcriptome_size,
     transcriptome_size - number of genes there are in the transcriptome
     
     """
-    #combine results
-    allpeaks = set([])
-    total_clusters = sum([len(gene_result['clusters']) for gene_result in results])
-    
+
+    peaks = []
     for gene_result in results:
-
         #alert user that there aren't any clusters for specific gene
-        if gene_result['clusters'] is None:
-            logging.info("%s no clusters" % (gene_result))
+            for cluster in gene_result['clusters']:
+                peaks.append(dictify(cluster))
+    peaks = pd.DataFrame(peaks)
 
-        
-        for cluster in gene_result['clusters']:
-            meets_cutoff = True
-            global_pval = np.Inf
-            try:
-                
-                if use_global_cutoff:
-                    global_pval = transcriptome_filter(transcriptome_size,
-                                                       transcriptome_reads,  
-                                                       cluster)
-                if algorithm == "classic":
-                    min_pval = max([cluster.super_local_poisson_p, 
-                                cluster.gene_poisson_p, 
-                                global_pval])
-                else:
-                    min_pval = min([cluster.super_local_poisson_p, 
-                                cluster.gene_poisson_p, 
-                                global_pval])
-                
-                if bonferroni_correct:
-                    min_pval = min(min_pval * total_clusters, 1.0)
-                            
-                if not (min_pval < poisson_cutoff):
-                    logging.info("Failed Gene Pvalue: %s and failed SloP Pvalue: %s and global value %s for Gene %s %s" % (cluster.super_local_poisson_p, cluster.gene_poisson_p, global_pval, cluster.gene_name, cluster.peak_number))
-                    meets_cutoff = False
-                
-                if meets_cutoff:
+    total_clusters = len(peaks)
 
-                    #adds beadline to total peaks that worked
-                    #the name column is hacky because the ucsc genome browser doesn't like
-                    #random columns, will need to do some parsing later to fix (awk it)
-                    allpeaks.add("\t".join([str(x) for x in [
-                                           cluster.chrom, 
-                                           cluster.genomic_start, 
-                                           cluster.genomic_stop, 
-                                           cluster.gene_name  + "_" + str(cluster.peak_number) + "_" + str(cluster.number_reads_in_peak), 
-                                           min_pval, 
-                                           cluster.strand, 
-                                           cluster.thick_start, 
-                                           cluster.thick_stop,
-                                           ]]))
-        
-            except NameError as error:
-                logging.error("parsing failed: %s" % (error))
-                raise error
-            
-    return allpeaks
+    if algorithm == "classic":
+        peaks['peak_length'] = peaks['peak_length'].apply(lambda x: max(x, min_width))
+    peaks['transcriptome_size'] = transcriptome_size
+    peaks['transcriptome_reads'] = transcriptome_reads
+    peaks['transcriptome_poisson_p'] = peaks.apply(transcriptome_poissonP, axis=1) if use_global_cutoff else np.nan
+    peaks['transcript_poisson_p'] = peaks.apply(transcript_poissonP, axis=1)
+    peaks['superlocal_poisson_p'] = peaks.apply(superlocal_poissonP, axis=1) if superlocal else np.nan
+
+    if algorithm == "classic":
+        peaks['final_p_value'] = peaks[['transcriptome_poisson_p', 'transcript_poisson_p', 'superlocal_poisson_p']].max(axis=1)
+    else:
+        peaks['final_p_value'] = peaks[['transcriptome_poisson_p', 'transcript_poisson_p', 'superlocal_poisson_p']].min(axis=1)
+
+    if bonferroni_correct:
+        peaks['final_p_value'] = (peaks['final_p_value'] * total_clusters)
+
+    final_result = peaks[peaks['final_p_value'] < poisson_cutoff]
+
+    return final_result.apply(write_peak, axis=1).values
+
 
 def mapper(options, line):
     bedtool = pybedtools.BedTool(line, from_string=True)
@@ -508,7 +490,8 @@ def mapper(options, line):
                       options.FDR_alpha, options.threshold, 
                       int(options.minreads), options.poisson_cutoff, 
                       options.plotit, 10, 1000, options.SloP, False)
-    
+
+
 def hadoop_mapper(options):
     
     """
@@ -520,7 +503,8 @@ def hadoop_mapper(options):
    
     for line in sys.stdin:
         mapper(options, line)
-        
+
+
 def main(options):
     
     check_for_index(options.bam)
@@ -559,8 +543,6 @@ def main(options):
     
     gene_tool = gene_tool.saveas()
 
-    transcriptome_size = sum(int(x.attrs['effective_length']) if "effective_length" in x.attrs else x.length for x in gene_tool)
-
     tasks = [(gene, gene.attrs['effective_length'], None, bamfile, options.max_gap, options.FDR_alpha,
               options.threshold, options.binom, options.method, options.minreads, options.poisson_cutoff,
               options.plotit, 10, 1000, options.SloP, False, options.max_width, options.min_width, options.algorithm,
@@ -593,7 +575,8 @@ def main(options):
             pickle.dump(results, file=pickle_file)                
     
     transcriptome_reads = count_transcriptome_reads(results)
-    
+    transcriptome_size = count_transcriptome_length(results)
+
     logging.info("""Transcriptome size is %d, transcriptome reads are %d""" % (transcriptome_size, transcriptome_reads))
 
     filtered_peaks = filter_results(results, 
@@ -602,7 +585,9 @@ def main(options):
                               transcriptome_reads, 
                               options.use_global_cutoff,
                               options.bonferroni_correct,
-                              options.algorithm)
+                              options.algorithm,
+                              options.SloP,
+                              options.min_width)
             
     outbed = options.outfile
 

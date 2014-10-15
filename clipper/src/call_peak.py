@@ -27,21 +27,24 @@ from scipy.stats import binom
 from clipper.src.peaks import shuffle, find_sections
 from clipper.src.readsToWiggle import readsToWiggle_pysam
 
-#pylab.rcParams['interactive']=True
-
-class Peak(namedtuple('Peak', ['chrom', 
-                               'genomic_start', 
-                               'genomic_stop', 
-                               'gene_name', 
-                               'super_local_poisson_p', 
+class Peak(namedtuple('Peak', ['chrom',
+                               'genomic_start',
+                               'genomic_stop',
+                               'gene_name',
                                'strand',
                                'thick_start',
                                'thick_stop',
                                'peak_number',
                                'number_reads_in_peak',
-                               'gene_poisson_p',
                                'size',
-                               'p'])):
+                               'p',
+                               'effective_length',
+                               'peak_length',
+                               'area_reads',
+                               'area_size',
+                               'nreads_in_gene'
+
+                               ])):
     def __repr__(self):
         """bed8 format"""
         return "\t".join(map(str, [self.chrom, self.genomic_start, self.genomic_stop,
@@ -984,24 +987,6 @@ def peaks_from_info(wiggle, pos_counts, lengths, interval, gene_length,
     algorithm - str the algorithm to run
     """
 
-    #print (
-    #    interval,
-    #     gene_length,
-    #     max_gap,
-    #     fdr_alpha,
-    #     binom_alpha,
-    #     method,
-    #     user_threshold,
-    #     min_reads,
-    #     poisson_cutoff,
-    #     width_cutoff,
-    #     windowsize,
-    #     SloP,
-    #     correct_p,
-    #     max_width,
-    #     min_width,
-    #     algorithm,)
-
     #used for poisson calculation?
     nreads_in_gene = sum(pos_counts)
 
@@ -1030,7 +1015,7 @@ def peaks_from_info(wiggle, pos_counts, lengths, interval, gene_length,
     peak_dict['threshold'] = gene_threshold
     peak_dict['loc'] = interval
 
-    peak_number = 1
+    peak_number = 0
 
     sections = find_sections(wiggle, max_gap)
     if plotit:
@@ -1060,7 +1045,6 @@ def peaks_from_info(wiggle, pos_counts, lengths, interval, gene_length,
 
         if user_threshold is None:
             if SloP:
-
                 #not exactly the right way to do this but it should be very close.
                 sect_read_lengths = [int(np.mean(lengths))] * Nreads #not random anymore.... this is deterministic
                 sect_read_lengths = [sect_length - 1 if read > sect_length else read for read in sect_read_lengths]
@@ -1129,117 +1113,55 @@ def peaks_from_info(wiggle, pos_counts, lengths, interval, gene_length,
         #occur, not the average of start and stop
         for peak_start, peak_stop, peak_center in peak_definitions:
 
-             genomic_start = interval.start + sectstart + peak_start
-             genomic_stop = interval.start + sectstart + peak_stop
-             number_reads_in_peak = np.sum(pos_counts[(peak_start + sectstart):(peak_stop + sectstart + 1)])
+            genomic_start = interval.start + sectstart + peak_start
+            genomic_stop = interval.start + sectstart + peak_stop
 
-             #sum(cts[peak_start:(peak_stop + 1)])
-             logging.info("""Peak %d (%d - %d) has %d
-                              reads""" %(peak_number,
-                                          peak_start,
-                                          (peak_stop + 1),
-                                          number_reads_in_peak))
+            number_reads_in_peak = np.sum(pos_counts[(peak_start + sectstart):(peak_stop + sectstart + 1)])
+            peak_length = genomic_stop - genomic_start + 1
 
+            #sum(cts[peak_start:(peak_stop + 1)])
+            logging.info("""Peak %d (%d - %d) has %d
+                          reads""" %(peak_number, peak_start,
+                                     (peak_stop + 1), number_reads_in_peak))
 
-             #highest point in start stop
-             genomic_center = interval.start + sectstart + peak_center
+            #highest point in start stop
+            genomic_center = interval.start + sectstart + peak_center
 
-             #makes it thicker so we can see on the browser
-             thick_start = genomic_center - 2
-             thick_stop = genomic_center + 2
-
-             #best_error checking logic to keep bed files from breaking
-             if thick_start < genomic_start:
-                 thick_start = genomic_start
-             if thick_stop > genomic_stop:
-                 thick_stop = genomic_stop
-
-             peak_length = genomic_stop - genomic_start + 1
-
-             #skip really small peaks
-             if peak_length < width_cutoff:
-                 logging.info("small peak")
-                 #continue
+            #makes it thicker so we can see on the browser
+            #error checking logic to keep bed files from breaking
+            thick_start = max(genomic_center - 2, genomic_start)
+            thick_stop = min(genomic_center + 2, genomic_stop)
 
 
-             #super local logic
-             #best_error check to make sure area is in area of gene
+            #super local logic
+            area_start = max(0, peak_center - windowsize)
+            area_stop = min(peak_center + windowsize, len(wiggle))
+            number_reads_in_area = sum(pos_counts[area_start:area_stop])
+            area_length = area_stop - area_start + 1
 
-             #distance from gene start
-             if genomic_center - interval.start - windowsize < 0:
-                 area_start = 0
+            peak_dict['clusters'].append(Peak(interval.chrom,
+                                              genomic_start,
+                                              genomic_stop,
+                                              interval.attrs['gene_id'],
+                                              interval.strand,
+                                              thick_start,
+                                              thick_stop,
+                                              peak_number,
+                                              number_reads_in_peak,
+                                              peak_length,
+                                              0,
+                                              int(interval.attrs['effective_length']),
+                                              peak_length,
+                                              number_reads_in_area,
+                                              area_length,
+                                              nreads_in_gene,
+                                              )
+            )
 
-             #for super local gets area around genomic_center for calculation
-             else:
-                 area_start = genomic_center - interval.start - windowsize
-                 #area_start = sectstart
+            peak_number += 1
+            peak_dict['sections'][sect]['nPeaks'] += 1
 
-             #same thing except for end of gene instead of start
-             if genomic_center + windowsize > interval.stop: #distance to gene stop
-                 area_stop = interval.start - interval.stop + 1
-             else:
-                 area_stop = genomic_center - interval.start + windowsize
-
-             #use area reads + 1/2 all other reads in gene:
-             #area_reads = sum(pos_counts[area_start:area_stop]) +
-             #0.5*(sum(pos_counts) -
-             #sum(pos_counts[area_start:area_stop]))
-
-             #use area reads:
-             area_reads = sum(pos_counts[area_start:area_stop])
-             area_size = area_stop - area_start + 1
-
-             #area_reads = sum(pos_counts[sectstart:sectstop])
-             #area_size = sect_length
-
-             #calcluates poisson based of whole gene vs genomic_center
-             if algorithm == "classic" and peak_length < min_width:
-                 peak_length = min_width
-
-             if statistical_test == "poisson":
-                gene_pois_p = poissonP(nreads_in_gene,
-                                    number_reads_in_peak,
-                                    int(interval.attrs['effective_length']),
-                                    peak_length)
-             elif statistical_test == "negative_binomial":
-                 pass
-
-             #set SloP
-             if SloP is True:
-                 #same thing except for based on super local p-value
-                 if statistical_test == "poisson":
-                    slop_pois_p = poissonP(area_reads,
-                                       number_reads_in_peak,
-                                       area_size,
-                                       peak_length)
-                 if math.isnan(slop_pois_p):
-                     slop_pois_p = np.Inf
-
-             else:
-                 slop_pois_p = np.Inf
-
-             #TODO a peak object might just be a gtf file or
-             #bed file...
-             peak_dict['clusters'].append(Peak(interval.chrom,
-                                               genomic_start,
-                                               genomic_stop,
-                                               interval.attrs['gene_id'],
-                                               slop_pois_p,
-                                               interval.strand,
-                                               thick_start,
-                                               thick_stop,
-                                               peak_number,
-                                               number_reads_in_peak,
-                                               gene_pois_p,
-                                               peak_length,
-                                               0
-                                               )
-                                          )
-
-             peak_number += 1
-             peak_dict['sections'][sect]['nPeaks'] +=1
-
-    peak_dict['Nclusters'] = peak_number - 1
+    peak_dict['Nclusters'] = peak_number
     if plotit:
         import sys
         plt.show()
