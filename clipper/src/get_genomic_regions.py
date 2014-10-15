@@ -18,7 +18,7 @@ class GenomicFeatures():
     class to get genomic features from gffutils _db
     
     """
-    def __init__(self, species, db, regions_dir=None):
+    def __init__(self, species, db=None, regions_dir=None):
         """
         
         creates genomic features function, chooses 

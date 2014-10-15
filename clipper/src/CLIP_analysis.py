@@ -201,7 +201,6 @@ def assign_to_regions(tool, clusters, regions, assigned_dir, species="hg19", nra
     
     print "There are a total %d clusters I'll examine" % (len(tool))
     for region in regions:
-
         remaining_clusters, overlapping = intersection(remaining_clusters, b=bedtracks[region])
 
         #if for some reason there isn't a peak in the region skip it
@@ -237,13 +236,13 @@ def assign_to_regions(tool, clusters, regions, assigned_dir, species="hg19", nra
     print "After assigning %d un-categorized regions" % len(remaining_clusters)
 
     if len(remaining_clusters) > 0:
-        bed_dict['uncatagorized'] = {'real': remaining_clusters.sort(stream=True)}
+        bed_dict['uncatagorized'] = {'real': remaining_clusters.sort(stream=True).saveas()}
 
     bed_dict = save_bedtools(bed_dict, clusters, assigned_dir)
     return bed_dict
 
 
-def get_offsets_bed12(tool):
+def get_offsets_bed12(bedtool):
     
     """
     
@@ -258,14 +257,14 @@ def get_offsets_bed12(tool):
 
     try:
         offset_dict = {}
-        for line in tool:
+        for interval in bedtool:
 
-            if line.strand == "+":
-                offset = int(line[6]) - int(line[1])
+            if interval.strand == "+":
+                offset = int(interval[6]) - int(interval[1])
             else:
-                offset = int(line[2]) - int(line[7])
+                offset = int(interval[2]) - int(interval[7])
 
-            offset_dict[line.name] = offset
+            offset_dict[interval.name] = offset
 
         return offset_dict
     except:
@@ -273,7 +272,7 @@ def get_offsets_bed12(tool):
         return None
 
 
-def adjust_offsets(tool, offsets=None):
+def adjust_offsets(bedtool, offsets=None):
 
     """
 
@@ -291,29 +290,29 @@ def adjust_offsets(tool, offsets=None):
     """
 
     if offsets is None:
-        return tool
+        return bedtool
 
     clusters = []
-    for bed_line in tool:
+    for interval in bedtool:
         #the ; represents two merged locations
-        if "," in bed_line.name and bed_line.name not in offsets:
-            offset = offsets[bed_line.name.split(",")[0]]
+        if "," in interval.name and interval.name not in offsets:
+            offset = offsets[interval.name.split(",")[0]]
         else:
-            offset = offsets[bed_line.name]
+            offset = offsets[interval.name]
 
-        if bed_line.strand == "+":
-            thick_start = bed_line.start + offset
+        if interval.strand == "+":
+            thick_start = interval.start + offset
             thick_stop = thick_start + 4
         else:
-            thick_stop = bed_line.stop - offset
+            thick_stop = interval.stop - offset
             thick_start = thick_stop - 4
 
-        clusters.append("\t".join([str(x) for x in (bed_line.chrom,
-                                                    bed_line.start,
-                                                    bed_line.stop,
-                                                    bed_line.name,
-                                                    bed_line.score,
-                                                    bed_line.strand,
+        clusters.append("\t".join([str(x) for x in (interval.chrom,
+                                                    interval.start,
+                                                    interval.stop,
+                                                    interval.name,
+                                                    interval.score,
+                                                    interval.strand,
                                                     thick_start,
                                                     thick_stop)]))
 
@@ -1058,9 +1057,39 @@ def visualize(clusters, extension, out_dir):
     distribution_fig.savefig(os.path.join(out_dir, clusters + ".DistFig." + extension))
 
 
+def adjust_name(interval):
+    interval.name = interval[-3]
+    return interval
+
+
+def add_thick_marks(interval):
+    interval[6] = str(interval.start)
+    interval[7] = str(interval.stop)
+    return interval
+
+
+def smooth_interval(interval):
+    """Takes only the first item merged, everything else is tossed"""
+    for item in range(3,8):
+        interval[item] = interval[item].split(",")[0]
+    return interval
+
+
+def infer_info(bedtool, genes):
+    bedtool = bedtool.intersect(genes, s=True, loj=True).\
+                      sort(). \
+                      each(adjust_name). \
+                      each(add_thick_marks). \
+                      merge(s=True, c="4,5,6,7,8", o="distinct,distinct,distinct,distinct,distinct"). \
+                      each(smooth_interval). \
+                      saveas()
+    return bedtool
+
+
 def main(bedtool, bam, species, runPhast=False, motifs=[], k=[6], nrand=3,
          outdir=os.getcwd(), db=None, as_structure=None, genome_location=None, phastcons_location=None,
-         regions_location=None, motif_location=os.getcwd(), metrics="CLIP_Analysis.metrics", extension="svg"):
+         regions_location=None, motif_location=os.getcwd(), metrics="CLIP_Analysis.metrics", extension="svg",
+         infer=False):
     
     """
     
@@ -1116,7 +1145,13 @@ def main(bedtool, bam, species, runPhast=False, motifs=[], k=[6], nrand=3,
     features = GenomicFeatures(species, db,  regions_dir=regions_location)
     genomic_regions = features.get_genomic_regions()
     features = features.get_feature_locations()
-    
+
+    clusters_bed = pybedtools.BedTool(bedtool)
+    if infer:
+        clusters_bed = infer_info(clusters_bed, genomic_regions['genes'])
+
+    clusters_bed = pybedtools.BedTool(make_unique(clusters_bed)).saveas()
+
      #all catagory would break some analysies, create copy and remove it
     assigned_regions = regions.copy()
     del assigned_regions['all']
@@ -1153,6 +1188,7 @@ def main(bedtool, bam, species, runPhast=False, motifs=[], k=[6], nrand=3,
     features_transcript_closest = {name:  pybedtools.BedTool(bedtool['dist'].saveas("%s_%s_transcript.bed" % (clusters, name)).fn) for name, bedtool in features_transcript_closest.items() if bedtool['dist'] is not None}
     features_mrna_closest = {name:  pybedtools.BedTool(bedtool['dist'].saveas("%s_%s_mrna.bed" % (clusters, name)).fn) for name, bedtool in features_mrna_closest.items() if bedtool['dist'] is not None}
 
+    #Distribution counting only works if genes have been pre-assignned
     distributions = get_region_distributions(cluster_regions['all']['real'], genomic_regions)
 
     if as_structure is not None:
@@ -1249,6 +1285,7 @@ def call_main():
     parser.add_option("--motif_directory", dest="motif_location",  help="directory of pre-computed motifs for analysis", default=os.getcwd())
     parser.add_option("--metrics", dest="metrics", default="CLIP_Analysis.metrics", help="file name to output metrics to")
     parser.add_option("--extension", dest="extension", default="svg", help="file extension to use (svg, png, pdf...)")
+    parser.add_option("--infer", default=False, action="store_true", help="Infer peak center and gene if if peak finding algorithm doesn't report it")
 
     (options, args) = parser.parse_args()
     
@@ -1262,7 +1299,9 @@ def call_main():
          as_structure=options.as_structure,
          genome_location=options.genome_location,
          phastcons_location=options.phastcons_location, regions_location=options.regions_location,
-         motif_location=options.motif_location, metrics=options.metrics, extension=options.extension)
+         motif_location=options.motif_location, metrics=options.metrics, extension=options.extension,
+         infer=options.infer,
+         )
 
 if __name__ == "__main__":
     call_main()
