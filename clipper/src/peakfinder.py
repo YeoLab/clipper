@@ -359,7 +359,7 @@ def build_transcript_data(species, gene_bed, gene_mrna, gene_pre_mrna, pre_mrna)
 
     return pybedtools.BedTool(gtf_list)
 
-def transcriptome_filter(poisson_cutoff, transcriptome_size, transcriptome_reads, cluster):
+def transcriptome_filter(transcriptome_size, transcriptome_reads, cluster):
     
     """
     filters each cluster by if it passes a transciptome wide cutoff or not, returns true if it passes
@@ -417,6 +417,7 @@ def count_transcriptome_reads(results):
     
     return transcriptome_reads
 
+
 def filter_results(results, poisson_cutoff, transcriptome_size, 
                    transcriptome_reads, use_global_cutoff, 
                    bonferroni_correct, algorithm = "spline"):
@@ -449,8 +450,7 @@ def filter_results(results, poisson_cutoff, transcriptome_size,
             try:
                 
                 if use_global_cutoff:
-                    global_pval = transcriptome_filter(poisson_cutoff, 
-                                                       transcriptome_size, 
+                    global_pval = transcriptome_filter(transcriptome_size,
                                                        transcriptome_reads,  
                                                        cluster)
                 if algorithm == "classic":
@@ -463,7 +463,7 @@ def filter_results(results, poisson_cutoff, transcriptome_size,
                                 global_pval])
                 
                 if bonferroni_correct:
-                    min_pval = min(min_pval * total_clusters,1.0) 
+                    min_pval = min(min_pval * total_clusters, 1.0)
                             
                 if not (min_pval < poisson_cutoff):
                     logging.info("Failed Gene Pvalue: %s and failed SloP Pvalue: %s and global value %s for Gene %s %s" % (cluster.super_local_poisson_p, cluster.gene_poisson_p, global_pval, cluster.gene_name, cluster.peak_number))
@@ -545,12 +545,7 @@ def main(options):
     else:
         gene_tool = build_transcript_data_gtf_as_structure(options.species, 
                                                            options.premRNA).saveas()
-        #gene_tool = build_transcript_data(options.species, 
-        #                                       options.geneBEDfile, 
-        #                                       options.geneMRNAfile, 
-        #                                       options.genePREMRNAfile,
-        #                                       options.premRNA)
-    
+
     #gets all the gene_tool to call peaks on
     if options.gene:
         gene_tool = gene_tool.filter(lambda x: x.attrs['gene_id'] in options.gene)
@@ -563,7 +558,6 @@ def main(options):
         gene_tool = gene_tool.random_subset(int(options.maxgenes))
     
     gene_tool = gene_tool.saveas()
-    
 
     transcriptome_size = sum(int(x.attrs['effective_length']) if "effective_length" in x.attrs else x.length for x in gene_tool)
 
@@ -591,7 +585,6 @@ def main(options):
                 logging.error("transcript timed out %s" % (error))
         
     pool.close()
-    
 
     logging.info("finished with calling peaks")
 
@@ -632,14 +625,8 @@ def call_main():
     parser = OptionParser(usage=usage, description=description)
 
     parser.add_option("--bam", "-b", dest="bam", help="A bam file to call peaks on", type="string", metavar="FILE.bam")
-
     parser.add_option("--species", "-s", dest="species", help="A species for your peak-finding, either hg19 or mm9")
     parser.add_option("--gtfFile", dest="gtfFile", help="use a gtf file instead of the AS structure data")
-
-    #we don't have custom scripts or documentation to support this right now, removing until those get added in
-    parser.add_option("--customBED", dest="geneBEDfile", help="bed file to call peaks on, must come withOUT species and with customMRNA and customPREMRNA", metavar="BEDFILE")
-    parser.add_option("--customMRNA", dest="geneMRNAfile", help="file with mRNA lengths for your bed file in format: GENENAME<tab>LEN", metavar="FILE")
-    parser.add_option("--customPREMRNA", dest="genePREMRNAfile", help="file with pre-mRNA lengths for your bed file in format: GENENAME<tab>LEN", metavar="FILE")
     parser.add_option("--outfile", "-o", dest="outfile", default="fitted_clusters", help="a bed file output, default:%default")
     parser.add_option("--gene", "-g", dest="gene", action="append", help="A specific gene you'd like try", metavar="GENENAME")
     parser.add_option("--minreads", dest="minreads", help="minimum reads required for a section to start the fitting process.  Default:%default", default=3, type="int", metavar="NREADS")
@@ -663,8 +650,7 @@ def call_main():
     parser.add_option("--max_gap", dest="max_gap",type="int", default=15, help="defines maximum gap between reads before calling a region a new section, default: %default")
     parser.add_option("--bonferroni", dest="bonferroni_correct",action="store_true", default=False, help="Perform Bonferroni on data before filtering")
     parser.add_option("--algorithm", dest="algorithm",default="spline", help="Defines algorithm to run, currently spline, classic, gaussian")
-    #parser.add_option("--hadoop", dest="hadoop",default=False, action="store_true", help="Run in hadoop mode")
-    
+
     (options, args) = parser.parse_args()
  
     if options.plotit:
@@ -672,15 +658,10 @@ def call_main():
 
     #enforces required usage    
     if not (options.bam and ((options.species) or (options.gtfFile))): 
-    #(options.geneBEDfile and options.geneMRNAfile and options.genePREMRNAfile)
         parser.print_help()
         exit()
         
     logging.info("Starting peak calling")
-    
-    #if options.hadoop:
-    #    hadoop_mapper(options)
-    #else:
     main(options)
 
 
