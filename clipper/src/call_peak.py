@@ -1119,7 +1119,6 @@ def peaks_from_info(wiggle, pos_counts, lengths, interval, gene_length,
             number_reads_in_peak = np.sum(pos_counts[(peak_start + sectstart):(peak_stop + sectstart + 1)])
             peak_length = genomic_stop - genomic_start + 1
 
-            #sum(cts[peak_start:(peak_stop + 1)])
             logging.info("""Peak %d (%d - %d) has %d
                           reads""" %(peak_number, peak_start,
                                      (peak_stop + 1), number_reads_in_peak))
