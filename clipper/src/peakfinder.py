@@ -427,7 +427,18 @@ def write_peak(cluster):
 def dictify(some_named_tuple):
     return dict((s, getattr(some_named_tuple, s)) for s in some_named_tuple._fields)
 
-def filter_results(results, poisson_cutoff, transcriptome_size, 
+
+def make_peak_df(results):
+    peaks = []
+    for gene_result in results:
+        # alert user that there aren't any clusters for specific gene
+        for cluster in gene_result['clusters']:
+            peaks.append(dictify(cluster))
+    peaks = pd.DataFrame(peaks)
+    return peaks
+
+
+def filter_results(results, poisson_cutoff, transcriptome_size,
                    transcriptome_reads, use_global_cutoff, 
                    bonferroni_correct, algorithm="spline", superlocal=False, min_width=50):
     
@@ -443,12 +454,7 @@ def filter_results(results, poisson_cutoff, transcriptome_size,
     
     """
 
-    peaks = []
-    for gene_result in results:
-        #alert user that there aren't any clusters for specific gene
-            for cluster in gene_result['clusters']:
-                peaks.append(dictify(cluster))
-    peaks = pd.DataFrame(peaks)
+    peaks = make_peak_df(results)
 
     total_clusters = len(peaks)
 
