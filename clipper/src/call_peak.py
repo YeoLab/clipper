@@ -925,67 +925,9 @@ def call_peaks(interval, gene_length, bam_fileobj=None, bam_file=None,
     subset_reads = bam_fileobj.fetch(reference=interval.chrom, start=interval.start, end=interval.stop)
 
     (wiggle, jxns, pos_counts,
-     read_lengths, allreads) = readsToWiggle_pysam(subset_reads, interval.start,
+     lengths, allreads) = readsToWiggle_pysam(subset_reads, interval.start,
                                                    interval.stop, interval.strand, "start", False)
 
-    result = peaks_from_info(wiggle=list(wiggle),
-                             pos_counts=pos_counts,
-                             lengths=read_lengths,
-                             interval=interval,
-                             gene_length=gene_length,
-                             max_gap=max_gap,
-                             fdr_alpha=fdr_alpha,
-                             binom_alpha=binom_alpha,
-                             method=method,
-                             user_threshold=user_threshold,
-                             min_reads=min_reads,
-                             poisson_cutoff=poisson_cutoff, 
-                             plotit=plotit,
-                             width_cutoff=w_cutoff,
-                             windowsize=windowsize,
-                             SloP=SloP,
-                             correct_p=correct_p,
-                             max_width=max_width,
-                             min_width=min_width,
-                             algorithm=algorithm,
-                             verbose=verbose)
-    
-    return result
-
-
-def peaks_from_info(wiggle, pos_counts, lengths, interval, gene_length,
-                    max_gap=15, fdr_alpha=0.05, binom_alpha=0.05, method="binomial", user_threshold=None,
-                    min_reads=3, poisson_cutoff=0.05, plotit=False,
-                    width_cutoff=10, windowsize=1000, SloP=False,
-                    correct_p=False, max_width=None, min_width=None,
-                    algorithm="spline", statistical_test="poisson", verbose=False):
-
-    """
-
-    same args as before
-    wiggle is converted from bam file
-    pos_counts - one point per read instead of coverage of entire read
-    lengths - lengths aligned portions of reads
-    rest are the same fix later
-
-
-    calls peaks for an individual gene
-
-
-    interval - gtf interval describing gene to query
-    max_gap - space between sections for calling new peaks
-    fdr_alpha - false discovery rate, p-value bonferoni correct from peaks script (called in setup)
-    user_threshold - user defined FDR threshold (probably should be factored into fdr_alpha
-    minreads - min reads in section to try and call peaks
-    poisson_cutoff - p-value for signifance cut off for number of reads in genomic_center that gets called - might want to use ashifted distribution
-    plotit - makes figures
-
-    w_cutoff - width cutoff, peaks narrower than this are discarted
-    windowssize - for super local calculation distance left and right to look
-    SloP - super local p-value instead of gene-wide p-value
-    correct_p - boolean bonferoni correction of p-values from poisson
-    algorithm - str the algorithm to run
-    """
 
     #used for poisson calculation?
     nreads_in_gene = sum(pos_counts)
@@ -1047,7 +989,8 @@ def peaks_from_info(wiggle, pos_counts, lengths, interval, gene_length,
         if user_threshold is None:
             if SloP:
                 #not exactly the right way to do this but it should be very close.
-                sect_read_lengths = [int(np.mean(lengths))] * Nreads #not random anymore.... this is deterministic
+                #this code is really odd
+                sect_read_lengths = [int(np.mean(lengths))] * Nreads
                 sect_read_lengths = [sect_length - 1 if read > sect_length else read for read in sect_read_lengths]
 
                 if method == "binomial":  #Uses Binomial Distribution to get cutoff if specified by user
@@ -1076,12 +1019,12 @@ def peaks_from_info(wiggle, pos_counts, lengths, interval, gene_length,
 
         if algorithm == "spline":
             data = map(float, data)
+            #Magic number for initial smoothing, but it works
             initial_smoothing_value = ((sectstop - sectstart + 1)**(1/3)) + 10
 
             peak_dict['sections'][sect]['smoothing_factor'] = initial_smoothing_value
 
             logging.info("initial smoothing value: %.2f" % initial_smoothing_value)
-            #print sect, xvals, data, initial_smoothing_value, threshold
             fitter = SmoothingSpline(xvals, data, smoothing_factor=initial_smoothing_value,
                             lossFunction="get_turn_penalized_residuals",
                             threshold=threshold,
@@ -1121,7 +1064,7 @@ def peaks_from_info(wiggle, pos_counts, lengths, interval, gene_length,
             peak_length = genomic_stop - genomic_start + 1
 
             logging.info("""Peak %d (%d - %d) has %d
-                          reads""" %(peak_number, peak_start,
+                          reads""" % (peak_number, peak_start,
                                      (peak_stop + 1), number_reads_in_peak))
 
             #highest point in start stop
