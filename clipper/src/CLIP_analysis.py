@@ -157,7 +157,37 @@ def fix_strand(interval):
     return interval
 
 
-def assign_to_regions(tool, clusters, regions, assigned_dir, species="hg19", nrand=3):
+def fix_shuffled_strand(shuffled_tool, regions_file):
+    """
+    Fixes strand of shuffled tool if there was an include file used
+
+    Chooses the first overlapping thing as the correct strand, if there is anti-sense transcription
+    this will fail
+    shuffled_tool: a sorted shuffled bedtool
+    shuffled_file: incl file that did the shuffling
+    """
+
+    regions_tool = pybedtools.BedTool(regions_file)
+    intersected = shuffled_tool.intersect(regions_file, wao=True, stream=True, sorted=True).saveas()
+
+    #Don't think about refactoring this because of leaky files in pybedtools
+    shuffled_tool_field_count = shuffled_tool.field_count()
+    regions_tool_field_count = regions_tool.field_count()
+
+    total_header_size = shuffled_tool_field_count + regions_tool_field_count + 1
+
+    intersected = intersected.to_dataframe(names=range(total_header_size))
+    intersected = intersected.groupby([0,1,2,3]).first()
+    if regions_tool.file_type == "bed":
+        intersected[5] = intersected[shuffled_tool_field_count + 5]
+    if regions_tool.file_type == "gff":
+        intersected[5] = intersected[shuffled_tool_field_count + 6]
+
+    values = intersected.apply(lambda x: "\t".join([str(item) for item in list(x.name) + list(x[:shuffled_tool_field_count - 4])]), axis=1).values
+    new_bedtool = pybedtools.BedTool("\n".join(values), from_string=True)
+    return new_bedtool
+
+def assign_to_regions(tool, clusters, regions, assigned_dir=".", species="hg19", nrand=3):
     
     """
     
@@ -226,7 +256,8 @@ def assign_to_regions(tool, clusters, regions, assigned_dir, species="hg19", nra
         #saves offsets so after shuffling the offsets can be readjusted
         offset_dict = get_offsets_bed12(bed_dict[region]['real'])
         for i in range(nrand):
-            random_intervals = bed_dict[region]['real'].shuffle(genome=species, incl=bedtracks[region].fn).sort(stream=True)
+            random_intervals = bed_dict[region]['real'].shuffle(genome=species, incl=bedtracks[region].fn).sort()
+            random_intervals = fix_shuffled_strand(random_intervals, bedtracks[region].fn)
             random_intervals = adjust_offsets(random_intervals, offset_dict)
             bed_dict[region]['rand'][i] = random_intervals.saveas()
 
