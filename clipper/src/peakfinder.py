@@ -438,6 +438,18 @@ def make_peak_df(results):
     return peaks
 
 
+def bh_correct(df):
+    """
+    :param df:
+    :return: returns dataframe wtih adjusted p-value
+    """
+    df = df.sort("final_p_value")
+    df['sort_rank'] = np.arange(1, len(df) + 1)
+    df['bh_corrected'] = df.apply(lambda x: min(((len(df) / x.sort_rank) * x.final_p_value), 1), axis=1)
+    df['padj'] = df.sort("final_p_value", ascending=False).bh_corrected.cummin()
+    return df.sort()
+
+
 def filter_results(results, poisson_cutoff, transcriptome_size,
                    transcriptome_reads, use_global_cutoff, 
                    bonferroni_correct, algorithm="spline", superlocal=False, min_width=50):
