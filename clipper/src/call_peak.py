@@ -4,24 +4,22 @@ Created on Jul 25, 2012
 @author: gabrielp
 '''
 
-from collections import namedtuple, defaultdict
-from itertools import izip
+from collections import namedtuple
 import logging
 import math
-from random import sample as rs
-import sys
 
-import matplotlib
+
+import HTSeq
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 from matplotlib.path import Path
 from math import sqrt
 import numpy
-from numpy import diff, sign, append, array, arange, r_, empty, argmin, Inf
+from numpy import diff, sign, append, array, arange, r_, empty
 import numpy as np
 import pysam
 from scipy import stats
-from scipy import optimize, interpolate
+from scipy import interpolate
 from scipy.stats import binom
 
 from clipper.src.peaks import shuffle, find_sections
@@ -879,7 +877,23 @@ def poissonP(reads_in_gene, reads_in_peak, gene_length, peak_length):
         return 1
 
 
-def call_peaks(interval, gene_length, bam_fileobj=None, bam_file=None, 
+def read_array(reads, start, stop):
+    reads = (read for read in reads if (read.iv.start_d > start) & (read.iv.end_d < stop))
+    set_of_reads = HTSeq.GenomicArrayOfSets("auto", stranded=True)
+    for read in reads:
+        if read.aligned:
+                for cigop in read.cigar:
+                    if cigop.type != "M":
+                        continue
+                    set_of_reads[cigop.ref_iv] += read
+    return set_of_reads
+
+
+def count_reads_in_interval(interval, array_of_sets):
+    return len(set().union(*[baz for bar, baz in array_of_sets[interval].steps()]))
+
+
+def call_peaks(interval, gene_length, bam_fileobj=None, bam_file=None,
                max_gap=25, fdr_alpha=0.05, user_threshold=None, binom_alpha=0.05, method="binomial",
                min_reads=3, poisson_cutoff=0.05,
                plotit=False, w_cutoff=10, windowsize=1000, 
@@ -914,22 +928,23 @@ def call_peaks(interval, gene_length, bam_fileobj=None, bam_file=None,
         plt.rcParams['interactive'] = True
         pass
 
-    #logging.info("running on gene %s" % (str(interval)))
-        
     bam_fileobj = pysam.Samfile(bam_file, 'rb')
     
     #fixes non-standard chrom file names (without the chr)
     if not interval.chrom.startswith("chr"):
         interval.chrom = "chr" + interval.chrom
         
-    subset_reads = bam_fileobj.fetch(reference=interval.chrom, start=interval.start, end=interval.stop)
+    subset_reads = list(bam_fileobj.fetch(reference=interval.chrom, start=interval.start, end=interval.stop))
 
     (wiggle, jxns, pos_counts,
      lengths, allreads) = readsToWiggle_pysam(subset_reads, interval.start,
-                                                   interval.stop, interval.strand, "start", False)
+                                              interval.stop, interval.strand, "start", False)
 
+    #This is the worst of hacks, need to factor out pysam eventually
+    bam_fileobj = HTSeq.BAM_Reader(bam_file)
+    subset_reads = list(bam_fileobj.fetch(reference=interval.chrom, start=interval.start, end=interval.stop))
 
-    #used for poisson calculation?
+    array_of_reads = read_array(subset_reads, interval.start, interval.stop)
     nreads_in_gene = sum(pos_counts)
 
     if user_threshold is None:
@@ -970,24 +985,31 @@ def call_peaks(interval, gene_length, bam_fileobj=None, bam_file=None,
         sect_length = sectstop - sectstart + 1
         data = wiggle[sectstart:(sectstop + 1)]
 
-        #this cts is alright because we know the reads are bounded
+        cur_interval = HTSeq.GenomicInterval(interval.chrom, sectstart + interval.start, sectstop + interval.start + 1,
+                                         interval.strand)
+        Nreads = count_reads_in_interval(cur_interval, array_of_reads)
+
         cts = pos_counts[sectstart:(sectstop + 1)]
         xvals = arange(len(data))
-        Nreads = sum(cts)
         peak_dict['sections'][sect] = {}
         peak_dict['sections'][sect]['nreads'] = int(Nreads)
 
         #makes sure there are enough reads
         if Nreads < min_reads:
-            logging.info("""%d is not enough reads, skipping section: %s""" %(Nreads, sect))
+            logging.info("""%d is not enough reads, skipping section: %s""" % (Nreads, sect))
             peak_dict['sections'][sect]['tried'] = False
             continue
         else:
-            logging.info("""Analyzing section %s with %d reads""" %(sect, Nreads))
+            logging.info("""Analyzing section %s with %d reads""" % (sect, Nreads))
             pass
 
         if user_threshold is None:
             if SloP:
+                #half_width = 500
+                #section_start = max(0, sectstart + interval.start - half_width)
+                #section_stop = sectstop + interval.start + 1 + half_width
+                #cur_interval = HTSeq.GenomicInterval(interval.chrom, section_start, section_stop, interval.strand)
+                #expanded_Nreads = count_reads_in_interval(cur_interval, array_of_reads)
                 #not exactly the right way to do this but it should be very close.
                 #this code is really odd
                 sect_read_lengths = [int(np.mean(lengths))] * Nreads
@@ -1010,6 +1032,7 @@ def call_peaks(interval, gene_length, bam_fileobj=None, bam_file=None,
         #saves threshold for each individual section
         peak_dict['sections'][sect]['threshold'] = threshold
         peak_dict['sections'][sect]['nreads'] = int(Nreads)
+        #peak_dict['sections'][sect]['expanded_Nreads'] = expanded_Nreads
         peak_dict['sections'][sect]['tried'] = True
         peak_dict['sections'][sect]['nPeaks'] = 0
 
@@ -1055,12 +1078,17 @@ def call_peaks(interval, gene_length, bam_fileobj=None, bam_file=None,
         #subsections that are above threshold
         #peak center is actually the location where we think binding should
         #occur, not the average of start and stop
+
+        #Need to get all ranges, count number of reads in each range and compute from there
         for peak_start, peak_stop, peak_center in peak_definitions:
 
             genomic_start = interval.start + sectstart + peak_start
             genomic_stop = interval.start + sectstart + peak_stop
 
-            number_reads_in_peak = np.sum(pos_counts[(peak_start + sectstart):(peak_stop + sectstart + 1)])
+            cur_interval = HTSeq.GenomicInterval(interval.chrom, genomic_start, genomic_stop,
+                                         interval.strand)
+            number_reads_in_peak = count_reads_in_interval(cur_interval, array_of_reads)
+
             peak_length = genomic_stop - genomic_start + 1
 
             logging.info("""Peak %d (%d - %d) has %d
@@ -1077,9 +1105,12 @@ def call_peaks(interval, gene_length, bam_fileobj=None, bam_file=None,
 
 
             #super local logic
-            area_start = max(0, peak_center - windowsize)
-            area_stop = min(peak_center + windowsize, len(wiggle))
-            number_reads_in_area = sum(pos_counts[area_start:area_stop])
+            area_start = max(0, (peak_center + sectstart) - windowsize)
+            area_stop = min((peak_center + sectstart) + windowsize, len(wiggle))
+
+            cur_interval = HTSeq.GenomicInterval(interval.chrom, interval.start + area_start, interval.start + area_stop,
+                                         interval.strand)
+            number_reads_in_area = count_reads_in_interval(cur_interval, array_of_reads)
             area_length = area_stop - area_start + 1
 
             peak_dict['clusters'].append(Peak(interval.chrom,
