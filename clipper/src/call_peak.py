@@ -24,6 +24,7 @@ from scipy.stats import binom
 
 from clipper.src.peaks import shuffle, find_sections
 from clipper.src.readsToWiggle import readsToWiggle_pysam
+from clipper.src.CLIP_analysis import Robust_BAM_Reader
 
 class Peak(namedtuple('Peak', ['chrom',
                                'genomic_start',
@@ -41,7 +42,6 @@ class Peak(namedtuple('Peak', ['chrom',
                                'area_reads',
                                'area_size',
                                'nreads_in_gene'
-
                                ])):
     def __repr__(self):
         """bed8 format"""
@@ -889,8 +889,20 @@ def read_array(reads, start, stop):
     return set_of_reads
 
 
+def get_reads_in_interval(interval, array_of_sets):
+    return set().union(*[baz for bar, baz in array_of_sets[interval].steps()])
+
+
 def count_reads_in_interval(interval, array_of_sets):
-    return len(set().union(*[baz for bar, baz in array_of_sets[interval].steps()]))
+    return len(get_reads_in_interval(interval, array_of_sets))
+
+
+def get_aligned_read_length(read):
+    return sum(cigar.size for cigar in read.cigar if cigar.type == "M")
+
+
+def read_lengths_from_htseq(reads):
+    return [get_aligned_read_length(read) for read in reads]
 
 
 def call_peaks(interval, gene_length, bam_fileobj=None, bam_file=None,
@@ -941,14 +953,17 @@ def call_peaks(interval, gene_length, bam_fileobj=None, bam_file=None,
                                               interval.stop, interval.strand, "start", False)
 
     #This is the worst of hacks, need to factor out pysam eventually
-    bam_fileobj = HTSeq.BAM_Reader(bam_file)
+    bam_fileobj = Robust_BAM_Reader(bam_file)
     subset_reads = list(bam_fileobj.fetch(reference=interval.chrom, start=interval.start, end=interval.stop))
 
     array_of_reads = read_array(subset_reads, interval.start, interval.stop)
     nreads_in_gene = sum(pos_counts)
+    gene_length = int(gene_length)
+    lengths = [gene_length - 1 if read >= gene_length else read for read in lengths]
 
     if user_threshold is None:
         if method == "binomial":  #Uses Binomial Distribution to get cutoff if specified by user
+
             gene_threshold = get_FDR_cutoff_binom(lengths, gene_length, binom_alpha)
         elif method == "random":
             gene_threshold = get_FDR_cutoff_mean(readlengths=lengths,
@@ -1005,21 +1020,20 @@ def call_peaks(interval, gene_length, bam_fileobj=None, bam_file=None,
 
         if user_threshold is None:
             if SloP:
-                #half_width = 500
-                #section_start = max(0, sectstart + interval.start - half_width)
-                #section_stop = sectstop + interval.start + 1 + half_width
-                #cur_interval = HTSeq.GenomicInterval(interval.chrom, section_start, section_stop, interval.strand)
-                #expanded_Nreads = count_reads_in_interval(cur_interval, array_of_reads)
-                #not exactly the right way to do this but it should be very close.
-                #this code is really odd
-                sect_read_lengths = [int(np.mean(lengths))] * Nreads
+                half_width = 500
+                section_start = max(0, sectstart + interval.start - half_width)
+                section_stop = sectstop + interval.start + 1 + half_width
+                expanded_sect_length = section_stop - section_start
+                cur_interval = HTSeq.GenomicInterval(interval.chrom, section_start, section_stop, interval.strand)
+                expanded_Nreads = get_reads_in_interval(cur_interval, array_of_reads)
+                sect_read_lengths = read_lengths_from_htseq(expanded_Nreads)
                 sect_read_lengths = [sect_length - 1 if read > sect_length else read for read in sect_read_lengths]
 
                 if method == "binomial":  #Uses Binomial Distribution to get cutoff if specified by user
-                    threshold = min(gene_threshold, get_FDR_cutoff_binom(sect_read_lengths, sect_length, binom_alpha))
+                    threshold = max(gene_threshold, get_FDR_cutoff_binom(sect_read_lengths, expanded_sect_length, binom_alpha))
                 elif method == "random":
                     #use the minimum FDR cutoff between superlocal and gene-wide calculations
-                    threshold = min(gene_threshold, get_FDR_cutoff_mean(readlengths=sect_read_lengths, genelength=sect_length, alpha=fdr_alpha))
+                    threshold = max(gene_threshold, get_FDR_cutoff_mean(readlengths=sect_read_lengths, genelength=expanded_sect_length, alpha=fdr_alpha))
                 else:
                     raise ValueError("Method %s does not exist" % (method))
                 logging.info("Using super-local threshold %d" %(threshold))
@@ -1032,7 +1046,7 @@ def call_peaks(interval, gene_length, bam_fileobj=None, bam_file=None,
         #saves threshold for each individual section
         peak_dict['sections'][sect]['threshold'] = threshold
         peak_dict['sections'][sect]['nreads'] = int(Nreads)
-        #peak_dict['sections'][sect]['expanded_Nreads'] = expanded_Nreads
+        peak_dict['sections'][sect]['expanded_Nreads'] = len(expanded_Nreads)
         peak_dict['sections'][sect]['tried'] = True
         peak_dict['sections'][sect]['nPeaks'] = 0
 

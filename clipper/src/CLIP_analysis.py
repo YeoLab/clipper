@@ -227,7 +227,6 @@ def assign_to_regions(tool, clusters, regions, assigned_dir=".", species="hg19",
     
     offsets = get_offsets_bed12(tool)
     if len(list(tool[0])) <= 5:
-        print "foo"
         tool.sort().merge().saveas()
     elif 6 <= len(list(tool[0])) < 8:
         tool = tool.sort().merge(s=True, c="4,5,6", o="collapse,collapse,collapse", stream=True).each(fix_strand).saveas()
@@ -590,6 +589,26 @@ class Robust_BAM_Reader(HTSeq.BAM_Reader):
             except OverflowError:
                 pass
             self.record_no += 1
+
+    def fetch( self, reference = None, start = None, end = None, region = None ):
+        sf = pysam.Samfile(self.filename, "rb")
+        self.record_no = 0
+        try:
+           for pa in sf.fetch( reference, start, end, region ):
+            try:
+                yield SAM_Alignment.from_pysam_AlignedRead( pa, sf )
+            except OverflowError:
+                pass
+            self.record_no += 1
+
+        except ValueError as e:
+           if e.message == "fetch called on bamfile without index":
+              print "Error: ", e.message
+              print "Your bam index file is missing or wrongly named, convention is that file 'x.bam' has index file 'x.bam.bai'!"
+           else:
+              raise
+        except:
+           raise
 
 
 def get_bam_coverage(bamfile):
