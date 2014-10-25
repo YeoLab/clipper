@@ -479,14 +479,16 @@ def filter_results(results, poisson_cutoff, transcriptome_size,
     peaks['superlocal_poisson_p'] = peaks.apply(superlocal_poissonP, axis=1) if superlocal else np.nan
 
     if algorithm == "classic":
-        peaks['final_p_value'] = peaks[['transcriptome_poisson_p', 'transcript_poisson_p', 'superlocal_poisson_p']].max(axis=1)
+        peaks['final_p_value'] = peaks[['transcript_poisson_p', 'superlocal_poisson_p']].max(axis=1)
     else:
-        peaks['final_p_value'] = peaks[['transcriptome_poisson_p', 'transcript_poisson_p', 'superlocal_poisson_p']].min(axis=1)
+        peaks['final_p_value'] = peaks[['transcript_poisson_p', 'superlocal_poisson_p']].min(axis=1)
 
     if bonferroni_correct:
-        peaks['final_p_value'] = (peaks['final_p_value'] * total_clusters)
+        peaks = bh_correct(peaks)
+        #peaks['final_p_value'] = (peaks['final_p_value'] * total_clusters)
 
-    final_result = peaks[peaks['final_p_value'] < poisson_cutoff]
+
+    final_result = peaks[peaks['padj'] < poisson_cutoff]
 
     return final_result.apply(write_peak, axis=1).values
 
