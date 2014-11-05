@@ -226,9 +226,9 @@ def assign_to_regions(tool, clusters, regions, assigned_dir=".", species="hg19",
     bed_dict['all']['real'] = pybedtools.BedTool("", from_string=True)
     
     offsets = get_offsets_bed12(tool)
-    if len(list(tool[0])) <= 5:
+    if tool.field_count() <= 5:
         tool.sort().merge().saveas()
-    elif 6 <= len(list(tool[0])) < 8:
+    elif 6 <= tool.field_count() < 8:
         tool = tool.sort().merge(s=True, c="4,5,6", o="collapse,collapse,collapse", stream=True).each(fix_strand).saveas()
     else:
         tool = tool.sort().merge(s=True, c="4,5,6,7,8", o="collapse,collapse,collapse,min,min", stream=True).each(fix_strand).saveas()
