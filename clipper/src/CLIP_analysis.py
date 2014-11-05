@@ -234,7 +234,7 @@ def assign_to_regions(tool, clusters, regions, assigned_dir=".", species="hg19",
         tool = tool.sort().merge(s=True, c="4,5,6,7,8", o="collapse,collapse,collapse,min,min", stream=True).each(fix_strand).saveas()
 
     remaining_clusters = adjust_offsets(tool, offsets)
-    
+
     print "There are a total %d clusters I'll examine" % (len(tool))
     for region in regions:
         remaining_clusters, overlapping = intersection(remaining_clusters, b=bedtracks[region])
@@ -243,7 +243,7 @@ def assign_to_regions(tool, clusters, regions, assigned_dir=".", species="hg19",
         if len(overlapping) == 0:
             print "ignoring %s " % region
             continue
-        
+
         #sets up bed dict for this region
         bed_dict[region] = {'real': overlapping.sort(stream=True).saveas(),
                             'rand': {}}
@@ -292,6 +292,10 @@ def get_offsets_bed12(bedtool):
     
     """
 
+    if bedtool.field_count() < 8:
+        print "Not Valid bed12 file, continuing processing, some things may be strange"
+        return None
+
     try:
         offset_dict = {}
         for interval in bedtool:
@@ -305,7 +309,7 @@ def get_offsets_bed12(bedtool):
 
         return offset_dict
     except:
-        print "Not Valid bed12 file, continuing processing, some things may be strange"
+        print "Not Valid bed12 file, continuing processing, some things may be strange, also this will cause a file leak in pybedtools, watch out"
         return None
 
 
