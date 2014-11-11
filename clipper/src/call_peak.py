@@ -910,7 +910,7 @@ def call_peaks(interval, gene_length, bam_fileobj=None, bam_file=None,
                min_reads=3, poisson_cutoff=0.05,
                plotit=False, w_cutoff=10, windowsize=1000, 
                SloP=False, correct_p=False, max_width=None, min_width=None,
-               algorithm="spline", verbose=False):
+               algorithm="spline", verbose=False, reverse_strand=False):
     
     """
 
@@ -947,10 +947,15 @@ def call_peaks(interval, gene_length, bam_fileobj=None, bam_file=None,
         interval.chrom = "chr" + interval.chrom
         
     subset_reads = list(bam_fileobj.fetch(reference=interval.chrom, start=interval.start, end=interval.stop))
-
+    strand = interval.strand
+    if reverse_strand:
+        if strand == "+":
+            strand = "-"
+        elif strand == "-":
+            strand = "+"
     (wiggle, jxns, pos_counts,
      lengths, allreads) = readsToWiggle_pysam(subset_reads, interval.start,
-                                              interval.stop, interval.strand, "start", False)
+                                              interval.stop, strand, "start", False)
 
     #This is the worst of hacks, need to factor out pysam eventually
     bam_fileobj = Robust_BAM_Reader(bam_file)
@@ -1001,7 +1006,7 @@ def call_peaks(interval, gene_length, bam_fileobj=None, bam_file=None,
         data = wiggle[sectstart:(sectstop + 1)]
 
         cur_interval = HTSeq.GenomicInterval(interval.chrom, sectstart + interval.start, sectstop + interval.start + 1,
-                                         interval.strand)
+                                         strand)
         Nreads = count_reads_in_interval(cur_interval, array_of_reads)
 
         cts = pos_counts[sectstart:(sectstop + 1)]
@@ -1024,7 +1029,7 @@ def call_peaks(interval, gene_length, bam_fileobj=None, bam_file=None,
                 section_start = max(0, sectstart + interval.start - half_width)
                 section_stop = sectstop + interval.start + 1 + half_width
                 expanded_sect_length = section_stop - section_start
-                cur_interval = HTSeq.GenomicInterval(interval.chrom, section_start, section_stop, interval.strand)
+                cur_interval = HTSeq.GenomicInterval(interval.chrom, section_start, section_stop,strand )
                 expanded_Nreads = get_reads_in_interval(cur_interval, array_of_reads)
                 sect_read_lengths = read_lengths_from_htseq(expanded_Nreads)
                 sect_read_lengths = [sect_length - 1 if read > sect_length else read for read in sect_read_lengths]
@@ -1100,7 +1105,7 @@ def call_peaks(interval, gene_length, bam_fileobj=None, bam_file=None,
             genomic_stop = interval.start + sectstart + peak_stop
 
             cur_interval = HTSeq.GenomicInterval(interval.chrom, genomic_start, genomic_stop,
-                                         interval.strand)
+                                         strand)
             number_reads_in_peak = count_reads_in_interval(cur_interval, array_of_reads)
 
             peak_length = genomic_stop - genomic_start + 1
@@ -1123,7 +1128,7 @@ def call_peaks(interval, gene_length, bam_fileobj=None, bam_file=None,
             area_stop = min((peak_center + sectstart) + windowsize, len(wiggle))
 
             cur_interval = HTSeq.GenomicInterval(interval.chrom, interval.start + area_start, interval.start + area_stop,
-                                         interval.strand)
+                                         strand)
             number_reads_in_area = count_reads_in_interval(cur_interval, array_of_reads)
             area_length = area_stop - area_start + 1
 

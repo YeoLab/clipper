@@ -566,7 +566,7 @@ def main(options):
     tasks = [(gene, gene.attrs['effective_length'], None, bamfile, options.max_gap, options.FDR_alpha,
               options.threshold, options.binom, options.method, options.minreads, options.poisson_cutoff,
               options.plotit, 10, 1000, options.SloP, False, options.max_width, options.min_width, options.algorithm,
-              options.verbose) for gene in gene_tool]
+              options.verbose, options.reverse_strand) for gene in gene_tool]
 
     jobs = []
     results = []
@@ -655,6 +655,7 @@ def call_main():
     parser.add_option("--max_gap", dest="max_gap",type="int", default=15, help="defines maximum gap between reads before calling a region a new section, default: %default")
     parser.add_option("--bonferroni", dest="bonferroni_correct",action="store_true", default=False, help="Perform Bonferroni on data before filtering")
     parser.add_option("--algorithm", dest="algorithm",default="spline", help="Defines algorithm to run, currently spline, classic, gaussian")
+    parser.add_option("--reverse_strand", dest="reverse_strand",default=False, action="store_true", help="adds option to reverse strand")
 
     (options, args) = parser.parse_args()
  
