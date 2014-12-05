@@ -487,7 +487,7 @@ def filter_results(results, poisson_cutoff, transcriptome_size,
         peaks = bh_correct(peaks)
         #peaks['final_p_value'] = (peaks['final_p_value'] * total_clusters)
 
-
+    #This is a bug I should fix, padj isn't getting printed, the uncorreded p-value is
     final_result = peaks[peaks['padj'] < poisson_cutoff]
 
     return final_result.apply(write_peak, axis=1).values
@@ -566,7 +566,7 @@ def main(options):
     tasks = [(gene, gene.attrs['effective_length'], None, bamfile, options.max_gap, options.FDR_alpha,
               options.threshold, options.binom, options.method, options.minreads, options.poisson_cutoff,
               options.plotit, 10, 1000, options.SloP, False, options.max_width, options.min_width, options.algorithm,
-              options.verbose, options.reverse_strand) for gene in gene_tool]
+              options.verbose, options.reverse_strand, options.input_bam) for gene in gene_tool]
 
     jobs = []
     results = []
@@ -630,6 +630,8 @@ def call_main():
     parser = OptionParser(usage=usage, description=description)
 
     parser.add_option("--bam", "-b", dest="bam", help="A bam file to call peaks on", type="string", metavar="FILE.bam")
+    parser.add_option("--input_bam", dest="input_bam", help="input bam to control for peak calling", type="string", metavar="FILE.bam")
+
     parser.add_option("--species", "-s", dest="species", help="A species for your peak-finding, either hg19 or mm9")
     parser.add_option("--gtfFile", dest="gtfFile", help="use a gtf file instead of the AS structure data")
     parser.add_option("--outfile", "-o", dest="outfile", default="fitted_clusters", help="a bed file output, default:%default")
