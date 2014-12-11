@@ -373,7 +373,7 @@ def generate_region_dict(bedtool):
     return region_dict
 
 
-def convert_to_transcript(feature_dict):
+def convert_to_transcript(bedtool):
     
     """
     
@@ -382,10 +382,11 @@ def convert_to_transcript(feature_dict):
     returns modified dict
         
     """
-    return {name: bedtool.each(name_to_chrom).saveas() for name, bedtool in feature_dict.items()}
+
+    return bedtool.each(name_to_chrom).sort().saveas()
 
 
-def convert_to_mrna(feature_dict, exon_dict):
+def convert_to_mrna(bedtool, exon_dict):
     
     """
     
@@ -396,7 +397,7 @@ def convert_to_mrna(feature_dict, exon_dict):
     
     """
 
-    return {name: bedtool.each(convert_to_mRNA_position, exon_dict).filter(lambda x: x.chrom != "none").saveas() for name, bedtool in feature_dict.items()}
+    return bedtool.each(convert_to_mRNA_position, exon_dict).filter(lambda x: x.chrom != "none").sort().saveas()
 
 
 def invert_neg(interval):
@@ -404,38 +405,34 @@ def invert_neg(interval):
     return interval
 
 
-def get_feature_distances(bedtool, regions, features):
+def get_feature_distances(bedtool, features, exons):
     """
 
     :param bedtool: bedtools of peaks, both  (only works with clipper defined peaks)
-    :param regions: dict of regions, used to convert genomic coordinates to mrna coordinates
     :param features: dict of features to find distance from
+    :param exons: bedtool of exons, used to convert genomic coordinates to mrna coordinates
+
     :return:
     """
 
-    exon_dict = generate_region_dict(regions['exons'])
+    exon_dict = generate_region_dict(exons)
     
     bed_center = bedtool.each(small_peaks).saveas()
-    beds_center_transcripts = bed_center.each(name_to_chrom).saveas()
-    beds_center_transcripts_mrna = beds_center_transcripts.each(convert_to_mRNA_position, exon_dict).filter(lambda x: x.chrom != "none").saveas()
+    beds_center_transcripts = convert_to_transcript(bed_center)
+    beds_center_transcripts_mrna = convert_to_mrna(beds_center_transcripts, exon_dict)
 
-    features_transcript = convert_to_transcript(features)
-    features_mrna = convert_to_mrna(features_transcript, exon_dict)
-    
+    features_transcript = {name: convert_to_transcript(bedtool) for name, bedtool in features.items()}
+    features_mrna = {name: convert_to_mrna(bedtool, exon_dict) for name, bedtool in features.items()}
+
     #for pre-mrna
-    features_transcript_closest = {}
+    features_transcript_closest = defaultdict(lambda: None)
     for name, feature in features_transcript.items():
-        try:
-            features_transcript_closest[name] = {"dist": beds_center_transcripts.closest(feature, s=True, D="b", t="first", id=True).filter(lambda x: x[-2] != ".").saveas()}
-        except:
-            features_transcript_closest[name] = {"dist": None}
+        features_transcript_closest[name] = beds_center_transcripts.closest(feature, s=True, D="b").filter(lambda x: x[-2] != ".").saveas()
+
     #for mrna
-    features_mrna_closest = {} 
+    features_mrna_closest = defaultdict(lambda: None)
     for name, feature in features_mrna.items():
-        try:
-            features_mrna_closest[name] = {"dist": beds_center_transcripts_mrna.closest(feature, s=True, D="ref", t="first").filter(lambda x: x[-2] != ".").each(invert_neg).saveas()}
-        except:
-            features_mrna_closest[name] = {"dist": None}
+        features_mrna_closest[name] = beds_center_transcripts_mrna.closest(feature, s=True, D="ref").filter(lambda x: x[-2] != ".").each(invert_neg).saveas()
 
     return features_transcript_closest, features_mrna_closest
 
@@ -556,7 +553,7 @@ def RNA_position_interval(interval, location_dict):
         running_length += length
 
     #clusters fall outside of regions integrated
-    return None, None
+    return None, None, None, None
 
 
 def get_closest_exon_types(bedtool, as_structure_dict):
@@ -1245,9 +1242,10 @@ def main(bedtool, bam, species, runPhast=False, motifs=[], k=[6], nrand=3,
     cluster_lengths = bedlengths(cluster_regions['all']['real'])
 
     print "getting peak locations"
-    features_transcript_closest, features_mrna_closest = get_feature_distances(cluster_regions['all']['real'], genomic_regions, features)
-    features_transcript_closest = {name:  pybedtools.BedTool(bedtool['dist'].saveas("%s_%s_transcript.bed" % (clusters, name)).fn) for name, bedtool in features_transcript_closest.items() if bedtool['dist'] is not None}
-    features_mrna_closest = {name:  pybedtools.BedTool(bedtool['dist'].saveas("%s_%s_mrna.bed" % (clusters, name)).fn) for name, bedtool in features_mrna_closest.items() if bedtool['dist'] is not None}
+    features_transcript_closest, features_mrna_closest = get_feature_distances(cluster_regions['all']['real'], features,
+                                                                               genomic_regions['exons'], )
+    features_transcript_closest = {name:  pybedtools.BedTool(bedtool.saveas("%s_%s_transcript.bed" % (clusters, name)).fn) for name, bedtool in features_transcript_closest.items()}
+    features_mrna_closest = {name:  pybedtools.BedTool(bedtool.saveas("%s_%s_mrna.bed" % (clusters, name)).fn) for name, bedtool in features_mrna_closest.items()}
 
     #Distribution counting only works if genes have been pre-assignned
     distributions = get_region_distributions(cluster_regions['all']['real'], genomic_regions)
@@ -1311,9 +1309,7 @@ def main(bedtool, bam, species, runPhast=False, motifs=[], k=[6], nrand=3,
     print "file saved"
 
     visualize(clusters, extension, outdir)
-      
-    #prints distance of clusters from various motifs in a different figure
-    #TODO use homer / MEME results to print this out by default?  Make different sub package?
+
     try:
         if motifs:
             motif_fig = CLIP_analysis_display.plot_motifs(motif_distances)
