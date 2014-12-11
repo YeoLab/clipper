@@ -571,7 +571,7 @@ def get_closest_exon_types(bedtool, as_structure_dict):
             start, stop = map(int, exon.split("-"))
             bedtool_list.append([gene['chrom'], start, stop, name, 0, gene['strand'], type])
 
-    feature_tool = pybedtools.BedTool(bedtool_list)
+    feature_tool = pybedtools.BedTool(bedtool_list).sort()
     return Counter([interval[-1] for interval in bedtool.closest(feature_tool, s=True)])
 
 #TODO Start small module for getting read densiites
