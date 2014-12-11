@@ -563,10 +563,11 @@ def main(options):
     
     gene_tool = gene_tool.saveas()
 
-    tasks = [(gene, gene.attrs['effective_length'], None, bamfile, options.max_gap, options.FDR_alpha,
+    tasks = [(gene, gene.attrs['effective_length'], bamfile, options.max_gap, options.FDR_alpha,
               options.threshold, options.binom, options.method, options.minreads, options.poisson_cutoff,
-              options.plotit, 10, 1000, options.SloP, False, options.max_width, options.min_width, options.algorithm,
-              options.verbose, options.reverse_strand, options.input_bam) for gene in gene_tool]
+              options.plotit, 10, 1000, options.SloP, options.max_width,
+              options.min_width, options.algorithm,
+              options.reverse_strand, options.input_bam) for gene in gene_tool]
 
     jobs = []
     results = []

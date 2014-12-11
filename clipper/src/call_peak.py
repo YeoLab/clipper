@@ -42,7 +42,7 @@ class Peak(namedtuple('Peak', ['chrom',
                                'area_reads',
                                'area_size',
                                'nreads_in_gene'
-                               'nreads_in_input'
+                               #'nreads_in_input'
                                ])):
     def __repr__(self):
         """bed8 format"""
@@ -906,12 +906,12 @@ def read_lengths_from_htseq(reads):
     return [get_aligned_read_length(read) for read in reads]
 
 
-def call_peaks(interval, gene_length, bam_fileobj=None, bam_file=None,
-               max_gap=25, fdr_alpha=0.05, user_threshold=None, binom_alpha=0.05, method="binomial",
+def call_peaks(interval, gene_length, bam_file=None, max_gap=25,
+               fdr_alpha=0.05, user_threshold=None, binom_alpha=0.05, method="binomial",
                min_reads=3, poisson_cutoff=0.05,
                plotit=False, w_cutoff=10, windowsize=1000, 
-               SloP=False, correct_p=False, max_width=None, min_width=None,
-               algorithm="spline", verbose=False, reverse_strand=False, input_bam=None):
+               SloP=False, max_width=None, min_width=None,
+               algorithm="spline", reverse_strand=False, input_bam=None):
     
     """
 
@@ -930,7 +930,6 @@ def call_peaks(interval, gene_length, bam_fileobj=None, bam_file=None,
     w_cutoff - width cutoff, peaks narrower than this are discarted 
     windowssize - for super local calculation distance left and right to look 
     SloP - super local p-value instead of gene-wide p-value
-    correct_p - boolean bonferoni correction of p-values from poisson
     max_width - int maximum with of classic peak calling algorithm peak
     min_width - int min width of classic peak calling algorithm peak
     max_gap   - int max gap of classic peak calling algorithm peak
@@ -1145,25 +1144,24 @@ def call_peaks(interval, gene_length, bam_fileobj=None, bam_file=None,
             number_reads_in_area = count_reads_in_interval(cur_interval, array_of_reads)
             area_length = area_stop - area_start + 1
 
-            peak_dict['clusters'].append(Peak(interval.chrom,
-                                              genomic_start,
-                                              genomic_stop,
-                                              interval.attrs['gene_id'],
-                                              interval.strand,
-                                              thick_start,
-                                              thick_stop,
-                                              peak_number,
-                                              number_reads_in_peak,
-                                              peak_length,
-                                              0,
-                                              int(interval.attrs['effective_length']),
-                                              peak_length,
-                                              number_reads_in_area,
-                                              area_length,
-                                              nreads_in_gene,
-                                              input_number_reads_in_peak,
-                                              )
-            )
+            peak_dict['clusters'].append(Peak(chrom=interval.chrom,
+                                              genomic_start=genomic_start,
+                                              genomic_stop=genomic_stop,
+                                              gene_name=interval.attrs['gene_id'],
+                                              strand=interval.strand,
+                                              thick_start=thick_start,
+                                              thick_stop=thick_stop,
+                                              peak_number=peak_number,
+                                              number_reads_in_peak=number_reads_in_peak,
+                                              size=peak_length,
+                                              p=0,
+                                              effective_length=int(interval.attrs['effective_length']),
+                                              peak_length=peak_length,
+                                              area_reads=number_reads_in_area,
+                                              area_size=area_length,
+                                              nreads_in_gene=nreads_in_gene,
+                                              #nreads_in_input=input_number_reads_in_peak,
+                                              ))
 
             peak_number += 1
             peak_dict['sections'][sect]['nPeaks'] += 1
