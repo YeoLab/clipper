@@ -630,7 +630,7 @@ def call_main():
     parser = OptionParser(usage=usage, description=description)
 
     parser.add_option("--bam", "-b", dest="bam", help="A bam file to call peaks on", type="string", metavar="FILE.bam")
-    parser.add_option("--input_bam", dest="input_bam", help="input bam to control for peak calling", type="string", metavar="FILE.bam")
+    parser.add_option("--input_bam", dest="input_bam", help="input bam to control for peak calling", type="string", default=None, metavar="FILE.bam")
 
     parser.add_option("--species", "-s", dest="species", help="A species for your peak-finding, either hg19 or mm9")
     parser.add_option("--gtfFile", dest="gtfFile", help="use a gtf file instead of the AS structure data")

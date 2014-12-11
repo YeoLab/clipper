@@ -960,13 +960,14 @@ def call_peaks(interval, gene_length, bam_fileobj=None, bam_file=None,
 
     #This is the worst of hacks, need to factor out pysam eventually
     bam_fileobj = Robust_BAM_Reader(bam_file)
-    input_bam_fileobj = Robust_BAM_Reader(input_bam)
-
     subset_reads = list(bam_fileobj.fetch(reference=interval.chrom, start=interval.start, end=interval.stop))
-    input_subset_reads = list(input_bam_fileobj.fetch(reference=interval.chrom, start=interval.start, end=interval.stop))
-
     array_of_reads = read_array(subset_reads, interval.start, interval.stop)
-    input_array_of_reads = read_array(input_subset_reads, interval.start, interval.stop)
+
+
+    if input_bam: #if not none
+        input_bam_fileobj = Robust_BAM_Reader(input_bam)
+        input_subset_reads = list(input_bam_fileobj.fetch(reference=interval.chrom, start=interval.start, end=interval.stop))
+        input_array_of_reads = read_array(input_subset_reads, interval.start, interval.stop)
 
     nreads_in_gene = sum(pos_counts)
     gene_length = int(gene_length)
@@ -1114,7 +1115,11 @@ def call_peaks(interval, gene_length, bam_fileobj=None, bam_file=None,
             cur_interval = HTSeq.GenomicInterval(interval.chrom, genomic_start, genomic_stop,
                                          strand)
             number_reads_in_peak = count_reads_in_interval(cur_interval, array_of_reads)
-            input_number_reads_in_peak = count_reads_in_interval(cur_interval, input_array_of_reads)
+
+            if input_bam:
+                input_number_reads_in_peak = count_reads_in_interval(cur_interval, input_array_of_reads)
+            else:
+                input_number_reads_in_peak = 0
 
             peak_length = genomic_stop - genomic_start + 1
 
