@@ -546,7 +546,7 @@ class Test(unittest.TestCase):
         """
         
        
-        cluster = Peak(0,0,0,0,0,0,0,0,0,5,0,10,0)
+        cluster = Peak(0,0,0,0,0,0,0,0,0,5,0,10,0,0,0,0)
         #cluster = {'Nreads' : 5, "size" : 10}
         transcriptome_size = 1000
         transcriptome_reads = 10000
@@ -557,7 +557,7 @@ class Test(unittest.TestCase):
         self.assertEqual(result, 1) 
         
         #cluster = {'Nreads' : 10000, "size" : 100}
-        cluster = Peak(0,0,0,0,0,0,0,0,0,10000,0,100,0)
+        cluster = Peak(0,0,0,0,0,0,0,0,0,10000,0,100,0,0,0,0)
         
         transcriptome_size = 1000
         transcriptome_reads = 10000
