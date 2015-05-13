@@ -1144,6 +1144,26 @@ def infer_info(bedtool, genes):
     return bedtool
 
 
+def regions_generator():
+    """
+    returns ordered dict of regions
+    """
+
+    #lazy refactor, should turn entire thing into object, make this a field
+    regions = OrderedDict()
+    regions["all"] = "All"
+    regions["cds"] = "CDS"
+    regions["three_prime_utrs"] = "3' UTR"
+    regions["five_prime_utrs"] = "5' UTR"
+    regions["proxintron500"] = "Proximal\nIntron"
+    regions["distintron500"] = "Distal\nIntron"
+
+    #all catagory would break some analysies, create copy and remove it
+    assigned_regions = regions.copy()
+    del assigned_regions['all']
+    return assigned_regions, regions
+
+
 def main(bedtool, bam, species, runPhast=False, motifs=[], k=[6], nrand=3,
          outdir=os.getcwd(), db=None, as_structure=None, genome_location=None, phastcons_location=None,
          regions_location=None, motif_location=os.getcwd(), metrics="CLIP_Analysis.metrics", extension="svg",
@@ -1188,23 +1208,17 @@ def main(bedtool, bam, species, runPhast=False, motifs=[], k=[6], nrand=3,
     make_dir(misc_dir)
     make_dir(fasta_dir)
     make_dir(homerout)
-    
-    #lazy refactor, this used to be a list, but the dict acts the same until I don't want it to...
-    regions = OrderedDict()
-    regions["all"] = "All"
-    regions["cds"] = "CDS"
-    regions["three_prime_utrs"] = "3' UTR"
-    regions["five_prime_utrs"] = "5' UTR"
-    regions["proxintron500"] = "Proximal\nIntron"
-    regions["distintron500"] = "Distal\nIntron"
+
+    assigned_regions, regions = regions_generator()
+
     if db is not None:
         db = gffutils.FeatureDB(db)
     else:
         print "gff utils db not defined, this is fine, but falling back onto pre-set region defentions"
         db = None
-    features = GenomicFeatures(species, db,  regions_dir=regions_location)
-    genomic_regions = features.get_genomic_regions()
-    features = features.get_feature_locations()
+    genomic_features = GenomicFeatures(species, db,  regions_dir=regions_location)
+    genomic_regions = genomic_features.get_genomic_regions()
+    features = genomic_features.get_feature_locations()
 
     clusters_bed = pybedtools.BedTool(bedtool)
     if infer:
@@ -1212,9 +1226,7 @@ def main(bedtool, bam, species, runPhast=False, motifs=[], k=[6], nrand=3,
 
     clusters_bed = pybedtools.BedTool(make_unique(clusters_bed)).saveas()
 
-     #all catagory would break some analysies, create copy and remove it
-    assigned_regions = regions.copy()
-    del assigned_regions['all']
+
 
     if as_structure is not None:
         genes_dict, genes_bed = parse_AS_STRUCTURE_dict(species, as_structure)
