@@ -422,7 +422,7 @@ def get_feature_distances(bedtool, features, exons):
     beds_center_transcripts_mrna = convert_to_mrna(beds_center_transcripts, exon_dict)
 
     features_transcript = {name: convert_to_transcript(bedtool) for name, bedtool in features.items()}
-    features_mrna = {name: convert_to_mrna(bedtool, exon_dict) for name, bedtool in features.items()}
+    features_mrna = {name: convert_to_mrna(bedtool, exon_dict) for name, bedtool in features_transcript.items()}
 
     #for pre-mrna
     features_transcript_closest = defaultdict(lambda: None)
