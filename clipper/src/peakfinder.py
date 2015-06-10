@@ -12,7 +12,7 @@ import random
 import sys
 from subprocess import call
 import time
-
+import pandas as pd
 import pybedtools
 
 import clipper
@@ -20,8 +20,7 @@ from clipper import data_dir
 from clipper.src.call_peak import call_peaks, poissonP
 
 logging.captureWarnings(True)
-    
-#TODO add in pre-trim step 
+
 
 def check_for_index(bamfile):
     
@@ -359,41 +358,6 @@ def build_transcript_data(species, gene_bed, gene_mrna, gene_pre_mrna, pre_mrna)
 
     return pybedtools.BedTool(gtf_list)
 
-def transcriptome_filter(poisson_cutoff, transcriptome_size, transcriptome_reads, cluster):
-    
-    """
-    filters each cluster by if it passes a transciptome wide cutoff or not, returns true if it passes
-    transcriptome cutoff, false if not
-    
-    poisson_cutoff - float,user set cutoff 
-    transcriptome_size - int number of genes in transcriptome
-    transcritpmoe_reads - int total number of reads analized
-    cluster - named tuple , namedtuple('Peak', ['chrom', 
-                                      'genomic_start', 
-                                      'genomic_stop', 
-                                      'gene_name', 
-                                      'super_local_poisson_p', 
-                                      'strand',
-                                      'thick_start',
-                                      'thick_stop',
-                                      'peak_number',
-                                      'number_reads_in_peak',
-                                      'gene_poisson_p',
-                                      'size'
-                                      'p'
-                                      ])
-    """
-        
-    transcriptome_p = poissonP(transcriptome_reads, 
-                               cluster.number_reads_in_peak, 
-                               transcriptome_size, 
-                               cluster.size)
-    
-    if math.isnan(transcriptome_p):
-        logging.info("""Transcriptome P is NaN, transcriptome_reads = %d, cluster reads = %d, transcriptome_size = %d, cluster_size = %d""" % (transcriptome_reads, cluster.number_reads_in_peak, transcriptome_size, cluster.size))
-        return np.Inf
-    
-    return transcriptome_p
 
 def count_transcriptome_reads(results):
     
@@ -413,13 +377,82 @@ def count_transcriptome_reads(results):
         if gene_result is not None:
             logging.info("nreads: %d" % (gene_result['nreads']))
             transcriptome_reads += gene_result['nreads']
-    
-    
+
     return transcriptome_reads
 
-def filter_results(results, poisson_cutoff, transcriptome_size, 
+
+def count_transcriptome_length(results):
+    transcriptome_length = 0
+
+    for gene_result in results:
+        if gene_result is not None:
+            transcriptome_length += int(gene_result['loc'].attrs['effective_length'])
+
+    return transcriptome_length
+
+
+def transcriptome_poissonP(cluster):
+    return poissonP(cluster.transcriptome_reads,
+                    cluster.number_reads_in_peak,
+                    cluster.transcriptome_size,
+                    cluster['size'])
+
+
+def transcript_poissonP(cluster):
+    return poissonP(cluster.nreads_in_gene,
+                    cluster.number_reads_in_peak,
+                    cluster.effective_length,
+                    cluster['size'])
+
+
+def superlocal_poissonP(cluster):
+    return poissonP(cluster.area_reads,
+                    cluster.number_reads_in_peak,
+                    cluster.area_size,
+                    cluster['size'])
+
+
+def write_peak(cluster):
+    return "\t".join([str(x) for x in [
+        cluster.chrom,
+        cluster.genomic_start,
+        cluster.genomic_stop,
+        cluster.gene_name  + "_" + str(cluster.peak_number) + "_" + str(cluster.number_reads_in_peak),
+        cluster.final_p_value,
+        cluster.strand,
+        cluster.thick_start,
+        cluster.thick_stop,
+        ]])
+
+def dictify(some_named_tuple):
+    return dict((s, getattr(some_named_tuple, s)) for s in some_named_tuple._fields)
+
+
+def make_peak_df(results):
+    peaks = []
+    for gene_result in results:
+        # alert user that there aren't any clusters for specific gene
+        for cluster in gene_result['clusters']:
+            peaks.append(dictify(cluster))
+    peaks = pd.DataFrame(peaks)
+    return peaks
+
+
+def bh_correct(df):
+    """
+    :param df:
+    :return: returns dataframe wtih adjusted p-value
+    """
+    df = df.sort("final_p_value")
+    df['sort_rank'] = np.arange(1, len(df) + 1)
+    df['bh_corrected'] = df.apply(lambda x: min(((len(df) / x.sort_rank) * x.final_p_value), 1), axis=1)
+    df['padj'] = df.sort("final_p_value", ascending=False).bh_corrected.cummin()
+    return df.sort()
+
+
+def filter_results(results, poisson_cutoff, transcriptome_size,
                    transcriptome_reads, use_global_cutoff, 
-                   bonferroni_correct, algorithm = "spline"):
+                   bonferroni_correct, algorithm="spline", superlocal=False, min_width=50):
     
     """
     
@@ -432,64 +465,33 @@ def filter_results(results, poisson_cutoff, transcriptome_size,
     transcriptome_size - number of genes there are in the transcriptome
     
     """
-    #combine results
-    allpeaks = set([])
-    total_clusters = sum([len(gene_result['clusters']) for gene_result in results])
-    
-    for gene_result in results:
 
-        #alert user that there aren't any clusters for specific gene
-        if gene_result['clusters'] is None:
-            logging.info("%s no clusters" % (gene_result))
+    peaks = make_peak_df(results)
 
-        
-        for cluster in gene_result['clusters']:
-            meets_cutoff = True
-            global_pval = np.Inf
-            try:
-                
-                if use_global_cutoff:
-                    global_pval = transcriptome_filter(poisson_cutoff, 
-                                                       transcriptome_size, 
-                                                       transcriptome_reads,  
-                                                       cluster)
-                if algorithm == "classic":
-                    min_pval = max([cluster.super_local_poisson_p, 
-                                cluster.gene_poisson_p, 
-                                global_pval])
-                else:
-                    min_pval = min([cluster.super_local_poisson_p, 
-                                cluster.gene_poisson_p, 
-                                global_pval])
-                
-                if bonferroni_correct:
-                    min_pval = min(min_pval * total_clusters,1.0) 
-                            
-                if not (min_pval < poisson_cutoff):
-                    logging.info("Failed Gene Pvalue: %s and failed SloP Pvalue: %s and global value %s for Gene %s %s" % (cluster.super_local_poisson_p, cluster.gene_poisson_p, global_pval, cluster.gene_name, cluster.peak_number))
-                    meets_cutoff = False
-                
-                if meets_cutoff:
+    total_clusters = len(peaks)
 
-                    #adds beadline to total peaks that worked
-                    #the name column is hacky because the ucsc genome browser doesn't like
-                    #random columns, will need to do some parsing later to fix (awk it)
-                    allpeaks.add("\t".join([str(x) for x in [
-                                           cluster.chrom, 
-                                           cluster.genomic_start, 
-                                           cluster.genomic_stop, 
-                                           cluster.gene_name  + "_" + str(cluster.peak_number) + "_" + str(cluster.number_reads_in_peak), 
-                                           min_pval, 
-                                           cluster.strand, 
-                                           cluster.thick_start, 
-                                           cluster.thick_stop,
-                                           ]]))
-        
-            except NameError as error:
-                logging.error("parsing failed: %s" % (error))
-                raise error
-            
-    return allpeaks
+    if algorithm == "classic":
+        peaks['peak_length'] = peaks['peak_length'].apply(lambda x: max(x, min_width))
+    peaks['transcriptome_size'] = transcriptome_size
+    peaks['transcriptome_reads'] = transcriptome_reads
+    peaks['transcriptome_poisson_p'] = peaks.apply(transcriptome_poissonP, axis=1) if use_global_cutoff else np.nan
+    peaks['transcript_poisson_p'] = peaks.apply(transcript_poissonP, axis=1)
+    peaks['superlocal_poisson_p'] = peaks.apply(superlocal_poissonP, axis=1) if superlocal else np.nan
+
+    if algorithm == "classic":
+        peaks['final_p_value'] = peaks[['transcript_poisson_p', 'superlocal_poisson_p']].max(axis=1)
+    else:
+        peaks['final_p_value'] = peaks[['transcript_poisson_p', 'superlocal_poisson_p']].min(axis=1)
+
+    if bonferroni_correct:
+        peaks = bh_correct(peaks)
+        #peaks['final_p_value'] = (peaks['final_p_value'] * total_clusters)
+
+    #This is a bug I should fix, padj isn't getting printed, the uncorreded p-value is
+    final_result = peaks[peaks['padj'] < poisson_cutoff]
+
+    return final_result.apply(write_peak, axis=1).values
+
 
 def mapper(options, line):
     bedtool = pybedtools.BedTool(line, from_string=True)
@@ -508,7 +510,8 @@ def mapper(options, line):
                       options.FDR_alpha, options.threshold, 
                       int(options.minreads), options.poisson_cutoff, 
                       options.plotit, 10, 1000, options.SloP, False)
-    
+
+
 def hadoop_mapper(options):
     
     """
@@ -520,7 +523,8 @@ def hadoop_mapper(options):
    
     for line in sys.stdin:
         mapper(options, line)
-        
+
+
 def main(options):
     
     check_for_index(options.bam)
@@ -545,15 +549,10 @@ def main(options):
     else:
         gene_tool = build_transcript_data_gtf_as_structure(options.species, 
                                                            options.premRNA).saveas()
-        #gene_tool = build_transcript_data(options.species, 
-        #                                       options.geneBEDfile, 
-        #                                       options.geneMRNAfile, 
-        #                                       options.genePREMRNAfile,
-        #                                       options.premRNA)
-    
+
     #gets all the gene_tool to call peaks on
     if options.gene:
-        gene_tool = gene_tool.filter(lambda x : x.attrs['gene_id'] in options.gene)
+        gene_tool = gene_tool.filter(lambda x: x.attrs['gene_id'] in options.gene)
 
     #truncates for max gene_tool
     if options.maxgenes:
@@ -563,18 +562,13 @@ def main(options):
         gene_tool = gene_tool.random_subset(int(options.maxgenes))
     
     gene_tool = gene_tool.saveas()
-    
 
-    transcriptome_size = sum(int(x.attrs['effective_length']) if "effective_length" in x.attrs else x.length for x in gene_tool)
-    #do the parralization
+    tasks = [(gene, gene.attrs['effective_length'], bamfile, options.max_gap, options.FDR_alpha,
+              options.threshold, options.binom, options.method, options.minreads, options.poisson_cutoff,
+              options.plotit, 10, 1000, options.SloP, options.max_width,
+              options.min_width, options.algorithm,
+              options.reverse_strand, options.input_bam) for gene in gene_tool]
 
-    tasks =  [(gene, gene.attrs['effective_length'], None, bamfile, options.max_gap, options.FDR_alpha, 
-               options.threshold, options.binom, options.method, options.minreads, options.poisson_cutoff,
-               options.plotit, 10, 1000, options.SloP, False,
-               options.max_width, options.min_width,
-               options.algorithm, options.verbose)
-              for gene in gene_tool]
-    
     jobs = []
     results = []
     if options.debug:
@@ -594,7 +588,6 @@ def main(options):
                 logging.error("transcript timed out %s" % (error))
         
     pool.close()
-    
 
     logging.info("finished with calling peaks")
 
@@ -603,7 +596,8 @@ def main(options):
             pickle.dump(results, file=pickle_file)                
     
     transcriptome_reads = count_transcriptome_reads(results)
-    
+    transcriptome_size = count_transcriptome_length(results)
+
     logging.info("""Transcriptome size is %d, transcriptome reads are %d""" % (transcriptome_size, transcriptome_reads))
 
     filtered_peaks = filter_results(results, 
@@ -612,7 +606,9 @@ def main(options):
                               transcriptome_reads, 
                               options.use_global_cutoff,
                               options.bonferroni_correct,
-                              options.algorithm)
+                              options.algorithm,
+                              options.SloP,
+                              options.min_width)
             
     outbed = options.outfile
 
@@ -635,14 +631,10 @@ def call_main():
     parser = OptionParser(usage=usage, description=description)
 
     parser.add_option("--bam", "-b", dest="bam", help="A bam file to call peaks on", type="string", metavar="FILE.bam")
+    parser.add_option("--input_bam", dest="input_bam", help="input bam to control for peak calling", type="string", default=None, metavar="FILE.bam")
 
     parser.add_option("--species", "-s", dest="species", help="A species for your peak-finding, either hg19 or mm9")
     parser.add_option("--gtfFile", dest="gtfFile", help="use a gtf file instead of the AS structure data")
-
-    #we don't have custom scripts or documentation to support this right now, removing until those get added in
-    parser.add_option("--customBED", dest="geneBEDfile", help="bed file to call peaks on, must come withOUT species and with customMRNA and customPREMRNA", metavar="BEDFILE")
-    parser.add_option("--customMRNA", dest="geneMRNAfile", help="file with mRNA lengths for your bed file in format: GENENAME<tab>LEN", metavar="FILE")
-    parser.add_option("--customPREMRNA", dest="genePREMRNAfile", help="file with pre-mRNA lengths for your bed file in format: GENENAME<tab>LEN", metavar="FILE")
     parser.add_option("--outfile", "-o", dest="outfile", default="fitted_clusters", help="a bed file output, default:%default")
     parser.add_option("--gene", "-g", dest="gene", action="append", help="A specific gene you'd like try", metavar="GENENAME")
     parser.add_option("--minreads", dest="minreads", help="minimum reads required for a section to start the fitting process.  Default:%default", default=3, type="int", metavar="NREADS")
@@ -651,7 +643,7 @@ def call_main():
     parser.add_option("--disable_global_cutoff", dest="use_global_cutoff", action="store_false", help="disables global transcriptome level cutoff to CLIP-seq peaks, Default:On", default=True, metavar="P")
     parser.add_option("--FDR", dest="FDR_alpha", type="float", default=0.05, help="FDR cutoff for significant height estimation, default=%default")
     parser.add_option("--threshold-method", dest="method", default="random", help="Method used for determining height threshold, Can use default=random or binomial")
-    parser.add_option("--binomial", dest="binom", type="float", default=0.001, help ="Alpha significance threshold for using Binomial distribution for determining height threshold, default=%default")
+    parser.add_option("--binomial", dest="binom", type="float", default=0.05, help ="Alpha significance threshold for using Binomial distribution for determining height threshold, default=%default")
     parser.add_option("--threshold", dest="threshold", type="int", default=None, help="Skip FDR calculation and set a threshold yourself")
     parser.add_option("--maxgenes", dest="maxgenes", default=None, type="int", help="stop computation after this many genes, for testing", metavar="NGENES")
     parser.add_option("--processors", dest="np", default="autodetect", help="Number of processors to use. Default: All processors on machine", type="str", metavar="NP")
@@ -666,8 +658,8 @@ def call_main():
     parser.add_option("--max_gap", dest="max_gap",type="int", default=15, help="defines maximum gap between reads before calling a region a new section, default: %default")
     parser.add_option("--bonferroni", dest="bonferroni_correct",action="store_true", default=False, help="Perform Bonferroni on data before filtering")
     parser.add_option("--algorithm", dest="algorithm",default="spline", help="Defines algorithm to run, currently spline, classic, gaussian")
-    #parser.add_option("--hadoop", dest="hadoop",default=False, action="store_true", help="Run in hadoop mode")
-    
+    parser.add_option("--reverse_strand", dest="reverse_strand",default=False, action="store_true", help="adds option to reverse strand")
+
     (options, args) = parser.parse_args()
  
     if options.plotit:
@@ -675,15 +667,10 @@ def call_main():
 
     #enforces required usage    
     if not (options.bam and ((options.species) or (options.gtfFile))): 
-    #(options.geneBEDfile and options.geneMRNAfile and options.genePREMRNAfile)
         parser.print_help()
         exit()
         
     logging.info("Starting peak calling")
-    
-    #if options.hadoop:
-    #    hadoop_mapper(options)
-    #else:
     main(options)
 
 

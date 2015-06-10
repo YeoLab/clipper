@@ -157,7 +157,37 @@ def fix_strand(interval):
     return interval
 
 
-def assign_to_regions(tool, clusters, regions, assigned_dir, species="hg19", nrand=3):
+def fix_shuffled_strand(shuffled_tool, regions_file):
+    """
+    Fixes strand of shuffled tool if there was an include file used
+
+    Chooses the first overlapping thing as the correct strand, if there is anti-sense transcription
+    this will fail
+    shuffled_tool: a sorted shuffled bedtool
+    shuffled_file: incl file that did the shuffling
+    """
+
+    regions_tool = pybedtools.BedTool(regions_file)
+    intersected = shuffled_tool.intersect(regions_file, wao=True, stream=True, sorted=True).saveas()
+
+    #Don't think about refactoring this because of leaky files in pybedtools
+    shuffled_tool_field_count = shuffled_tool.field_count()
+    regions_tool_field_count = regions_tool.field_count()
+
+    total_header_size = shuffled_tool_field_count + regions_tool_field_count + 1
+
+    intersected = intersected.to_dataframe(names=range(total_header_size))
+    intersected = intersected.groupby([0,1,2,3]).first()
+    if regions_tool.file_type == "bed":
+        intersected[5] = intersected[shuffled_tool_field_count + 5]
+    if regions_tool.file_type == "gff":
+        intersected[5] = intersected[shuffled_tool_field_count + 6]
+
+    values = intersected.apply(lambda x: "\t".join([str(item) for item in list(x.name) + list(x[:shuffled_tool_field_count - 4])]), axis=1).values
+    new_bedtool = pybedtools.BedTool("\n".join(values), from_string=True)
+    return new_bedtool
+
+def assign_to_regions(tool, clusters, regions, assigned_dir=".", species="hg19", nrand=3):
     
     """
     
@@ -196,9 +226,15 @@ def assign_to_regions(tool, clusters, regions, assigned_dir, species="hg19", nra
     bed_dict['all']['real'] = pybedtools.BedTool("", from_string=True)
     
     offsets = get_offsets_bed12(tool)
-    tool = tool.merge(s=True, c="4,5,6,7,8", o="collapse,collapse,collapse,min,min", stream=True).each(fix_strand).saveas()
+    if tool.field_count() <= 5:
+        tool.sort().merge().saveas()
+    elif 6 <= tool.field_count() < 8:
+        tool = tool.sort().merge(s=True, c="4,5,6", o="collapse,collapse,collapse", stream=True).each(fix_strand).saveas()
+    else:
+        tool = tool.sort().merge(s=True, c="4,5,6,7,8", o="collapse,collapse,collapse,min,min", stream=True).each(fix_strand).saveas()
+
     remaining_clusters = adjust_offsets(tool, offsets)
-    
+
     print "There are a total %d clusters I'll examine" % (len(tool))
     for region in regions:
         remaining_clusters, overlapping = intersection(remaining_clusters, b=bedtracks[region])
@@ -207,7 +243,7 @@ def assign_to_regions(tool, clusters, regions, assigned_dir, species="hg19", nra
         if len(overlapping) == 0:
             print "ignoring %s " % region
             continue
-        
+
         #sets up bed dict for this region
         bed_dict[region] = {'real': overlapping.sort(stream=True).saveas(),
                             'rand': {}}
@@ -223,7 +259,8 @@ def assign_to_regions(tool, clusters, regions, assigned_dir, species="hg19", nra
         #saves offsets so after shuffling the offsets can be readjusted
         offset_dict = get_offsets_bed12(bed_dict[region]['real'])
         for i in range(nrand):
-            random_intervals = bed_dict[region]['real'].shuffle(genome=species, incl=bedtracks[region].fn).sort(stream=True)
+            random_intervals = bed_dict[region]['real'].shuffle(genome=species, incl=bedtracks[region].fn).sort()
+            random_intervals = fix_shuffled_strand(random_intervals, bedtracks[region].fn)
             random_intervals = adjust_offsets(random_intervals, offset_dict)
             bed_dict[region]['rand'][i] = random_intervals.saveas()
 
@@ -255,6 +292,10 @@ def get_offsets_bed12(bedtool):
     
     """
 
+    if bedtool.field_count() < 8:
+        print "Not Valid bed12 file, continuing processing, some things may be strange"
+        return None
+
     try:
         offset_dict = {}
         for interval in bedtool:
@@ -268,7 +309,7 @@ def get_offsets_bed12(bedtool):
 
         return offset_dict
     except:
-        print "Not Valid bed12 file, continuing processing, some things may be strange"
+        print "Not Valid bed12 file, continuing processing, some things may be strange, also this will cause a file leak in pybedtools, watch out"
         return None
 
 
@@ -332,7 +373,7 @@ def generate_region_dict(bedtool):
     return region_dict
 
 
-def convert_to_transcript(feature_dict):
+def convert_to_transcript(bedtool):
     
     """
     
@@ -341,10 +382,11 @@ def convert_to_transcript(feature_dict):
     returns modified dict
         
     """
-    return {name: bedtool.each(name_to_chrom).saveas() for name, bedtool in feature_dict.items()}
+
+    return bedtool.each(name_to_chrom).sort().saveas()
 
 
-def convert_to_mrna(feature_dict, exon_dict):
+def convert_to_mrna(bedtool, exon_dict):
     
     """
     
@@ -355,7 +397,7 @@ def convert_to_mrna(feature_dict, exon_dict):
     
     """
 
-    return {name: bedtool.each(convert_to_mRNA_position, exon_dict).filter(lambda x: x.chrom != "none").saveas() for name, bedtool in feature_dict.items()}
+    return bedtool.each(convert_to_mRNA_position, exon_dict).filter(lambda x: x.chrom != "none").sort().saveas()
 
 
 def invert_neg(interval):
@@ -363,38 +405,34 @@ def invert_neg(interval):
     return interval
 
 
-def get_feature_distances(bedtool, regions, features):
+def get_feature_distances(bedtool, features, exons):
     """
 
     :param bedtool: bedtools of peaks, both  (only works with clipper defined peaks)
-    :param regions: dict of regions, used to convert genomic coordinates to mrna coordinates
     :param features: dict of features to find distance from
+    :param exons: bedtool of exons, used to convert genomic coordinates to mrna coordinates
+
     :return:
     """
 
-    exon_dict = generate_region_dict(regions['exons'])
+    exon_dict = generate_region_dict(exons)
     
     bed_center = bedtool.each(small_peaks).saveas()
-    beds_center_transcripts = bed_center.each(name_to_chrom).saveas()
-    beds_center_transcripts_mrna = beds_center_transcripts.each(convert_to_mRNA_position, exon_dict).filter(lambda x: x.chrom != "none").saveas()
+    beds_center_transcripts = convert_to_transcript(bed_center)
+    beds_center_transcripts_mrna = convert_to_mrna(beds_center_transcripts, exon_dict)
 
-    features_transcript = convert_to_transcript(features)
-    features_mrna = convert_to_mrna(features_transcript, exon_dict)
-    
+    features_transcript = {name: convert_to_transcript(bedtool) for name, bedtool in features.items()}
+    features_mrna = {name: convert_to_mrna(bedtool, exon_dict) for name, bedtool in features_transcript.items()}
+
     #for pre-mrna
-    features_transcript_closest = {}
+    features_transcript_closest = defaultdict(lambda: None)
     for name, feature in features_transcript.items():
-        try:
-            features_transcript_closest[name] = {"dist": beds_center_transcripts.closest(feature, s=True, D="b", t="first", id=True).filter(lambda x: x[-2] != ".").saveas()}
-        except:
-            features_transcript_closest[name] = {"dist": None}
+        features_transcript_closest[name] = beds_center_transcripts.closest(feature, s=True, D="b").filter(lambda x: x[-2] != ".").saveas()
+
     #for mrna
-    features_mrna_closest = {} 
+    features_mrna_closest = defaultdict(lambda: None)
     for name, feature in features_mrna.items():
-        try:
-            features_mrna_closest[name] = {"dist": beds_center_transcripts_mrna.closest(feature, s=True, D="ref", t="first").filter(lambda x: x[-2] != ".").each(invert_neg).saveas()}
-        except:
-            features_mrna_closest[name] = {"dist": None}
+        features_mrna_closest[name] = beds_center_transcripts_mrna.closest(feature, s=True, D="ref").filter(lambda x: x[-2] != ".").each(invert_neg).saveas()
 
     return features_transcript_closest, features_mrna_closest
 
@@ -515,7 +553,7 @@ def RNA_position_interval(interval, location_dict):
         running_length += length
 
     #clusters fall outside of regions integrated
-    return None, None
+    return None, None, None, None
 
 
 def get_closest_exon_types(bedtool, as_structure_dict):
@@ -533,7 +571,7 @@ def get_closest_exon_types(bedtool, as_structure_dict):
             start, stop = map(int, exon.split("-"))
             bedtool_list.append([gene['chrom'], start, stop, name, 0, gene['strand'], type])
 
-    feature_tool = pybedtools.BedTool(bedtool_list)
+    feature_tool = pybedtools.BedTool(bedtool_list).sort()
     return Counter([interval[-1] for interval in bedtool.closest(feature_tool, s=True)])
 
 #TODO Start small module for getting read densiites
@@ -552,6 +590,26 @@ class Robust_BAM_Reader(HTSeq.BAM_Reader):
             except OverflowError:
                 pass
             self.record_no += 1
+
+    def fetch( self, reference = None, start = None, end = None, region = None ):
+        sf = pysam.Samfile(self.filename, "rb")
+        self.record_no = 0
+        try:
+           for pa in sf.fetch( reference, start, end, region ):
+            try:
+                yield SAM_Alignment.from_pysam_AlignedRead( pa, sf )
+            except OverflowError:
+                pass
+            self.record_no += 1
+
+        except ValueError as e:
+           if e.message == "fetch called on bamfile without index":
+              print "Error: ", e.message
+              print "Your bam index file is missing or wrongly named, convention is that file 'x.bam' has index file 'x.bam.bai'!"
+           else:
+              raise
+        except:
+           raise
 
 
 def get_bam_coverage(bamfile):
@@ -1086,6 +1144,26 @@ def infer_info(bedtool, genes):
     return bedtool
 
 
+def regions_generator():
+    """
+    returns ordered dict of regions
+    """
+
+    #lazy refactor, should turn entire thing into object, make this a field
+    regions = OrderedDict()
+    regions["all"] = "All"
+    regions["cds"] = "CDS"
+    regions["three_prime_utrs"] = "3' UTR"
+    regions["five_prime_utrs"] = "5' UTR"
+    regions["proxintron500"] = "Proximal\nIntron"
+    regions["distintron500"] = "Distal\nIntron"
+
+    #all catagory would break some analysies, create copy and remove it
+    assigned_regions = regions.copy()
+    del assigned_regions['all']
+    return assigned_regions, regions
+
+
 def main(bedtool, bam, species, runPhast=False, motifs=[], k=[6], nrand=3,
          outdir=os.getcwd(), db=None, as_structure=None, genome_location=None, phastcons_location=None,
          regions_location=None, motif_location=os.getcwd(), metrics="CLIP_Analysis.metrics", extension="svg",
@@ -1106,7 +1184,9 @@ def main(bedtool, bam, species, runPhast=False, motifs=[], k=[6], nrand=3,
     #In case names aren't unique make them all unique
     clusters_bed = pybedtools.BedTool(make_unique(pybedtools.BedTool(bedtool))).saveas()
     if len(clusters_bed) <= 1:
-        raise IllegalArgunmentException("not enough reads to properly analyze bed file")
+        print "No Clusters, killing now to save time"
+        return
+
     coverage = get_bam_coverage(bam)
     counts = get_bam_counts(bam)
 
@@ -1128,23 +1208,17 @@ def main(bedtool, bam, species, runPhast=False, motifs=[], k=[6], nrand=3,
     make_dir(misc_dir)
     make_dir(fasta_dir)
     make_dir(homerout)
-    
-    #lazy refactor, this used to be a list, but the dict acts the same until I don't want it to...
-    regions = OrderedDict()
-    regions["all"] = "All"
-    regions["cds"] = "CDS"
-    regions["three_prime_utrs"] = "3' UTR"
-    regions["five_prime_utrs"] = "5' UTR"
-    regions["proxintron500"] = "Proximal\nIntron"
-    regions["distintron500"] = "Distal\nIntron"
+
+    assigned_regions, regions = regions_generator()
+
     if db is not None:
         db = gffutils.FeatureDB(db)
     else:
         print "gff utils db not defined, this is fine, but falling back onto pre-set region defentions"
         db = None
-    features = GenomicFeatures(species, db,  regions_dir=regions_location)
-    genomic_regions = features.get_genomic_regions()
-    features = features.get_feature_locations()
+    genomic_features = GenomicFeatures(species, db,  regions_dir=regions_location)
+    genomic_regions = genomic_features.get_genomic_regions()
+    features = genomic_features.get_feature_locations()
 
     clusters_bed = pybedtools.BedTool(bedtool)
     if infer:
@@ -1152,9 +1226,7 @@ def main(bedtool, bam, species, runPhast=False, motifs=[], k=[6], nrand=3,
 
     clusters_bed = pybedtools.BedTool(make_unique(clusters_bed)).saveas()
 
-     #all catagory would break some analysies, create copy and remove it
-    assigned_regions = regions.copy()
-    del assigned_regions['all']
+
 
     if as_structure is not None:
         genes_dict, genes_bed = parse_AS_STRUCTURE_dict(species, as_structure)
@@ -1184,9 +1256,10 @@ def main(bedtool, bam, species, runPhast=False, motifs=[], k=[6], nrand=3,
     cluster_lengths = bedlengths(cluster_regions['all']['real'])
 
     print "getting peak locations"
-    features_transcript_closest, features_mrna_closest = get_feature_distances(cluster_regions['all']['real'], genomic_regions, features)
-    features_transcript_closest = {name:  pybedtools.BedTool(bedtool['dist'].saveas("%s_%s_transcript.bed" % (clusters, name)).fn) for name, bedtool in features_transcript_closest.items() if bedtool['dist'] is not None}
-    features_mrna_closest = {name:  pybedtools.BedTool(bedtool['dist'].saveas("%s_%s_mrna.bed" % (clusters, name)).fn) for name, bedtool in features_mrna_closest.items() if bedtool['dist'] is not None}
+    features_transcript_closest, features_mrna_closest = get_feature_distances(cluster_regions['all']['real'], features,
+                                                                               genomic_regions['exons'], )
+    features_transcript_closest = {name:  pybedtools.BedTool(bedtool.saveas("%s_%s_transcript.bed" % (clusters, name)).fn) for name, bedtool in features_transcript_closest.items()}
+    features_mrna_closest = {name:  pybedtools.BedTool(bedtool.saveas("%s_%s_mrna.bed" % (clusters, name)).fn) for name, bedtool in features_mrna_closest.items()}
 
     #Distribution counting only works if genes have been pre-assignned
     distributions = get_region_distributions(cluster_regions['all']['real'], genomic_regions)
@@ -1250,9 +1323,7 @@ def main(bedtool, bam, species, runPhast=False, motifs=[], k=[6], nrand=3,
     print "file saved"
 
     visualize(clusters, extension, outdir)
-      
-    #prints distance of clusters from various motifs in a different figure
-    #TODO use homer / MEME results to print this out by default?  Make different sub package?
+
     try:
         if motifs:
             motif_fig = CLIP_analysis_display.plot_motifs(motif_distances)

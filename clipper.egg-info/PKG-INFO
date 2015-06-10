@@ -1,0 +1,11 @@
+Metadata-Version: 1.0
+Name: clipper
+Version: 0.2.0
+Summary: A set of scripts for calling peaks on CLIP-seq data
+Home-page: https://github.com/YeoLab/clipper
+Author: Michael Lovci and Gabriel Pratt
+Author-email: mlovci@ucsd.edu
+License: GPL2
+Description: CLIPPER - clip peak enrichment
+Keywords: CLIP-seq,peaks,bioinformatics
+Platform: UNKNOWN
