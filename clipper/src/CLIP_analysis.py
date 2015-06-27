@@ -1270,7 +1270,7 @@ def main(bedtool, bam, species, runPhast=False, motifs=[], k=[6], nrand=3,
     phast_values = None
     print "starting phast"
     if runPhast:
-        phast_values = calculate_phastcons(assigned_regions, cluster_regions, phastcons_location)
+        phast_values = calculate_phastcons(cluster_regions, phastcons_location)
     print "ending phast"
 
     motif_distances = []
