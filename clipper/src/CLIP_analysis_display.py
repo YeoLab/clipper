@@ -108,15 +108,12 @@ class ClipVisualization():
         if reads_per_cluster is None:
             raise NotImplementedError("Pickle file doesn't have data to generate this figure")
 
-        ax_nreads.hist(reads_per_cluster,
-                       bins=50,
-                       facecolor='#C8D2B0',
-                       log=True,
-                       range=(10, max(11, np.max(reads_per_cluster))))
+        sns.kdeplot(np.array(self.reads_per_cluster), ax=ax_nreads)
+        [tick.set_rotation(90) for tick in ax_nreads.get_xticklabels()]
 
-        ax_nreads.set_xscale('log')
-        ax_nreads.set_xlabel("log10(N reads)")
+        ax_nreads.set_xlabel("N reads)")
         ax_nreads.set_ylabel("Frequency")
+
         return ax_nreads
 
     def build_cluster_lengths(self, ax_lengths, cluster_lengths=None):
