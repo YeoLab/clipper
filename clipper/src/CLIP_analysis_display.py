@@ -113,6 +113,7 @@ class ClipVisualization():
 
         sns.kdeplot(np.array(self.reads_per_cluster), ax=ax_nreads)
         [tick.set_rotation(90) for tick in ax_nreads.get_xticklabels()]
+        ax_nreads.set_xlim(0,)
 
         ax_nreads.set_xlabel("N reads)")
         ax_nreads.set_ylabel("Frequency")
@@ -140,6 +141,7 @@ class ClipVisualization():
 
         sns.kdeplot(np.array(self.cluster_lengths), ax=ax_lengths)
         [tick.set_rotation(90) for tick in ax_lengths.get_xticklabels()]
+        ax_lengths.set_xlim(0,)
         ax_lengths.set_ylabel("Frequency")
         ax_lengths.set_xlabel("Length (bp)")
         return ax_lengths
