@@ -824,7 +824,7 @@ class ClipVisualization():
         """
 
         #First do layout for main figures
-        fig = plt.figure(figsize=(20, 20), facecolor='white')
+        fig = plt.figure(figsize=(20, 20))
 
         #The grid for the entire display
         full_grid = gridspec.GridSpec(6, 4)
