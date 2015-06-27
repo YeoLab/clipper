@@ -935,56 +935,38 @@ def calculate_homer_motifs(kmer_list, regions, clusters, fasta_dir, homerout):
         region_homer_out = os.path.join(homerout, region)
         run_homer(real_fa, rand_fa, kmer_list, outloc=region_homer_out)
 
+def trim_bedtool(bedtool):
+    result = []
+    for x, interval in enumerate(bedtool):
+        interval.name = "{}_{}:{}-{}".format(interval.name, interval.chrom, interval.start, interval.stop)
+        result.append(interval[:4])
+    return pybedtools.BedTool(result).saveas()
 
-def calculate_phastcons(regions, cluster_regions, phastcons_location, sample_size=1000):
-    
-    """
-    
-    Generates phastcons scores for all clusters
-    
-    regions - list[str] regions to analize
-    cluster_regions - special dict that contains all random and normal cluster info
-    phastcons_location - str location of phastcons file
-    sample_size - int the number of regions to randomly sample to calculate phastcons (needed because sampling from bw file is slow for phastcons)
-    
-    """
-    
-    
-    ###conservation --should use multiprocessing to speed this part up!
-    #start output_file conservation logic, very slow...
-    phast_values = {"real": {}, "rand": {}}
-    print "Fetching Phastcons Scores..."
-    #phastcons values for all regions except "all"
+def bigWigAverageOverBed(bw_file, bedtool):
 
-    #skip "all" combine them later
-    for region in regions:
-        print "%s..." % region
-        #gracefully fail if the region isn't represented
-        try:
-            phast_values["real"][region] = get_mean_phastcons(cluster_regions[region]['real'], 
-                                                              phastcons_location, 
-                                                              sample_size=sample_size)
-            
-            #can't concatanate zero length arrays, so prime it
-            randPhast = np.array([])
-            for rand_bed in cluster_regions[region]['rand'].values():                
-                randPhast = np.concatenate((randPhast, get_mean_phastcons(rand_bed, 
-                                                                          phastcons_location,  
-                                                                          sample_size=sample_size)), axis=1)
-            phast_values["rand"][region] = randPhast
-        except KeyError as e:
-            print "ignoring: ", e
-            continue
-        except Exception as e:
-            print region, e
-            raise
+    outfile = os.path.join(os.getcwd(), bedtool.fn.split(".")[0] + ".tab")
+    with open(os.devnull, 'w') as fnull:
+        print 'bigWigAverageOverBed', bw_file, trim_bedtool(bedtool).fn, outfile
+        subprocess.call(['bigWigAverageOverBed',
+                         bw_file,
+                         trim_bedtool(bedtool).fn,
+                         outfile], shell=True, stdout=fnull, stderr=fnull)
+    return pd.read_table(outfile, index_col=0, header=None, names=['name', 'size', 'covered', 'sum', 'mean0', 'mean'])
 
-
-    #get the "all" values
-    phast_values["real"]["all"] = np.concatenate(phast_values["real"].values())
-    phast_values["rand"]["all"] = np.concatenate(phast_values["rand"].values())
-
-    return phast_values
+def calculate_phastcons(cluster_regions, phastcons_location):
+    result = {}
+    for region in cluster_regions.keys():
+        result[region] = {}
+        region_dict = {}
+        region_dict['real'] = pd.concat({1: bigWigAverageOverBed(phastcons_location, cluster_regions[region]['real'])})
+        if 'rand' in cluster_regions[region]:
+            rand = {}
+            for rand_num in cluster_regions[region]['rand']:
+                rand[rand_num] = bigWigAverageOverBed(phastcons_location, cluster_regions[region]['rand'][rand_num])
+            region_dict['rand'] = pd.concat(rand)
+        result[region] = pd.concat(region_dict)
+    result = pd.concat(result)
+    return result
 
 
 def calculate_motif_distance(cluster_regions, region_sizes, motif_tool, slopsize = 200):
