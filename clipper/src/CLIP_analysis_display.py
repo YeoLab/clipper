@@ -4,6 +4,11 @@ Created on Sep 18, 2012
 @author: gabrielp
 '''
 
+
+import matplotlib as mpl
+mpl.use('Agg')
+mpl.rcParams['interactive'] = False
+
 import cPickle as pickle
 from collections import OrderedDict
 import math
@@ -16,9 +21,7 @@ import matplotlib.image as mpimg
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 import seaborn as sns
 
-#import matplotlib as mpl
-#mpl.use('Agg')
-#mpl.rcParams['interactive'] = False
+
 
 class ClipVisualization():
 
