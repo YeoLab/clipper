@@ -134,12 +134,11 @@ class ClipVisualization():
 
         if cluster_lengths is None:
             raise NotImplementedError("Pickle file doesn't have data to generate this figure")
-        ax_lengths.set_yscale('log')
-        ax_lengths.boxplot(random.sample(cluster_lengths,
-                                         min(2000, len(cluster_lengths))),
-                           vert=1)
 
-        ax_lengths.set_xticklabels([])
+        sns.kdeplot(np.array(self.cluster_lengths), ax=ax_lengths)
+        [tick.set_rotation(90) for tick in ax_lengths.get_xticklabels()]
+        ax_lengths.set_ylabel("Frequency")
+        ax_lengths.set_xlabel("Length (bp)")
         return ax_lengths
 
     def build_gene_distribution(self, ax, premrna=None, mrna=None):
