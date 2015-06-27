@@ -6,19 +6,19 @@ Created on Sep 18, 2012
 
 import cPickle as pickle
 from collections import OrderedDict
-import matplotlib as mpl
-mpl.use('Agg')
-mpl.rcParams['interactive'] = False
+import math
+import os
+
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 import matplotlib.image as mpimg
-import random
-import os
-import pybedtools
-import math
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 import seaborn as sns
+
+#import matplotlib as mpl
+#mpl.use('Agg')
+#mpl.rcParams['interactive'] = False
 
 class ClipVisualization():
 
