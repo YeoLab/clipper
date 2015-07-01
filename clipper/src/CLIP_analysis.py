@@ -680,11 +680,10 @@ def cluster_peaks(bedtool, coverage, k=16):
     bedtool_df_mag_normalized[bedtool_df_mag_normalized > .1] = .1
     #TODO Write Test, tested slowly in ipython notebook, but need to make some sample data to test with
     data = np.array(bedtool_df_mag_normalized)
-    
     #fixes bad test case
     if len(data) < k:
-        k = len(data) / 2
-        
+        #In case there are very few peaks in a region the max will keep k at least 1
+        k = max(len(data) / 2, 1)
     kmeans_classifier = KMeans(k)
     classes = kmeans_classifier.fit_predict(data)
     return bedtool_df_mag_normalized, classes

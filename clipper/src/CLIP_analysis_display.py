@@ -438,7 +438,10 @@ class ClipVisualization():
         if phastcons_values is None or regions is None:
             raise NotImplementedError("Pickle file doesn't have data to generate this figure")
 
-        for x, (region, region_name) in enumerate(regions.items()):
+        non_null_regions = self.phastcons_values.index.levels[0] & regions.keys()
+
+        for x, (region) in enumerate(non_null_regions):
+            print non_null_regions
             ax = plt.subplot(gs[x])
             self.plot_cdf(self.phastcons_values.ix[region, 'real'].mean0, ax=ax, label="Actual")
             self.plot_cdf(self.phastcons_values.ix[region, 'rand'].mean0, ax=ax, label="Random")
@@ -467,7 +470,7 @@ class ClipVisualization():
 
             if ax.is_last_col() and ax.is_first_row():
                 ax.legend()
-            x_label = region_name.replace("\n", " ")
+            x_label = regions[region].replace("\n", " ")
 
             if ax.is_last_row():
                 x_label += "\nConservation Score"
