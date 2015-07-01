@@ -20,6 +20,7 @@ import matplotlib.gridspec as gridspec
 import matplotlib.image as mpimg
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 import seaborn as sns
+import statsmodels as sm
 
 
 
@@ -68,6 +69,17 @@ class ClipVisualization():
         self.features_transcript_closest = data['features_transcript_closest'] if "features_transcript_closest" in data else None
         self.features_mrna_closest = data['features_mrna_closest'] if "features_mrna_closest" in data else None
         self.homer_location = data['homerout']
+
+    def plot_cdf(self, cdf_list, **kwargs):
+        cdf = sm.distributions.ECDF(cdf_list)
+        cdf_linspace = np.linspace(min(cdf_list), max(cdf_list))
+        if kwargs['ax'] is not None:
+            ax = kwargs['ax']
+            del kwargs['ax']
+            ax.plot(cdf_linspace, cdf(cdf_linspace), **kwargs)
+            ax.set_ylim((0, 1))
+        else:
+            plot(cdf_linspace, cdf(cdf_linspace), **kwargs)
 
     def build_reads_in_clusters(self, ax, reads_in_clusters=None, reads_out_clusters=None):
 
@@ -406,7 +418,7 @@ class ClipVisualization():
                 else:
                     print "no motif %s" % motif_logo_file
 
-    def build_phastcons_values(self, ax, phastcons_values=None, regions=None):
+    def build_phastcons_values(self, gs, phastcons_values=None, regions=None):
 
         """
 
@@ -426,83 +438,41 @@ class ClipVisualization():
         if phastcons_values is None or regions is None:
             raise NotImplementedError("Pickle file doesn't have data to generate this figure")
 
-        intersecting_regions = set(phastcons_values['real'].keys()).intersection(set(phastcons_values['rand'].keys()))
+        for x, (region, region_name) in enumerate(regions.items()):
+            ax = plt.subplot(gs[x])
+            self.plot_cdf(self.phastcons_values.ix[region, 'real'].mean0, ax=ax, label="Actual")
+            self.plot_cdf(self.phastcons_values.ix[region, 'rand'].mean0, ax=ax, label="Random")
+            tmp_lim = ax.get_ylim()
+            tmp_yticklabels = ax.get_yticks()
+            first = (tmp_lim[1] - tmp_lim[0]) * .25
+            second = (tmp_lim[1] - tmp_lim[0]) * .75
 
-        for region in intersecting_regions:
-            phastcons_values['real'][region] = [value for value in phastcons_values['real'][region] if not math.isnan(value)]
-            phastcons_values['rand'][region] = [value for value in phastcons_values['rand'][region] if not math.isnan(value)]
-
-        box_values = []
-        #need to mix the real and random values, one after another
-        for region in intersecting_regions:
-            box_values.append(phastcons_values['real'][region])
-            box_values.append(phastcons_values['rand'][region])
-
-        #positions = np.arange(len(intersecting_regions) * 2)
-        width = .1
-
-        #make boxplots of phastcons values for all regions
-        bp = ax.boxplot(box_values,
-                        #positions = positions,
-                        widths=width,
-                        sym='k.')
-
-        boxes = bp['boxes']
-
-        #slicing trick, even boxes are true, odd boxses are randomized
-        for realbox in boxes[:2]:
-            realbox.set_color('blue')
-
-        for randbox in boxes[1::2]:
-            randbox.set_color('red')
-
-        #sets all outlighters sizes to 3
-        [i.set_markersize(3.) for i in bp['fliers']]
-
-        #sets true medians to blue
-        medians = bp['medians']
-        for line in medians[:2]:
-            line.set_color('blue')
-
-        #sets randomized medians to red
-        for line in medians[1::2]:
-            line.set_color('red')
-
-        start, stop = ax.get_xlim()
-        #start = 0
-        #stop += .5
-        #ticks to seperate out the different regions...
-        ticks = np.linspace(start, stop, len(intersecting_regions) + 1)
-        starts = np.array(ticks[:-1])
-        bins = 20
-        for n, region in enumerate(intersecting_regions):
-            heights1, edges1 = np.histogram(phastcons_values['real'][region], normed=True, bins=bins)
-            heights2, edges2 = np.histogram(phastcons_values['rand'][region], normed=True, bins=bins)
-
-            #insert 0 at start to anchor CDF
-            cdf1 = np.cumsum(heights1) / np.sum(heights1)
-            cdf1 = np.insert(cdf1, 0, 0)
-            cdf2 = np.cumsum(heights2) / np.sum(heights2)
-            cdf2 = np.insert(cdf2, 0, 0)
-            yvals = np.linspace(0, 1, (bins + 1))
-            if n == 0:
-                label1 = "real"
-                label2 = "random"
+            bp = ax.boxplot([self.phastcons_values.ix[region, 'real'].mean0,
+                             self.phastcons_values.ix[region, 'rand'].mean0],
+                            widths=0.05,
+                            sym='k.',
+                            patch_artist=True,
+                            vert=False,
+                            positions =[first, second])
+            plt.setp(bp['boxes'][0], color='b', alpha=.7)
+            plt.setp(bp['boxes'][1], color='g', alpha=.7)
+            ax.set_yticks(tmp_yticklabels)
+            ax.set_yticklabels(tmp_yticklabels, fontsize=6)
+            ax.set_ylim(tmp_lim)
+            sns.despine()
+            if ax.is_first_col():
+                ax.set_ylabel("Cumulative\nFraction", fontsize=8)
             else:
-                label1 = "_nolegend_"
-                label2 = "_nolegend_"
-            ax.plot((starts[n] + (cdf1 * 2)), yvals, 'blue', label=label1)
-            ax.plot((starts[n] + (cdf2 * 2)), yvals, 'red', label=label2)
+                ax.set_yticklabels([])
 
-        for x in starts[1:]:
-            ax.axvline(x, color='k', lw=2)
+            if ax.is_last_col() and ax.is_first_row():
+                ax.legend()
+            x_label = region_name.replace("\n", " ")
 
-        #sets ticks to be in the middle of box plots
-        ax.set_xticks([(ax.get_xticks()[x] + ax.get_xticks()[x+1]) / 2.0 for x in range(len(ax.get_xticks()))[::2]])
-        ax.set_xticklabels([regions[region] for region in list(intersecting_regions)])
-        ax.set_ylabel("PhastCons Score")
-        ax.legend()
-        return ax
+            if ax.is_last_row():
+                x_label += "\nConservation Score"
+            ax.set_xlabel(x_label, fontsize=8)
+
 
     def build_motif_boxplots(self, ax, kmer_results=None, highlight_motifs=None, regions=None):
 
@@ -847,7 +817,7 @@ class ClipVisualization():
         ax_lengths = plt.subplot(gs_nreads_lengths_cons[3], title="Cluster Lengths")
 
         #Creates phastcons axis (lets modify this a bit to have it be its own thing
-        ax_cons = plt.subplot(gs_nreads_lengths_cons[4:7], title="PhastCons Values")
+        gs_cons = gridspec.GridSpecFromSubplotSpec(2, 3, subplot_spec=gs_nreads_lengths_cons[4:7])
 
         #Lays out second column
         gs_line2 = gridspec.GridSpecFromSubplotSpec(1, 6, subplot_spec=full_grid[1, :])
@@ -899,7 +869,7 @@ class ClipVisualization():
         except NotImplementedError:
             pass
         try:
-            self.build_phastcons_values(ax_cons)
+            self.build_phastcons_values(gs_cons)
         except NotImplementedError:
             pass
         try:
