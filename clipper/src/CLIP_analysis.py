@@ -944,13 +944,17 @@ def trim_bedtool(bedtool):
 
 def bigWigAverageOverBed(bw_file, bedtool):
 
-    outfile = os.path.join(os.getcwd(), bedtool.fn.split(".")[0] + ".tab")
+    out_name = bedtool.fn.split(".")[:-1]
+    if len(out_name) is not 1:
+        out_name = ".".join(out_name)
+
+    outfile = os.path.join(os.getcwd(), out_name + ".tab")
     with open(os.devnull, 'w') as fnull:
         print 'bigWigAverageOverBed', bw_file, trim_bedtool(bedtool).fn, outfile
-        subprocess.call(['bigWigAverageOverBed',
+        subprocess.check_call(" ".join(['bigWigAverageOverBed',
                          bw_file,
                          trim_bedtool(bedtool).fn,
-                         outfile], shell=True, stdout=fnull, stderr=fnull)
+                         outfile]), shell=True)
     return pd.read_table(outfile, index_col=0, header=None, names=['name', 'size', 'covered', 'sum', 'mean0', 'mean'])
 
 def calculate_phastcons(cluster_regions, phastcons_location):
