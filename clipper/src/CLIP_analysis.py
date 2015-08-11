@@ -27,7 +27,7 @@ from clipper.src import CLIP_analysis_display
 from clipper.src.kmerdiff import kmer_diff
 from clipper.src.get_genomic_regions import GenomicFeatures
 from gscripts.general.pybedtools_helpers import small_peaks, convert_to_mRNA_position
-
+from clipper.src.bam_helpers import Robust_BAM_Reader
 import matplotlib as mpl
 from matplotlib import rc
 
@@ -575,41 +575,6 @@ def get_closest_exon_types(bedtool, as_structure_dict):
     return Counter([interval[-1] for interval in bedtool.closest(feature_tool, s=True)])
 
 #TODO Start small module for getting read densiites
-from HTSeq import SAM_Alignment
-import pysam
-
-
-class Robust_BAM_Reader(HTSeq.BAM_Reader):
-
-    def __iter__( self ):
-        sf = pysam.Samfile(self.filename, "rb")
-        self.record_no = 0
-        for pa in sf:
-            try:
-                yield SAM_Alignment.from_pysam_AlignedRead( pa, sf )
-            except OverflowError:
-                pass
-            self.record_no += 1
-
-    def fetch( self, reference = None, start = None, end = None, region = None ):
-        sf = pysam.Samfile(self.filename, "rb")
-        self.record_no = 0
-        try:
-           for pa in sf.fetch( reference, start, end, region ):
-            try:
-                yield SAM_Alignment.from_pysam_AlignedRead( pa, sf )
-            except OverflowError:
-                pass
-            self.record_no += 1
-
-        except ValueError as e:
-           if e.message == "fetch called on bamfile without index":
-              print "Error: ", e.message
-              print "Your bam index file is missing or wrongly named, convention is that file 'x.bam' has index file 'x.bam.bai'!"
-           else:
-              raise
-        except:
-           raise
 
 
 def get_bam_coverage(bamfile):

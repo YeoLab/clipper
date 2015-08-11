@@ -24,7 +24,7 @@ from scipy.stats import binom
 
 from clipper.src.peaks import shuffle, find_sections
 from clipper.src.readsToWiggle import readsToWiggle_pysam
-from clipper.src.CLIP_analysis import Robust_BAM_Reader
+from clipper.src.bam_helpers import Robust_BAM_Reader
 
 class Peak(namedtuple('Peak', ['chrom',
                                'genomic_start',
