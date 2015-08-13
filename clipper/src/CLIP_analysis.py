@@ -1168,8 +1168,8 @@ def main(bedtool, bam, species, runPhast=False, motifs=[], k=[6], nrand=3,
     out_dict = {}
     #In case names aren't unique make them all unique
     clusters_bed = pybedtools.BedTool(make_unique(pybedtools.BedTool(bedtool))).saveas()
-    if len(clusters_bed) <= 1:
-        print "No Clusters, killing now to save time"
+    if len(clusters_bed) <= 10:
+        print "Less than 10 Clusters, killing now to save time"
         return
 
     coverage = get_bam_coverage(bam)
