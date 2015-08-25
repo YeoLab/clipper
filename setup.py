@@ -38,7 +38,7 @@ setup(
     entry_points = {
                     'console_scripts': [
                                         'clipper = clipper.src.peakfinder:call_main',
-                                        'clip_analysis = clipper.src.CLIP_analysis:call_main',],
+                                        'clip_analysis = clipper.src.CLIP_analysis_runner:call_main',],
                     },
 
     #metadata for upload to PyPI
