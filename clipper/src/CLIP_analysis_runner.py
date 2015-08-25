@@ -11,7 +11,6 @@ from clipper.src.get_genomic_regions import GenomicFeatures
 from optparse import OptionParser
 import gffutils
 
-
 import matplotlib as mpl
 from matplotlib import rc
 mpl.rcParams['svg.fonttype'] = 'none'
