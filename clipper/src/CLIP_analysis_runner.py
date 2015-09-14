@@ -87,7 +87,7 @@ def main(bedtool, bam, species, runPhast=False, motifs=[], k=[6], nrand=3,
     else:
         print "AS STRUCTURE file not listed, alt-splicing figure will not be generated"
 
-    cluster_regions = assign_to_regions(tool=clusters_bed, clusters=clusters, regions=assigned_regions,
+    cluster_regions = assign_to_regions(tool=clusters_bed, clusters=clusters,
                                         assigned_dir=assigned_dir, species=species, nrand=nrand)
 
     print "getting cluster sizes"

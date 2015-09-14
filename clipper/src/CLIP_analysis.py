@@ -136,7 +136,12 @@ def save_bedtools(cluster_regions, clusters, assigned_dir):
     return cluster_regions
 
 
+
 def fix_strand(interval):
+    #this only is comptabale with bedtools >2.25.0
+    lst = interval.fields
+    del lst[3]
+    interval = pybedtools.interval_constructor(lst)
     strands = list(set(interval.strand.split(",")))
     if len(strands) > 1:
         raise NameError("Both strands are present, something went wrong during the merge")
@@ -174,31 +179,28 @@ def fix_shuffled_strand(shuffled_tool, regions_file):
     new_bedtool = pybedtools.BedTool("\n".join(values), from_string=True)
     return new_bedtool
 
-def assign_to_regions(tool, clusters, regions, assigned_dir=".", species="hg19", nrand=3):
+def assign_to_regions(tool, clusters=None, assigned_dir=".", species="hg19", nrand=3):
     
     """
     
     Assigns each cluster to a genic region
     finally saves all generated bed and fasta files for future analysis...
-    
-    Needs to be refactored desperatly
-    
+
     tool - a bed tool (each line represnting a cluster)
-    clusters - name of cluster file
-    regions_dir - the directory that has genomic regions already processed
-    regions - dict [str] regions to process, not used now but should be after refactoring 
+    clusters - name of cluster file (optional)
     assigned_dir - location to save files in
     species - str species to segment
     nrand - int number offsets times to shuffle for null hypothesis
-    getseq - boolean gets the full sequence to store
-    
-    shuffling for background, should still be factored out
-    
+
+
     """
 
+    if clusters is None:
+        clusters, ext = os.path.splitext(os.path.basename(tool.fn))
     bedtracks = {}
 
-    #TODO refactor this to use get_genomic_regions
+    regions, assigned_regions = regions_generator()
+
     for region in regions:
         bedtracks[region] = pybedtools.BedTool(os.path.join(clipper.data_dir(), "regions", "%s_%s.bed" % (species,
                                                                                                           region)))
@@ -216,8 +218,10 @@ def assign_to_regions(tool, clusters, regions, assigned_dir=".", species="hg19",
     if tool.field_count() <= 5:
         tool.sort().merge().saveas()
     elif 6 <= tool.field_count() < 8:
+        print "merging small"
         tool = tool.sort().merge(s=True, c="4,5,6", o="collapse,collapse,collapse", stream=True).each(fix_strand).saveas()
     else:
+        print "merging clipper"
         tool = tool.sort().merge(s=True, c="4,5,6,7,8", o="collapse,collapse,collapse,min,min", stream=True).each(fix_strand).saveas()
 
     remaining_clusters = adjust_offsets(tool, offsets)
@@ -228,7 +232,7 @@ def assign_to_regions(tool, clusters, regions, assigned_dir=".", species="hg19",
 
         #if for some reason there isn't a peak in the region skip it
         if len(overlapping) == 0:
-            print "ignoring %s " % region
+            # print "ignoring %s " % region
             continue
 
         #sets up bed dict for this region
@@ -1073,8 +1077,9 @@ def infer_info(bedtool, genes):
 
 
 def regions_generator():
+
     """
-    returns ordered dict of regions
+    returns ordered dict of regions without the "all" region and with the "All" region, in that order
     """
 
     #lazy refactor, should turn entire thing into object, make this a field
