@@ -138,12 +138,6 @@ def save_bedtools(cluster_regions, clusters, assigned_dir):
 
 
 def fix_strand(interval):
-
-    if isinstance(interval, basestring):
-        interval = pybedtools.create_interval_from_list(
-        interval.strip().split('\t')
-    )
-
     #this only is comptabale with bedtools >2.25.0
     lst = interval.fields
     del lst[3]
@@ -645,6 +639,9 @@ def cluster_peaks(bedtool, coverage, k=16):
 
     bedtool_df_mag_normalized = bedtool_df.div(bedtool_df.sum(axis=1), axis=0)
     bedtool_df_mag_normalized[bedtool_df_mag_normalized > .1] = .1
+    #I'm calling peaks in the wrong places?  This is wrong, I should look into it.  I shouldn't need to dropnas
+    bedtool_df_mag_normalized = bedtool_df_mag_normalized.dropna()
+
     #TODO Write Test, tested slowly in ipython notebook, but need to make some sample data to test with
     data = np.array(bedtool_df_mag_normalized)
     #fixes bad test case
@@ -673,7 +670,7 @@ def run_homer(foreground, background, k=list([5,6,7,8,9]), outloc=os.getcwd()):
     """
     #findMotifs.pl clusters.fa fasta outloc -nofacts p 4 -rna -S 10 -len 5,6,7,8,9 -noconvert -nogo -fasta background.fa
     #converts k to a string for use in subprocess
-    k = ",".join([str(x) for x in k])
+    k = ",".join([sstr(x) for x in k])
     print "starting Homer"
     
     try:
