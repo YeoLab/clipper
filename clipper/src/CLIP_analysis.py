@@ -138,6 +138,12 @@ def save_bedtools(cluster_regions, clusters, assigned_dir):
 
 
 def fix_strand(interval):
+
+    if isinstance(interval, basestring):
+        interval = pybedtools.create_interval_from_list(
+        interval.strip().split('\t')
+    )
+
     #this only is comptabale with bedtools >2.25.0
     lst = interval.fields
     del lst[3]
@@ -208,25 +214,23 @@ def assign_to_regions(tool, clusters=None, assigned_dir=".", species="hg19", nra
     #creates the basics of bed dict
     bed_dict = {'all': {'rand': {}}}
 
-    #can't append None to string so hack a null bed tool
-    for n in range(nrand):
-        bed_dict['all']['rand'][n] = pybedtools.BedTool("", from_string=True)
-
-    bed_dict['all']['real'] = pybedtools.BedTool("", from_string=True)
+    # #can't append None to string so hack a null bed tool
+    # for n in range(nrand):
+    #     bed_dict['all']['rand'][n] = pybedtools.BedTool("", from_string=True)
+    #
+    # bed_dict['all']['real'] = pybedtools.BedTool("", from_string=True)
     
     offsets = get_offsets_bed12(tool)
     if tool.field_count() <= 5:
         tool.sort().merge().saveas()
     elif 6 <= tool.field_count() < 8:
-        print "merging small"
-        tool = tool.sort().merge(s=True, c="4,5,6", o="collapse,collapse,collapse", stream=True).each(fix_strand).saveas()
+        tool = tool.sort().merge(s=True, c="4,5,6", o="collapse,collapse,collapse").each(fix_strand).saveas()
     else:
-        print "merging clipper"
-        tool = tool.sort().merge(s=True, c="4,5,6,7,8", o="collapse,collapse,collapse,min,min", stream=True).each(fix_strand).saveas()
+        tool = tool.sort().merge(s=True, c="4,5,6,7,8", o="collapse,collapse,collapse,min,min").each(fix_strand).saveas()
 
     remaining_clusters = adjust_offsets(tool, offsets)
 
-    print "There are a total %d clusters I'll examine" % (len(tool))
+    # print "There are a total %d clusters I'll examine" % (len(tool))
     for region in regions:
         remaining_clusters, overlapping = intersection(remaining_clusters, b=bedtracks[region])
 
@@ -241,11 +245,14 @@ def assign_to_regions(tool, clusters=None, assigned_dir=".", species="hg19", nra
 
         no_overlapping_count = len(remaining_clusters)
         overlapping_count = len(bed_dict[region]['real'])
-        print "For region: %s found %d that overlap and %d that don't" % (region,
-                                                                          overlapping_count,
-                                                                          no_overlapping_count)
+        # print "For region: %s found %d that overlap and %d that don't" % (region,
+        #                                                                   overlapping_count,
+        #                                                                   no_overlapping_count)
 
-        bed_dict['all']['real'] = bed_dict['all']['real'].cat(bed_dict[region]['real'], stream=True, postmerge=False)
+        if 'real' not in bed_dict['all']:
+            bed_dict['all']['real'] = bed_dict[region]['real']
+        else:
+            bed_dict['all']['real'] = bed_dict['all']['real'].cat(bed_dict[region]['real'], stream=True, postmerge=False).saveas()
 
         #saves offsets so after shuffling the offsets can be readjusted
         offset_dict = get_offsets_bed12(bed_dict[region]['real'])
@@ -255,13 +262,17 @@ def assign_to_regions(tool, clusters=None, assigned_dir=".", species="hg19", nra
             random_intervals = adjust_offsets(random_intervals, offset_dict)
             bed_dict[region]['rand'][i] = random_intervals.saveas()
 
+        if i not in bed_dict['all']['rand']:
+            bed_dict['all']['rand'][i] = bed_dict[region]['rand'][i]
+        else:
             bed_dict['all']['rand'][i] = bed_dict['all']['rand'][i].cat(bed_dict[region]['rand'][i], stream=True, postmerge=False)
+
 
         #if there are no more clusters to assign stop trying
         if no_overlapping_count == 0:
             break
 
-    print "After assigning %d un-categorized regions" % len(remaining_clusters)
+    # print "After assigning %d un-categorized regions" % len(remaining_clusters)
 
     if len(remaining_clusters) > 0:
         bed_dict['uncatagorized'] = {'real': remaining_clusters.sort(stream=True).saveas()}
@@ -602,7 +613,7 @@ def get_bam_counts(bamfile):
 
 def bed_to_genomic_interval(bed):
     for interval in bed:
-        yield HTSeq.GenomicInterval(interval.chrom, interval.start, interval.stop, interval.strand)
+        yield HTSeq.GenomicInterval(str(interval.chrom), interval.start, interval.stop, str(interval.strand))
 
 
 def get_densities(intervals, coverage):
