@@ -945,8 +945,8 @@ def call_peaks(interval, gene_length, bam_file=None, max_gap=25,
     #fixes non-standard chrom file names (without the chr)
     if not interval.chrom.startswith("chr"):
         interval.chrom = "chr" + interval.chrom
-        
-    subset_reads = list(bam_fileobj.fetch(reference=interval.chrom, start=interval.start, end=interval.stop))
+
+    subset_reads = list(bam_fileobj.fetch(reference=str(interval.chrom), start=interval.start, end=interval.stop))
     strand = interval.strand
     if reverse_strand:
         if strand == "+":
@@ -959,13 +959,12 @@ def call_peaks(interval, gene_length, bam_file=None, max_gap=25,
 
     #This is the worst of hacks, need to factor out pysam eventually
     bam_fileobj = Robust_BAM_Reader(bam_file)
-    subset_reads = list(bam_fileobj.fetch(reference=interval.chrom, start=interval.start, end=interval.stop))
+    subset_reads = list(bam_fileobj.fetch(reference=str(interval.chrom), start=interval.start, end=interval.stop))
     array_of_reads = read_array(subset_reads, interval.start, interval.stop)
-
 
     if input_bam: #if not none
         input_bam_fileobj = Robust_BAM_Reader(input_bam)
-        input_subset_reads = list(input_bam_fileobj.fetch(reference=interval.chrom, start=interval.start, end=interval.stop))
+        input_subset_reads = list(input_bam_fileobj.fetch(reference=str(interval.chrom), start=interval.start, end=interval.stop))
         input_array_of_reads = read_array(input_subset_reads, interval.start, interval.stop)
 
     nreads_in_gene = sum(pos_counts)
