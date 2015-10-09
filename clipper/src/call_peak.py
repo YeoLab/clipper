@@ -1038,6 +1038,7 @@ def call_peaks(interval, gene_length, bam_file=None, max_gap=25,
                 expanded_Nreads = get_reads_in_interval(cur_interval, array_of_reads)
                 sect_read_lengths = read_lengths_from_htseq(expanded_Nreads)
                 sect_read_lengths = [sect_length - 1 if read > sect_length else read for read in sect_read_lengths]
+                peak_dict['sections'][sect]['expanded_Nreads'] = len(expanded_Nreads)
 
                 if method == "binomial":  #Uses Binomial Distribution to get cutoff if specified by user
                     threshold = max(gene_threshold, get_FDR_cutoff_binom(sect_read_lengths, expanded_sect_length, binom_alpha))
@@ -1056,7 +1057,6 @@ def call_peaks(interval, gene_length, bam_file=None, max_gap=25,
         #saves threshold for each individual section
         peak_dict['sections'][sect]['threshold'] = threshold
         peak_dict['sections'][sect]['nreads'] = int(Nreads)
-        peak_dict['sections'][sect]['expanded_Nreads'] = len(expanded_Nreads)
         peak_dict['sections'][sect]['tried'] = True
         peak_dict['sections'][sect]['nPeaks'] = 0
 
