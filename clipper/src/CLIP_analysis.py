@@ -139,11 +139,12 @@ def save_bedtools(cluster_regions, clusters, assigned_dir):
 
 def fix_strand(interval):
     #this only is comptabale with bedtools >2.25.0
-    lst = interval.fields
-    del lst[3]
-    interval = pybedtools.interval_constructor(lst)
+    #lst = interval.fields
+    #del lst[3]
+    #interval = pybedtools.interval_constructor(lst)
     strands = list(set(interval.strand.split(",")))
     if len(strands) > 1:
+        #There is something odd going on between my local box, pybedtools and bedtools.  Merge isn't acting exacly the same, this works on TSCC
         raise NameError("Both strands are present, something went wrong during the merge")
     interval.strand = strands[0]
     return interval
@@ -194,7 +195,6 @@ def assign_to_regions(tool, clusters=None, assigned_dir=".", species="hg19", nra
 
 
     """
-
     if clusters is None:
         clusters, ext = os.path.splitext(os.path.basename(tool.fn))
     bedtracks = {}
@@ -222,6 +222,7 @@ def assign_to_regions(tool, clusters=None, assigned_dir=".", species="hg19", nra
     else:
         tool = tool.sort().merge(s=True, c="4,5,6,7,8", o="collapse,collapse,collapse,min,min").each(fix_strand).saveas()
 
+    print tool.head()
     remaining_clusters = adjust_offsets(tool, offsets)
 
     # print "There are a total %d clusters I'll examine" % (len(tool))
@@ -670,7 +671,7 @@ def run_homer(foreground, background, k=list([5,6,7,8,9]), outloc=os.getcwd()):
     """
     #findMotifs.pl clusters.fa fasta outloc -nofacts p 4 -rna -S 10 -len 5,6,7,8,9 -noconvert -nogo -fasta background.fa
     #converts k to a string for use in subprocess
-    k = ",".join([sstr(x) for x in k])
+    k = ",".join([str(x) for x in k])
     print "starting Homer"
     
     try:
