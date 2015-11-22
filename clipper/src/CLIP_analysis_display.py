@@ -359,7 +359,7 @@ class ClipVisualization():
         clusters_types = 100 * np.array(clusters_types, dtype="float") / np.sum(clusters_types)
         genomic_types = 100 * np.array(genomic_types, dtype="float") / np.sum(genomic_types)
         difference = clusters_types - genomic_types
-        ind = np.arange(5)
+        ind = np.arange(5.0)
         ind -= .5
 
         ax.bar(ind, difference, color='y')
