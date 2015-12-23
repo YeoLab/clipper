@@ -33,4 +33,4 @@ clipper -h
 
 </script>
 
-[![githalytics.com alpha](https://cruel-carlota.pagodabox.com/e42e3a5bdf64aaa287351539866e6bd2 "githalytics.com")](http://githalytics.com/YeoLab/clipper)
+If you use clipper please cite Lovci et. al. Rbfox proteins regulate alternative mRNA splicing through evolutionarily conserved RNA bridges. Nat Struct Mol Biol. 2013 Dec;20(12):1434-42. doi: 10.1038/nsmb.2699. Epub 2013 Nov 10.

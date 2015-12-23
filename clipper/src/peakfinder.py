@@ -583,7 +583,7 @@ def main(options):
         
         for job in jobs:
             try:
-                results.append(job.get(timeout=1000))
+                results.append(job.get())
             except Exception as error:
                 logging.error("transcript timed out %s" % (error))
         
