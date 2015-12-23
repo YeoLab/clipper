@@ -602,7 +602,6 @@ class SmoothingSpline(PeakGenerator):
 
         #descretizes the data so it is easy to get regions above a given threshold
         spline_values = array([int(x) for x in optimizedSpline(self.xRange)])
-
         if plotit is True:
             self.plot()
 
@@ -610,7 +609,8 @@ class SmoothingSpline(PeakGenerator):
                                                                       spline_values)
         peak_definitions = []
         for peak_start, peak_stop in starts_and_stops:
-            peak_center = [x + peak_start for x in self.xRange[self.find_local_maxima(spline_values[peak_start:(peak_stop + 1)])]]
+            peak_center_offset = np.where(self.find_local_maxima(spline_values[peak_start:(peak_stop + 1)]))[0]
+            peak_center = [x + peak_start for x in peak_center_offset]
             if len(peak_center) == 1:
                 peak_definitions.append((peak_start, peak_stop, peak_center[0]))
         self.peakCalls = peak_definitions
