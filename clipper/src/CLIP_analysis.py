@@ -222,10 +222,10 @@ def assign_to_regions(tool, clusters=None, assigned_dir=".", species="hg19", nra
         tool.sort().merge().saveas()
     elif 6 <= tool.field_count() < 8:
         #Hack to get around not having gene name assigned by peak caller, due to overlapping genes this won't be perfect
-        move_name_real = functools.partial(move_name, original_length=len(tool[0].fields))
-        tool = tool.intersect(genes, wo=True, s=True).each(move_name_real).saveas()
-        fix_strand_ok = functools.partial(fix_strand, warn=False)
-        tool = tool.sort().merge(s=True, c="4,5,6", o="collapse,collapse,collapse").each(fix_strand_ok).saveas()
+        #move_name_real = functools.partial(move_name, original_length=len(tool[0].fields))
+        #tool = tool.intersect(genes, wo=True, s=True).each(move_name_real).saveas()
+        #fix_strand_ok = functools.partial(fix_strand, warn=False)
+        tool = tool.sort().merge(s=True, c="4,5,6", o="collapse,collapse,collapse").each(fix_strand).saveas()
 
     else: #Clipper, this is ideal we like this technique
         tool = tool.sort().merge(s=True, c="4,5,6,7,8", o="collapse,collapse,collapse,min,min").each(fix_strand).saveas()
