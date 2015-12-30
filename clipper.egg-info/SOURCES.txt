@@ -61,7 +61,9 @@ clipper/data/regions/mm9_three_prime_utrs.bed
 clipper/src/AS_Structure_tools.py
 clipper/src/CLIP_analysis.py
 clipper/src/CLIP_analysis_display.py
+clipper/src/CLIP_analysis_runner.py
 clipper/src/__init__.py
+clipper/src/bam_helpers.py
 clipper/src/call_peak.py
 clipper/src/count_features.py
 clipper/src/get_ce10_genomic_regions.py
