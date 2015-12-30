@@ -608,7 +608,7 @@ def get_bam_counts(bamfile):
 
 def bed_to_genomic_interval(bed):
     for interval in bed:
-        yield HTSeq.GenomicInterval(str(interval.chrom), interval.start, interval.stop, str(interval.strand))
+        yield HTSeq.GenomicInterval(str(interval.chrom), interval.start, interval.stop + 1, str(interval.strand))
 
 
 def get_densities(intervals, coverage):
