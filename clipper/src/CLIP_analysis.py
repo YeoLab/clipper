@@ -8,6 +8,7 @@ Michael Lovci and Gabriel Pratt
 
 """
 from collections import Counter, OrderedDict, defaultdict
+import functools
 import os
 import subprocess
 
@@ -137,13 +138,13 @@ def save_bedtools(cluster_regions, clusters, assigned_dir):
 
 
 
-def fix_strand(interval):
+def fix_strand(interval, warn=True):
     #this only is comptabale with bedtools >2.25.0
     #lst = interval.fields
     #del lst[3]
     #interval = pybedtools.interval_constructor(lst)
     strands = list(set(interval.strand.split(",")))
-    if len(strands) > 1:
+    if len(strands) > 1 and warn:
         #There is something odd going on between my local box, pybedtools and bedtools.  Merge isn't acting exacly the same, this works on TSCC
         raise NameError("Both strands are present, something went wrong during the merge")
     interval.strand = strands[0]
@@ -180,6 +181,12 @@ def fix_shuffled_strand(shuffled_tool, regions_file):
     new_bedtool = pybedtools.BedTool("\n".join(values), from_string=True)
     return new_bedtool
 
+
+def move_name(interval, original_length):
+    interval.name = interval[original_length + 3]
+    return interval
+
+
 def assign_to_regions(tool, clusters=None, assigned_dir=".", species="hg19", nrand=3):
     
     """
@@ -204,25 +211,25 @@ def assign_to_regions(tool, clusters=None, assigned_dir=".", species="hg19", nra
     for region in regions:
         bedtracks[region] = pybedtools.BedTool(os.path.join(clipper.data_dir(), "regions", "%s_%s.bed" % (species,
                                                                                                           region)))
-              
     #creates the basics of bed dict
     bed_dict = {'all': {'rand': {}}}
 
-    # #can't append None to string so hack a null bed tool
-    # for n in range(nrand):
-    #     bed_dict['all']['rand'][n] = pybedtools.BedTool("", from_string=True)
-    #
-    # bed_dict['all']['real'] = pybedtools.BedTool("", from_string=True)
-    
+    genes = pybedtools.BedTool(os.path.join(clipper.data_dir(), "regions", "%s_genes.bed" % (species)))
+
+
     offsets = get_offsets_bed12(tool)
     if tool.field_count() <= 5:
         tool.sort().merge().saveas()
     elif 6 <= tool.field_count() < 8:
-        tool = tool.sort().merge(s=True, c="4,5,6", o="collapse,collapse,collapse").each(fix_strand).saveas()
-    else:
+        #Hack to get around not having gene name assigned by peak caller, due to overlapping genes this won't be perfect
+        move_name_real = functools.partial(move_name, original_length=len(tool[0].fields))
+        tool = tool.intersect(genes, wo=True, s=True).each(move_name_real).saveas()
+        fix_strand_ok = functools.partial(fix_strand, warn=False)
+        tool = tool.sort().merge(s=True, c="4,5,6", o="collapse,collapse,collapse").each(fix_strand_ok).saveas()
+
+    else: #Clipper, this is ideal we like this technique
         tool = tool.sort().merge(s=True, c="4,5,6,7,8", o="collapse,collapse,collapse,min,min").each(fix_strand).saveas()
 
-    print tool.head()
     remaining_clusters = adjust_offsets(tool, offsets)
 
     # print "There are a total %d clusters I'll examine" % (len(tool))
