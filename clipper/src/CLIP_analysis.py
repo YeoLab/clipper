@@ -8,7 +8,6 @@ Michael Lovci and Gabriel Pratt
 
 """
 from collections import Counter, OrderedDict, defaultdict
-import functools
 import os
 import subprocess
 
@@ -21,8 +20,86 @@ from sklearn.cluster import KMeans
 
 import clipper
 from clipper.src.kmerdiff import kmer_diff
-from gscripts.general.pybedtools_helpers import small_peaks, convert_to_mRNA_position
 from clipper.src.bam_helpers import Robust_BAM_Reader
+
+
+def convert_to_mRNA_position(interval, gene_model):
+    """
+
+    Returns distance from nearest feature assuming distance is centered on the feature
+
+    bedtool - a bedtool to find closest feature of
+    gene_model - dict of lists of pybedtools
+
+    Returns bed objects mapped to mRNA position instead of genomic position
+
+    Assumes both the bedtools object and the feature are 1bp long so we get the distance from both from their start sites
+
+    Negative strand gets modified to be positive strand like, this will fuck with closest bed
+    need to do everything on the positive strand from here on out
+    """
+
+    #feature_dict = {feature.name : feature for feature in closest_feature}
+
+
+    if interval.chrom not in gene_model:
+        interval.chrom = "none"
+        return interval
+        #raise KeyError(interval.chrom + " not in current as stucture dict ignoring cluster ")
+
+    #gene model - dict of list of intervals, always at least length 1
+    if not interval.strand == gene_model[interval.chrom][0].strand:
+        interval.chrom = "none"
+        return interval
+        #raise ValueError("strands not the same, there is some issue with gene annotations")
+
+    running_length = 0
+
+    for region in gene_model[interval.chrom]:
+
+        if interval.start >= int(region.start) and interval.start <= int(region.stop):
+            if interval.strand == "+":
+                tmp_start = running_length + (interval.start - region.start)
+                tmp_end = running_length + (interval.end - region.start)
+
+            elif interval.strand == "-": #need the temps for swaping start and end
+                tmp_start = running_length + (region.stop - interval.end)
+                tmp_end = running_length + (region.stop - interval.start)
+
+            if int(tmp_start) <= 0 or int(tmp_end) <= 0:
+                tmp_start = 1
+                tmp_end = 1
+
+            interval.start = tmp_start
+            interval.end = tmp_end
+
+            return interval
+        running_length += region.length
+    interval.chrom = "none"
+    return interval
+
+
+def small_peaks(feature):
+    """
+
+    feature - pybedtools feature
+
+    returns center of clipper called peak (the middle of the narrow start / stop)
+
+    """
+
+    try:
+        feature.start = (int(feature[6]) + int(feature[7])) / 2
+        feature.stop = ((int(feature[6]) + int(feature[7])) / 2) + 1
+    except IndexError:
+        #if I don't have that # fall back on just taking the peak center
+        midpoint = (feature.start + feature.stop) / 2
+        feature.start = midpoint
+        feature.stop = midpoint + 1
+
+    feature.name = feature.name.split("_")[0]
+    return feature
+
 
 def name_to_chrom(interval):
     interval.chrom = interval.name
