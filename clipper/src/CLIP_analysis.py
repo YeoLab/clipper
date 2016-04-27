@@ -284,7 +284,8 @@ def assign_to_regions(tool, clusters=None, assigned_dir=".", species="hg19", nra
     bedtracks = {}
 
     regions, assigned_regions = regions_generator()
-
+    short_species = species.split("_")[0]
+    
     for region in regions:
         bedtracks[region] = pybedtools.BedTool(os.path.join(clipper.data_dir(), "regions", "%s_%s.bed" % (species,
                                                                                                           region)))
@@ -303,7 +304,8 @@ def assign_to_regions(tool, clusters=None, assigned_dir=".", species="hg19", nra
         #tool = tool.intersect(genes, wo=True, s=True).each(move_name_real).saveas()
         #fix_strand_ok = functools.partial(fix_strand, warn=False)
         tool = tool.sort().merge(s=True, c="4,5,6", o="collapse,collapse,collapse").each(fix_strand).saveas()
-
+    elif not tool[0][7].isdigit():
+        tool = tool.sort().merge(s=True, c="4,5,6", o="collapse,collapse,collapse").each(fix_strand).saveas()
     else: #Clipper, this is ideal we like this technique
         tool = tool.sort().merge(s=True, c="4,5,6,7,8", o="collapse,collapse,collapse,min,min").each(fix_strand).saveas()
 
@@ -336,7 +338,7 @@ def assign_to_regions(tool, clusters=None, assigned_dir=".", species="hg19", nra
         #saves offsets so after shuffling the offsets can be readjusted
         offset_dict = get_offsets_bed12(bed_dict[region]['real'])
         for i in range(nrand):
-            random_intervals = bed_dict[region]['real'].shuffle(genome=species, incl=bedtracks[region].fn).sort()
+            random_intervals = bed_dict[region]['real'].shuffle(genome=short_species, incl=bedtracks[region].fn).sort()
             random_intervals = fix_shuffled_strand(random_intervals, bedtracks[region].fn)
             random_intervals = adjust_offsets(random_intervals, offset_dict)
             bed_dict[region]['rand'][i] = random_intervals.saveas()
