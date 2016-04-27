@@ -5,7 +5,9 @@ class to get genomic features from gffutils _db
 """
 
 import copy
+from collections import defaultdict
 import os
+
 
 import gffutils
 import pybedtools
@@ -35,8 +37,30 @@ class GenomicFeatures():
         self._regions_dir = regions_dir
         self._db = db
         self._species = species
-        
-        if species in ["hg19", "mm9"]:
+
+        #I'm going to be lazy and leave this here, its needed to make a new genomic features for human genomes
+        #engineering so it doesn't take too much time on load will be slightly annoying so just uncomment when you need it
+        # result = defaultdict(lambda: defaultdict(lambda: defaultdict(list)))
+        # for x, feature in enumerate(db.all_features()):
+        #     gene_ids = feature.attributes['gene_id']
+        #     transcript_ids = feature.attributes['transcript_id']
+        #     feature_type = feature.featuretype
+        #
+        #
+        #     if feature_type == "gene":
+        #         if len(gene_ids) != 1:
+        #             print gene_ids[0]
+        #             break
+        #
+        #         result[gene_ids[0]]['gene'] = feature
+        #     else:
+        #         for gene_id in gene_ids:
+        #             for transcript_id in transcript_ids:
+        #                 result[gene_id][transcript_id][feature_type].append(feature)
+        #
+        # self._feature_hash = result
+
+        if species in ["hg19", "mm9", "hg19_v19"]:
             self._feature_names = {
                              "five_prime_utr" : "five_prime_utr",
                              "three_prime_utr" : "three_prime_utr",
@@ -162,7 +186,7 @@ class GenomicFeatures():
             return self._rename_regions(regions, gene_id)
         return []
     
-    def _get_utrs(self, mrna, cds, feature_types):
+    def _get_utrs(self, gene, mrna, cds, feature_types):
         """
         
         mrna: gffutils feature an mRNA
@@ -180,7 +204,7 @@ class GenomicFeatures():
         else:
             #If 5' and 3' utr annotations don't exist 
             #generate them from CDS and UTR information (handles gencode case)
-            utrs = list(self._db.children(mrna, featuretype='UTR'))
+            utrs = list(self._feature_hash[gene][mrna]['UTR'])
             if len(cds) == 0:
                 return [], []
                 
@@ -210,7 +234,7 @@ class GenomicFeatures():
     def _interval_key(self, interval):
         return interval.start
 
-    def _gene_regions(self, gene, prox_size=500):
+    def _gene_regions(self, gene_id, prox_size=500):
         gene_five_prime_utrs = []
         gene_three_prime_utrs = []
         gene_cds = []
@@ -218,12 +242,18 @@ class GenomicFeatures():
         gene_introns = []
         gene_dist_introns = []
         gene_prox_introns = []
-        for mrna in self._db.children(gene, featuretype=self._feature_names['transcript']):
-            mrna_cds = list(self._db.children(mrna, featuretype=self._feature_names['CDS']))
-            mrna_exons = list(self._db.children(mrna, featuretype=self._feature_names['exon']))
+        for mrna in self._feature_hash[gene_id].keys():
+            if mrna == "gene":
+                continue
+            mrna_cds = []
+            if self._feature_names['CDS'] in self._feature_hash[gene_id][mrna]:
+                mrna_cds = list(self._feature_hash[gene_id][mrna][self._feature_names['CDS']])
+            mrna_exons = []
+            if self._feature_names['exon'] in self._feature_hash[gene_id][mrna]:
+                mrna_exons = list(self._feature_hash[gene_id][mrna][self._feature_names['exon']])
             gene_exons += mrna_exons
             gene_cds += mrna_cds
-            mrna_five_prime_utrs, mrna_three_prime_utrs = self._get_utrs(mrna, mrna_cds, self.featuretypes)
+            mrna_five_prime_utrs, mrna_three_prime_utrs = self._get_utrs(gene_id, mrna, mrna_cds, self.featuretypes)
             gene_five_prime_utrs += mrna_five_prime_utrs
             gene_three_prime_utrs += mrna_three_prime_utrs
             mrna_introns = list(self._db.interfeatures(self._db.merge(sorted(mrna_exons, key=self._interval_key))))
@@ -232,6 +262,7 @@ class GenomicFeatures():
             gene_dist_introns += mrna_dist_introns
             gene_prox_introns += mrna_prox_introns
 
+        gene = self._feature_hash[gene_id]['gene']
         gene_id = gene.attributes[self._feature_names['gene_id']]
 
 
@@ -282,8 +313,8 @@ class GenomicFeatures():
         prox_introns = []
         gene_list = []
         introns = []
-        for i, gene in enumerate(self._db.features_of_type('gene')):
-            gene_list.append(gene)
+        for i, gene in enumerate(self._feature_hash.keys()):
+            gene_list.append(self._feature_hash[gene]['gene'])
             if i % 2000 == 0:
                 print "processed %d genes" % (i)
                 if i == 2000 and limit_genes:

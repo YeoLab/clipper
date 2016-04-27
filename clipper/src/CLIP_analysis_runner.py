@@ -34,6 +34,8 @@ def main(bedtool, bam, species, runPhast=False, motifs=[], k=[6], nrand=3,
     #gets clusters in a bed tools + names species
     clusters = os.path.basename(bedtool)
     species = species
+    short_species = species.split("_")[0]
+
     out_dict = {}
     #In case names aren't unique make them all unique
     clusters_bed = pybedtools.BedTool(make_unique(pybedtools.BedTool(bedtool))).saveas()
@@ -83,7 +85,7 @@ def main(bedtool, bam, species, runPhast=False, motifs=[], k=[6], nrand=3,
 
 
     if as_structure is not None:
-        genes_dict, genes_bed = parse_AS_STRUCTURE_dict(species, as_structure)
+        genes_dict, genes_bed = parse_AS_STRUCTURE_dict(short_species, as_structure)
     else:
         print "AS STRUCTURE file not listed, alt-splicing figure will not be generated"
 
@@ -149,7 +151,7 @@ def main(bedtool, bam, species, runPhast=False, motifs=[], k=[6], nrand=3,
     try:
         if motifs:
             motif_distances = generate_motif_distances(cluster_regions, region_sizes, motifs, motif_location,
-                                                       species)
+                                                       short_species)
     except:
         pass
 
