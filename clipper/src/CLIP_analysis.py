@@ -239,6 +239,7 @@ def fix_shuffled_strand(shuffled_tool, regions_file):
     """
 
     regions_tool = pybedtools.BedTool(regions_file)
+    
     intersected = shuffled_tool.intersect(regions_file, wao=True, stream=True, sorted=True).saveas()
 
     #Don't think about refactoring this because of leaky files in pybedtools
@@ -264,6 +265,15 @@ def move_name(interval, original_length):
     return interval
 
 
+def fix_name(interval):
+    """
+    currently pybedtools crashes if the 1st and 3rd columns is an int and there are more than 11 lines
+    This fixes that issue but turing the name column to foo
+    """
+
+    interval.name = "foo"
+    return interval
+
 def assign_to_regions(tool, clusters=None, assigned_dir=".", species="hg19", nrand=3):
     
     """
@@ -285,7 +295,9 @@ def assign_to_regions(tool, clusters=None, assigned_dir=".", species="hg19", nra
 
     regions, assigned_regions = regions_generator()
     short_species = species.split("_")[0]
-    
+    if short_species == "GRCh38":
+        short_species = "hg38"
+
     for region in regions:
         bedtracks[region] = pybedtools.BedTool(os.path.join(clipper.data_dir(), "regions", "%s_%s.bed" % (species,
                                                                                                           region)))
@@ -304,8 +316,8 @@ def assign_to_regions(tool, clusters=None, assigned_dir=".", species="hg19", nra
         #tool = tool.intersect(genes, wo=True, s=True).each(move_name_real).saveas()
         #fix_strand_ok = functools.partial(fix_strand, warn=False)
         tool = tool.sort().merge(s=True, c="4,5,6", o="collapse,collapse,collapse").each(fix_strand).saveas()
-    elif not tool[0][7].isdigit():
-        tool = tool.sort().merge(s=True, c="4,5,6", o="collapse,collapse,collapse").each(fix_strand).saveas()
+    #elif not tool[0][7].isdigit():
+    #    tool = tool.sort().merge(s=True, c="4,5,6", o="collapse,collapse,collapse").each(fix_strand).each(fix_name).saveas()
     else: #Clipper, this is ideal we like this technique
         tool = tool.sort().merge(s=True, c="4,5,6,7,8", o="collapse,collapse,collapse,min,min").each(fix_strand).saveas()
 
@@ -343,10 +355,10 @@ def assign_to_regions(tool, clusters=None, assigned_dir=".", species="hg19", nra
             random_intervals = adjust_offsets(random_intervals, offset_dict)
             bed_dict[region]['rand'][i] = random_intervals.saveas()
 
-        if i not in bed_dict['all']['rand']:
-            bed_dict['all']['rand'][i] = bed_dict[region]['rand'][i]
-        else:
-            bed_dict['all']['rand'][i] = bed_dict['all']['rand'][i].cat(bed_dict[region]['rand'][i], stream=True, postmerge=False)
+            if i not in bed_dict['all']['rand']:
+                bed_dict['all']['rand'][i] = bed_dict[region]['rand'][i]
+            else:
+                bed_dict['all']['rand'][i] = bed_dict['all']['rand'][i].cat(bed_dict[region]['rand'][i], stream=True, postmerge=False)
 
 
         #if there are no more clusters to assign stop trying
