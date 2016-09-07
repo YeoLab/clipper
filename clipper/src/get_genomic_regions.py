@@ -60,7 +60,7 @@ class GenomicFeatures():
         #
         # self._feature_hash = result
 
-        if species in ["hg19", "mm9", "hg19_v19"]:
+        if species in ["hg19", "mm9", "hg19_v19", "GRCh38_v24"]:
             self._feature_names = {
                              "five_prime_utr" : "five_prime_utr",
                              "three_prime_utr" : "three_prime_utr",
