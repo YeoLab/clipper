@@ -468,6 +468,9 @@ def filter_results(results, poisson_cutoff, transcriptome_size,
     peaks = make_peak_df(results)
 
     total_clusters = len(peaks)
+    if total_clusters == 0:
+        print "no peaks detected in dataset"
+        return []
 
     if algorithm == "classic":
         peaks['peak_length'] = peaks['peak_length'].apply(lambda x: max(x, min_width))
