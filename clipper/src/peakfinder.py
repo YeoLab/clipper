@@ -443,12 +443,11 @@ def bh_correct(df):
     :param df:
     :return: returns dataframe wtih adjusted p-value
     """
-    df = df.sort("final_p_value")
+    df = df.sort_values("final_p_value")
     df['sort_rank'] = np.arange(1, len(df) + 1)
     df['bh_corrected'] = df.apply(lambda x: min(((len(df) / x.sort_rank) * x.final_p_value), 1), axis=1)
-    df['padj'] = df.sort("final_p_value", ascending=False).bh_corrected.cummin()
-    return df.sort()
-
+    df['padj'] = df.sort_values("final_p_value", ascending=False).bh_corrected.cummin()
+    return df.sort_index()
 
 def filter_results(results, poisson_cutoff, transcriptome_size,
                    transcriptome_reads, use_global_cutoff, 
@@ -525,6 +524,14 @@ def hadoop_mapper(options):
         mapper(options, line)
 
 
+def get_exon_bed(species):
+
+    short_species = species.split("_")[0]
+    if short_species == "GRCh38":
+        short_species = "hg38"
+
+    return os.path.join(clipper.data_dir(), "regions", "%s_%s.bed" % (short_species, "exons"))
+
 def main(options):
     
     check_for_index(options.bam)
@@ -560,14 +567,16 @@ def main(options):
         print options.maxgenes
         print type(options.maxgenes)
         gene_tool = gene_tool.random_subset(int(options.maxgenes))
-    
+
+    exons = get_exon_bed(options.species)
+
     gene_tool = gene_tool.saveas()
 
     tasks = [(gene, gene.attrs['effective_length'], bamfile, options.max_gap, options.FDR_alpha,
               options.threshold, options.binom, options.method, options.minreads, options.poisson_cutoff,
               options.plotit, 10, 1000, options.SloP, options.max_width,
               options.min_width, options.algorithm,
-              options.reverse_strand, options.input_bam) for gene in gene_tool]
+              options.reverse_strand, exons) for gene in gene_tool]
 
     jobs = []
     results = []
@@ -631,7 +640,6 @@ def call_main():
     parser = OptionParser(usage=usage, description=description)
 
     parser.add_option("--bam", "-b", dest="bam", help="A bam file to call peaks on", type="string", metavar="FILE.bam")
-    parser.add_option("--input_bam", dest="input_bam", help="input bam to control for peak calling", type="string", default=None, metavar="FILE.bam")
 
     parser.add_option("--species", "-s", dest="species", help="A species for your peak-finding, either hg19 or mm9")
     parser.add_option("--gtfFile", dest="gtfFile", help="use a gtf file instead of the AS structure data")
@@ -642,7 +650,7 @@ def call_main():
     parser.add_option("--poisson-cutoff", dest="poisson_cutoff", type="float", help="p-value cutoff for poisson test, Default:%default", default=0.05, metavar="P")
     parser.add_option("--disable_global_cutoff", dest="use_global_cutoff", action="store_false", help="disables global transcriptome level cutoff to CLIP-seq peaks, Default:On", default=True, metavar="P")
     parser.add_option("--FDR", dest="FDR_alpha", type="float", default=0.05, help="FDR cutoff for significant height estimation, default=%default")
-    parser.add_option("--threshold-method", dest="method", default="random", help="Method used for determining height threshold, Can use default=random or binomial")
+    parser.add_option("--threshold-method", dest="method", default="binomial", help="Method used for determining height threshold, Can use default=random or binomial")
     parser.add_option("--binomial", dest="binom", type="float", default=0.05, help ="Alpha significance threshold for using Binomial distribution for determining height threshold, default=%default")
     parser.add_option("--threshold", dest="threshold", type="int", default=None, help="Skip FDR calculation and set a threshold yourself")
     parser.add_option("--maxgenes", dest="maxgenes", default=None, type="int", help="stop computation after this many genes, for testing", metavar="NGENES")

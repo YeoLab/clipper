@@ -21,6 +21,7 @@ import pysam
 from scipy import stats
 from scipy import interpolate
 from scipy.stats import binom
+import pybedtools
 
 from clipper.src.peaks import shuffle, find_sections
 from clipper.src.readsToWiggle import readsToWiggle_pysam
@@ -48,7 +49,7 @@ class Peak(namedtuple('Peak', ['chrom',
         """bed8 format"""
         return "\t".join(map(str, [self.chrom, self.genomic_start, self.genomic_stop,
                          "_".join(map(str, [self.gene_name, self.peak_number, self.number_reads_in_peak])),
-                         min(self.super_local_poisson_p, self.gene_poisson_p), self.strand,
+                        self.strand,
                          self.thick_start, self.thick_stop]))
 
     def __len__(self):
@@ -905,13 +906,17 @@ def get_aligned_read_length(read):
 def read_lengths_from_htseq(reads):
     return [get_aligned_read_length(read) for read in reads]
 
+def bed_to_genomic_interval(bed):
+    for interval in bed:
+        yield HTSeq.GenomicInterval(str(interval.chrom), interval.start, interval.stop + 1, str(interval.strand))
+
 
 def call_peaks(interval, gene_length, bam_file=None, max_gap=25,
                fdr_alpha=0.05, user_threshold=None, binom_alpha=0.05, method="binomial",
                min_reads=3, poisson_cutoff=0.05,
                plotit=False, w_cutoff=10, windowsize=1000, 
                SloP=False, max_width=None, min_width=None,
-               algorithm="spline", reverse_strand=False, input_bam=None):
+               algorithm="spline", reverse_strand=False, exons=None):
     
     """
 
@@ -935,7 +940,7 @@ def call_peaks(interval, gene_length, bam_file=None, max_gap=25,
     max_gap   - int max gap of classic peak calling algorithm peak
 
     """
-    
+
     if plotit:
         plt.rcParams['interactive'] = True
         pass
@@ -961,30 +966,45 @@ def call_peaks(interval, gene_length, bam_file=None, max_gap=25,
     subset_reads = list(bam_fileobj.fetch(reference=str(interval.chrom), start=interval.start, end=interval.stop))
     array_of_reads = read_array(subset_reads, interval.start, interval.stop)
 
-    if input_bam: #if not none
-        input_bam_fileobj = Robust_BAM_Reader(input_bam)
-        input_subset_reads = list(input_bam_fileobj.fetch(reference=str(interval.chrom), start=interval.start, end=interval.stop))
-        input_array_of_reads = read_array(input_subset_reads, interval.start, interval.stop)
-
     nreads_in_gene = sum(pos_counts)
     gene_length = int(gene_length)
     lengths = [gene_length - 1 if read >= gene_length else read for read in lengths]
 
+    #pre-mRNA Threshold
     if user_threshold is None:
         if method == "binomial":  #Uses Binomial Distribution to get cutoff if specified by user
-
-            gene_threshold = get_FDR_cutoff_binom(lengths, gene_length, binom_alpha)
+            #print len(lengths), gene_length, binom_alpha
+            premRNA_threshold = get_FDR_cutoff_binom(lengths, gene_length, binom_alpha)
+            #print premRNA_threshold
         elif method == "random":
-            gene_threshold = get_FDR_cutoff_mean(readlengths=lengths,
+            premRNA_threshold = get_FDR_cutoff_mean(readlengths=lengths,
                                                  genelength=gene_length,
                                                  alpha=fdr_alpha)
         else:
             raise ValueError("Method %s does not exist" % (method))
     else:
         logging.info("using user threshold")
-        gene_threshold = user_threshold
+        premRNA_threshold = user_threshold
 
-    if not isinstance(gene_threshold, int):
+    #mRNA Threshold
+    exons = pybedtools.BedTool(exons)
+    exons = exons.filter(lambda x: x.name == interval.attrs['gene_id']).saveas()
+
+    total_exonic_reads = []
+    total_exonic_length = 0
+    htseq_exons = HTSeq.GenomicArrayOfSets(chroms="auto", stranded=False)
+
+    for exon_interval in bed_to_genomic_interval(exons):
+        exonic_reads = get_reads_in_interval(exon_interval, array_of_reads)
+        exon_read_lengths = read_lengths_from_htseq(exonic_reads)
+        exon_read_lengths = [exon_interval.length - 1 if read > exon_interval.length else read for read in exon_read_lengths]
+        total_exonic_reads += exon_read_lengths
+        total_exonic_length += exon_interval.length
+        htseq_exons[exon_interval] += 'exon'
+
+    mRNA_threshold = get_FDR_cutoff_binom(total_exonic_reads, total_exonic_length, binom_alpha)
+    #print premRNA_threshold, mRNA_threshold
+    if not isinstance(premRNA_threshold, int):
         raise TypeError
 
     #these are what is built in this dict, complicated enough that it might
@@ -993,15 +1013,14 @@ def call_peaks(interval, gene_length, bam_file=None, max_gap=25,
     peak_dict['clusters'] = []
     peak_dict['sections'] = {}
     peak_dict['nreads'] = int(nreads_in_gene)
-    peak_dict['threshold'] = gene_threshold
+    peak_dict['threshold'] = premRNA_threshold
     peak_dict['loc'] = interval
 
     peak_number = 0
 
-
     sections = find_sections(wiggle, max_gap)
     if plotit:
-        plot_sections(wiggle, sections, gene_threshold)
+        plot_sections(wiggle, sections, premRNA_threshold)
 
     for sect in sections:
 
@@ -1009,8 +1028,13 @@ def call_peaks(interval, gene_length, bam_file=None, max_gap=25,
         sect_length = sectstop - sectstart + 1
         data = wiggle[sectstart:(sectstop + 1)]
 
-        cur_interval = HTSeq.GenomicInterval(str(interval.chrom), sectstart + interval.start, sectstop + interval.start + 1,
-                                         strand)
+        cur_interval = HTSeq.GenomicInterval(str(interval.chrom), sectstart + interval.start,
+                                             sectstop + interval.start + 1,
+                                             strand)
+
+        #Logic to use variable thresholds for exons or introns, still superseded by superLocal logic
+        overlaps_exon = len(reduce( set.union, ( val for iv, val in htseq_exons[cur_interval].steps()))) > 0
+        gene_threshold = mRNA_threshold if overlaps_exon else premRNA_threshold
 
         Nreads = count_reads_in_interval(cur_interval, array_of_reads)
 
@@ -1034,7 +1058,7 @@ def call_peaks(interval, gene_length, bam_file=None, max_gap=25,
                 section_start = max(0, sectstart + interval.start - half_width)
                 section_stop = sectstop + interval.start + 1 + half_width
                 expanded_sect_length = section_stop - section_start
-                cur_interval = HTSeq.GenomicInterval(str(interval.chrom), section_start, section_stop,strand )
+                cur_interval = HTSeq.GenomicInterval(str(interval.chrom), section_start, section_stop, strand)
                 expanded_Nreads = get_reads_in_interval(cur_interval, array_of_reads)
                 sect_read_lengths = read_lengths_from_htseq(expanded_Nreads)
                 sect_read_lengths = [sect_length - 1 if read > sect_length else read for read in sect_read_lengths]
@@ -1112,11 +1136,6 @@ def call_peaks(interval, gene_length, bam_file=None, max_gap=25,
             cur_interval = HTSeq.GenomicInterval(str(interval.chrom), genomic_start, genomic_stop,
                                          strand)
             number_reads_in_peak = count_reads_in_interval(cur_interval, array_of_reads)
-
-            if input_bam:
-                input_number_reads_in_peak = count_reads_in_interval(cur_interval, input_array_of_reads)
-            else:
-                input_number_reads_in_peak = 0
 
             peak_length = genomic_stop - genomic_start + 1
 
