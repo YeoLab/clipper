@@ -530,9 +530,6 @@ def hadoop_mapper(options):
 def get_exon_bed(species):
 
     short_species = species.split("_")[0]
-    if short_species == "GRCh38":
-        short_species = "hg38"
-
     return os.path.join(clipper.data_dir(), "regions", "%s_%s.bed" % (short_species, "exons"))
 
 def main(options):
@@ -593,11 +590,12 @@ def main(options):
     else:        
         jobs = [pool.apply_async(call_peaks, job) for job in tasks]
         
-        for job in jobs:
+        for job, task in zip(jobs, tasks):
             try:
-                results.append(job.get())
-            except Exception as error:
-                logging.error("transcript timed out %s" % (error))
+                results.append(job.get(timeout=options.timeout))
+            except multiprocessing.TimeoutError as error:
+                print
+                logging.error("gene %s timed out" % (task[0].attrs['gene_id']))
         
     pool.close()
 
@@ -670,6 +668,8 @@ def call_main():
     parser.add_option("--bonferroni", dest="bonferroni_correct",action="store_true", default=False, help="Perform Bonferroni on data before filtering")
     parser.add_option("--algorithm", dest="algorithm",default="spline", help="Defines algorithm to run, currently spline, classic, gaussian")
     parser.add_option("--reverse_strand", dest="reverse_strand",default=False, action="store_true", help="adds option to reverse strand")
+    parser.add_option("--timeout", dest="timeout",default=None, type=int, help="adds timeout (in seconds) to genes that take too long (useful for debugging only, or if you don't care about higly expressed genes)")
+
 
     (options, args) = parser.parse_args()
  
