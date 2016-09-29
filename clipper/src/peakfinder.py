@@ -20,6 +20,7 @@ from clipper import data_dir
 from clipper.src.call_peak import call_peaks, poissonP
 
 logging.captureWarnings(True)
+#logging.basicConfig(level=logging.INFO)
 
 
 def check_for_index(bamfile):
@@ -594,8 +595,10 @@ def main(options):
             try:
                 results.append(job.get(timeout=options.timeout))
             except multiprocessing.TimeoutError as error:
-                print
                 logging.error("gene %s timed out" % (task[0].attrs['gene_id']))
+            except Exception as error:
+                logging.error("gene %s error for some other reason" % (task[0].attrs['gene_id']))
+                print error
         
     pool.close()
 
