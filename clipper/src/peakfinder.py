@@ -540,8 +540,6 @@ def main(options):
     if options.np == 'autodetect':
         options.np = multiprocessing.cpu_count()
 
-    pool = multiprocessing.Pool(int(options.np))
-        
     bamfile = options.bam
     
     if os.path.exists(bamfile):
@@ -551,7 +549,6 @@ def main(options):
     else:
         logging.error("Bam file: %s is not defined" % (bamfile))
         raise IOError
-    
     if options.gtfFile:
         gene_tool = build_transcript_data_gtf(pybedtools.BedTool(options.gtfFile), options.premRNA).saveas()
     else:
@@ -583,24 +580,24 @@ def main(options):
     results = []
     if options.debug:
         for job in tasks:
+            print job
             jobs.append(func_star(job))
         
         for job in jobs:
             results.append(job)   
     
-    else:        
-        jobs = [pool.apply_async(call_peaks, job) for job in tasks]
-        
-        for job, task in zip(jobs, tasks):
-            try:
-                results.append(job.get(timeout=options.timeout))
-            except multiprocessing.TimeoutError as error:
-                logging.error("gene %s timed out" % (task[0].attrs['gene_id']))
-            except Exception as error:
-                logging.error("gene %s error for some other reason" % (task[0].attrs['gene_id']))
-                print error
-        
-    pool.close()
+    else:
+        with multiprocessing.Pool(int(options.np)) as pool:
+            jobs = [pool.apply_async(call_peaks, job) for job in tasks]
+
+            for job, task in zip(jobs, tasks):
+                try:
+                    results.append(job.get(timeout=options.timeout))
+                except multiprocessing.TimeoutError as error:
+                    logging.error("gene %s timed out" % (task[0].attrs['gene_id']))
+                except Exception as error:
+                    logging.error("gene %s error for some other reason" % (task[0].attrs['gene_id']))
+                    print error
 
     logging.info("finished with calling peaks")
 
@@ -644,17 +641,16 @@ def call_main():
     parser = OptionParser(usage=usage, description=description)
 
     parser.add_option("--bam", "-b", dest="bam", help="A bam file to call peaks on", type="string", metavar="FILE.bam")
-
     parser.add_option("--species", "-s", dest="species", help="A species for your peak-finding, either hg19 or mm9")
-    parser.add_option("--gtfFile", dest="gtfFile", help="use a gtf file instead of the AS structure data")
+    #parser.add_option("--gtfFile", dest="gtfFile", help="use a gtf file instead of the AS structure data")
     parser.add_option("--outfile", "-o", dest="outfile", default="fitted_clusters", help="a bed file output, default:%default")
     parser.add_option("--gene", "-g", dest="gene", action="append", help="A specific gene you'd like try", metavar="GENENAME")
     parser.add_option("--minreads", dest="minreads", help="minimum reads required for a section to start the fitting process.  Default:%default", default=3, type="int", metavar="NREADS")
-    parser.add_option("--premRNA", dest="premRNA", action="store_true", help="use premRNA length cutoff, default:%default", default=False)
+    #parser.add_option("--premRNA", dest="premRNA", action="store_true", help="use premRNA length cutoff, default:%default", default=False)
     parser.add_option("--poisson-cutoff", dest="poisson_cutoff", type="float", help="p-value cutoff for poisson test, Default:%default", default=0.05, metavar="P")
     parser.add_option("--disable_global_cutoff", dest="use_global_cutoff", action="store_false", help="disables global transcriptome level cutoff to CLIP-seq peaks, Default:On", default=True, metavar="P")
     parser.add_option("--FDR", dest="FDR_alpha", type="float", default=0.05, help="FDR cutoff for significant height estimation, default=%default")
-    parser.add_option("--threshold-method", dest="method", default="binomial", help="Method used for determining height threshold, Can use default=random or binomial")
+    #parser.add_option("--threshold-method", dest="method", default="binomial", help="Method used for determining height threshold, Can use default=random or binomial")
     parser.add_option("--binomial", dest="binom", type="float", default=0.05, help ="Alpha significance threshold for using Binomial distribution for determining height threshold, default=%default")
     parser.add_option("--threshold", dest="threshold", type="int", default=None, help="Skip FDR calculation and set a threshold yourself")
     parser.add_option("--maxgenes", dest="maxgenes", default=None, type="int", help="stop computation after this many genes, for testing", metavar="NGENES")
@@ -668,16 +664,20 @@ def call_main():
     parser.add_option("--max_width", dest="max_width", type="int", default=75, help="Defines max width for classic algorithm, default: %default")
     parser.add_option("--min_width", dest="min_width", type="int", default=50, help="Defines min width for classic algorithm, default: %default")
     parser.add_option("--max_gap", dest="max_gap",type="int", default=15, help="defines maximum gap between reads before calling a region a new section, default: %default")
-    parser.add_option("--bonferroni", dest="bonferroni_correct",action="store_true", default=False, help="Perform Bonferroni on data before filtering")
-    parser.add_option("--algorithm", dest="algorithm",default="spline", help="Defines algorithm to run, currently spline, classic, gaussian")
+    #parser.add_option("--bonferroni", dest="bonferroni_correct",action="store_true", default=False, help="Perform Bonferroni on data before filtering")
+    #parser.add_option("--algorithm", dest="algorithm",default="spline", help="Defines algorithm to run, currently spline, classic, gaussian")
     parser.add_option("--reverse_strand", dest="reverse_strand",default=False, action="store_true", help="adds option to reverse strand")
     parser.add_option("--timeout", dest="timeout",default=None, type=int, help="adds timeout (in seconds) to genes that take too long (useful for debugging only, or if you don't care about higly expressed genes)")
 
 
     (options, args) = parser.parse_args()
- 
+    options.premRNA = True
+    options.bonferroni_correct = True
+    options.algorithm = "spline"
+    options.method = "binomial"
+    options.gtfFile = None
     if options.plotit:
-        options.debug=True
+        options.debug = True
 
     #enforces required usage    
     if not (options.bam and ((options.species) or (options.gtfFile))): 
