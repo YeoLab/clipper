@@ -655,19 +655,20 @@ def call_main():
     parser.add_option("--threshold", dest="threshold", type="int", default=None, help="Skip FDR calculation and set a threshold yourself")
     parser.add_option("--maxgenes", dest="maxgenes", default=None, type="int", help="stop computation after this many genes, for testing", metavar="NGENES")
     parser.add_option("--processors", dest="np", default="autodetect", help="Number of processors to use. Default: All processors on machine", type="str", metavar="NP")
-    parser.add_option("--superlocal", action="store_true", dest="SloP", default=False, help="Use super-local p-values, counting reads in a 1KB window around peaks")
+    #parser.add_option("--superlocal", action="store_true", dest="SloP", default=False, help="Use super-local p-values, counting reads in a 1KB window around peaks")
     parser.add_option("--plot", "-p", dest="plotit", action="store_true", help="make figures of the fits", default=False)
     parser.add_option("--verbose", "-v", dest="verbose", action="store_true", default=False)
     parser.add_option("--quiet", "-q", dest="quiet", action="store_true", default=False, help="suppress notifications")
     parser.add_option("--save-pickle", dest="save_pickle", default=False, action="store_true", help="Save a pickle file containing the analysis")
     parser.add_option("--debug", dest="debug", default=False, action="store_true", help="disables multipcoressing in order to get proper error tracebacks")
-    parser.add_option("--max_width", dest="max_width", type="int", default=75, help="Defines max width for classic algorithm, default: %default")
-    parser.add_option("--min_width", dest="min_width", type="int", default=50, help="Defines min width for classic algorithm, default: %default")
+    #parser.add_option("--max_width", dest="max_width", type="int", default=75, help="Defines max width for classic algorithm, default: %default")
+    #parser.add_option("--min_width", dest="min_width", type="int", default=50, help="Defines min width for classic algorithm, default: %default")
     parser.add_option("--max_gap", dest="max_gap",type="int", default=15, help="defines maximum gap between reads before calling a region a new section, default: %default")
     #parser.add_option("--bonferroni", dest="bonferroni_correct",action="store_true", default=False, help="Perform Bonferroni on data before filtering")
     #parser.add_option("--algorithm", dest="algorithm",default="spline", help="Defines algorithm to run, currently spline, classic, gaussian")
-    parser.add_option("--reverse_strand", dest="reverse_strand",default=False, action="store_true", help="adds option to reverse strand")
-    parser.add_option("--timeout", dest="timeout",default=None, type=int, help="adds timeout (in seconds) to genes that take too long (useful for debugging only, or if you don't care about higly expressed genes)")
+    #parser.add_option("--reverse_strand", dest="reverse_strand",default=False, action="store_true", help="adds option to reverse strand")
+    parser.add_option("--timeout", dest="timeout", default=None, type=int, help="adds timeout (in seconds) to genes that take too long (useful for debugging only, or if you don't care about higly expressed genes)")
+
 
 
     (options, args) = parser.parse_args()
@@ -679,7 +680,17 @@ def call_main():
     if options.plotit:
         options.debug = True
 
-    #enforces required usage    
+    options.premRNA = True
+    options.gtfFile = None
+    options.method = "binomial"
+    options.SloP = True
+    options.bonferroni_correct = True
+    options.algorithm = "spline"
+    options.reverse_strand = False
+    options.max_width = 75
+    options.min_width = 50
+
+    #enforces required usage
     if not (options.bam and ((options.species) or (options.gtfFile))): 
         parser.print_help()
         exit()
