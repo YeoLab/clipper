@@ -20,7 +20,7 @@ class GenomicFeatures():
     class to get genomic features from gffutils _db
     
     """
-    def __init__(self, species, db=None, regions_dir=None):
+    def __init__(self, species, db=None, regions_dir=None, gencode=False):
         """
         
         creates genomic features function, chooses 
@@ -40,27 +40,27 @@ class GenomicFeatures():
 
         #I'm going to be lazy and leave this here, its needed to make a new genomic features for human genomes
         #engineering so it doesn't take too much time on load will be slightly annoying so just uncomment when you need it
-        # result = defaultdict(lambda: defaultdict(lambda: defaultdict(list)))
-        # for x, feature in enumerate(db.all_features()):
-        #     gene_ids = feature.attributes['gene_id']
-        #     transcript_ids = feature.attributes['transcript_id']
-        #     feature_type = feature.featuretype
-        #
-        #
-        #     if feature_type == "gene":
-        #         if len(gene_ids) != 1:
-        #             print gene_ids[0]
-        #             break
-        #
-        #         result[gene_ids[0]]['gene'] = feature
-        #     else:
-        #         for gene_id in gene_ids:
-        #             for transcript_id in transcript_ids:
-        #                 result[gene_id][transcript_id][feature_type].append(feature)
-        #
-        # self._feature_hash = result
+        result = defaultdict(lambda: defaultdict(lambda: defaultdict(list)))
+        for x, feature in enumerate(db.all_features()):
+            gene_ids = feature.attributes['gene_id']
+            transcript_ids = feature.attributes['transcript_id']
+            feature_type = feature.featuretype
 
-        if species in ["hg19", "mm9", "hg19_v19", "GRCh38_v24"]:
+
+            if feature_type == "gene":
+                if len(gene_ids) != 1:
+                    print gene_ids[0]
+                    break
+
+                result[gene_ids[0]]['gene'] = feature
+            else:
+                for gene_id in gene_ids:
+                    for transcript_id in transcript_ids:
+                        result[gene_id][transcript_id][feature_type].append(feature)
+
+        self._feature_hash = result
+
+        if species in ["hg19", "mm9", "hg19_v19", "GRCh38_v24"] or gencode:
             self._feature_names = {
                              "five_prime_utr" : "five_prime_utr",
                              "three_prime_utr" : "three_prime_utr",
