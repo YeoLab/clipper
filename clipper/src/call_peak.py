@@ -879,8 +879,9 @@ def poissonP(reads_in_gene, reads_in_peak, gene_length, peak_length):
         return 1
 
 def get_reads_in_interval_pysam(interval, tx_start, full_read_array):
-    start = tx_start - interval.start
-    stop = tx_start - interval.stop
+    start = interval.start - tx_start
+    stop = interval.stop - tx_start
+
     return set().union(*[read for read in full_read_array[start:stop]])
 
 
@@ -1013,7 +1014,8 @@ def call_peaks(interval, gene_length, bam_file=None, max_gap=25,
         sect_length = sectstop - sectstart + 1
         data = wiggle[sectstart:(sectstop + 1)]
 
-        cur_interval = HTSeq.GenomicInterval(str(interval.chrom), sectstart + interval.start,
+        cur_interval = HTSeq.GenomicInterval(str(interval.chrom),
+                                             sectstart + interval.start,
                                              sectstop + interval.start + 1,
                                              strand)
 
