@@ -72,6 +72,9 @@ def readsToWiggle_pysam(reads, int tx_start, int tx_end, keepstrand, usePos, bin
         increment_value = (1.0 / read_len) if fracional_input else 1.0
 
         cigops = list(get_full_length_cigar(read))
+        if len(cigops) != len(read.positions):
+            print "read not handled correctly, email developer"
+            print read.qname
 
         for cur_pos, next_pos, cigop in zip(read.positions, read.positions[1:], cigops):
             #if cur is not next to the next position than its a junction
@@ -95,5 +98,9 @@ def readsToWiggle_pysam(reads, int tx_start, int tx_end, keepstrand, usePos, bin
 def get_full_length_cigar(read):
     for t in read.cigartuples:
         value, times = t
+
+        #value 3 is splice junction value 2 is deletion in read
+        if value == 3 or value == 2:
+            continue
         for x in xrange(times):
             yield value
