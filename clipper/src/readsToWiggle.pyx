@@ -1,4 +1,4 @@
-import numpy
+#import numpy
 
 def readsToWiggle_pysam(reads, int tx_start, int tx_end, keepstrand, usePos, bint fracional_input):
     """
@@ -25,9 +25,13 @@ def readsToWiggle_pysam(reads, int tx_start, int tx_end, keepstrand, usePos, bin
 
     gene_size = tx_end - tx_start + 1
     lengths = []
-    wiggle = numpy.zeros(shape = gene_size, dtype = 'i')
-    pos_counts = numpy.zeros(shape = gene_size, dtype = 'i')
-    explicit_locations = numpy.zeros(shape = gene_size, dtype = 'O')
+
+    #Something about numpy makes this break, the error is SystemError: Objects/listobject.c:169: bad argument to internal function
+    #Probably better to use numpy arrays, but I don't know how much better
+    
+    wiggle = [0] * gene_size #numpy.zeros(shape = gene_size, dtype = 'i')
+    pos_counts = [0] * gene_size #numpy.zeros(shape = gene_size, dtype = 'i')
+    explicit_locations = [0] * gene_size #numpy.zeros(shape = gene_size, dtype = 'O')
 
     for x in xrange(len(explicit_locations)):
         explicit_locations[x] = set([])

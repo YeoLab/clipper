@@ -878,35 +878,6 @@ def poissonP(reads_in_gene, reads_in_peak, gene_length, peak_length):
         logging.error("Poisson cutoff failled %s " % (error))
         return 1
 
-
-def read_array(reads, start, stop):
-    reads = (read for read in reads if (read.iv.start_d > start) & (read.iv.end_d < stop))
-    set_of_reads = HTSeq.GenomicArrayOfSets("auto", stranded=True)
-    for read in reads:
-        if read.aligned:
-                for cigop in read.cigar:
-                    if cigop.type != "M":
-                        continue
-                    set_of_reads[cigop.ref_iv] += read
-    return set_of_reads
-
-
-def get_reads_in_interval(interval, array_of_sets):
-    return set().union(*[baz for bar, baz in array_of_sets[interval].steps()])
-
-
-def count_reads_in_interval(interval, array_of_sets):
-    return len(get_reads_in_interval(interval, array_of_sets))
-
-
-def get_aligned_read_length(read):
-    return sum(cigar.size for cigar in read.cigar if cigar.type == "M")
-
-
-def read_lengths_from_htseq(reads):
-    return [get_aligned_read_length(read) for read in reads]
-
-
 def get_reads_in_interval_pysam(interval, tx_start, full_read_array):
     start = tx_start - interval.start
     stop = tx_start - interval.stop
@@ -1035,12 +1006,6 @@ def call_peaks(interval, gene_length, bam_file=None, max_gap=25,
     sections = find_sections(wiggle, max_gap)
     if plotit:
         plot_sections(wiggle, sections, premRNA_threshold)
-    print "foo"
-    print len(sections)
-    print type(sections)
-    bar = []
-    for x in bar:
-        print x
 
     for sect in sections:
 

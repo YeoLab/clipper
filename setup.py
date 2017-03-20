@@ -8,7 +8,9 @@ peaks = Extension("clipper.src.peaks", sources = ['clipper/src/peaksmodule.cc'],
 #                  extra_compile_args = ['-O0'] 
 )                 
 
-readsToWiggle = Extension("clipper.src.readsToWiggle", ['clipper/src/readsToWiggle.pyx'], include_dirs=[numpy.get_include()])
+readsToWiggle = Extension("clipper.src.readsToWiggle", ['clipper/src/readsToWiggle.pyx'], 
+                          #include_dirs=[numpy.get_include()]
+                          )
 
 long_description = "CLIPPER - clip peak enrichment"
 setup(
