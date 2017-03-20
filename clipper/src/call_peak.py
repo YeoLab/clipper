@@ -906,6 +906,25 @@ def get_aligned_read_length(read):
 def read_lengths_from_htseq(reads):
     return [get_aligned_read_length(read) for read in reads]
 
+
+def get_reads_in_interval_pysam(interval, tx_start, full_read_array):
+    start = tx_start - interval.start
+    stop = tx_start - interval.stop
+    return set().union(*[read for read in full_read_array[start:stop]])
+
+
+def count_reads_in_interval_pysam(interval, tx_start, full_read_array):
+    return len(get_reads_in_interval_pysam(interval, tx_start, full_read_array))
+
+
+def get_aligned_read_length_pysam(read):
+    return sum([code_len for code, code_len in read.cigartuples if code == 0])
+
+
+def read_lengths_from_pysam(reads):
+    return [get_aligned_read_length_pysam(read) for read in reads]
+
+
 def bed_to_genomic_interval(bed):
     for interval in bed:
         yield HTSeq.GenomicInterval(str(interval.chrom), interval.start, interval.stop + 1, str(interval.strand))
@@ -958,13 +977,8 @@ def call_peaks(interval, gene_length, bam_file=None, max_gap=25,
         elif strand == "-":
             strand = "+"
     (wiggle, jxns, pos_counts,
-     lengths, allreads) = readsToWiggle_pysam(subset_reads, interval.start,
+     lengths, allreads, read_locations) = readsToWiggle_pysam(subset_reads, interval.start,
                                               interval.stop, strand, "start", False)
-
-    #This is the worst of hacks, need to factor out pysam eventually
-    bam_fileobj = Robust_BAM_Reader(bam_file)
-    subset_reads = list(bam_fileobj.fetch(reference=str(interval.chrom), start=interval.start, end=interval.stop))
-    array_of_reads = read_array(subset_reads, interval.start, interval.stop)
 
     nreads_in_gene = sum(pos_counts)
     gene_length = int(gene_length)
@@ -994,9 +1008,9 @@ def call_peaks(interval, gene_length, bam_file=None, max_gap=25,
     total_exonic_length = 0
     htseq_exons = HTSeq.GenomicArrayOfSets(chroms="auto", stranded=False)
 
-    for exon_interval in bed_to_genomic_interval(exons):
-        exonic_reads = get_reads_in_interval(exon_interval, array_of_reads)
-        exon_read_lengths = read_lengths_from_htseq(exonic_reads)
+    for exon, exon_interval in zip(exons, bed_to_genomic_interval(exons)):
+        exonic_reads = get_reads_in_interval_pysam(exon, interval.start, read_locations)
+        exon_read_lengths = read_lengths_from_pysam(exonic_reads)
         exon_read_lengths = [exon_interval.length - 1 if read > exon_interval.length else read for read in exon_read_lengths]
         total_exonic_reads += exon_read_lengths
         total_exonic_length += exon_interval.length
@@ -1021,6 +1035,12 @@ def call_peaks(interval, gene_length, bam_file=None, max_gap=25,
     sections = find_sections(wiggle, max_gap)
     if plotit:
         plot_sections(wiggle, sections, premRNA_threshold)
+    print "foo"
+    print len(sections)
+    print type(sections)
+    bar = []
+    for x in bar:
+        print x
 
     for sect in sections:
 
@@ -1036,7 +1056,15 @@ def call_peaks(interval, gene_length, bam_file=None, max_gap=25,
         overlaps_exon = len(reduce( set.union, ( val for iv, val in htseq_exons[cur_interval].steps()))) > 0
         gene_threshold = mRNA_threshold if overlaps_exon else premRNA_threshold
 
-        Nreads = count_reads_in_interval(cur_interval, array_of_reads)
+        #maybe make a function that takes a GI and converts it into a pybedtools interval
+        cur_pybedtools_interval = pybedtools.create_interval_from_list([interval.chrom,
+                                              sectstart + interval.start,
+                                              sectstop + interval.start + 1,
+                                              interval.name,
+                                              interval.score,
+                                              strand])
+
+        Nreads = count_reads_in_interval_pysam(cur_pybedtools_interval, interval.start, read_locations)
 
         cts = pos_counts[sectstart:(sectstop + 1)]
         xvals = arange(len(data))
@@ -1058,9 +1086,16 @@ def call_peaks(interval, gene_length, bam_file=None, max_gap=25,
                 section_start = max(0, sectstart + interval.start - half_width)
                 section_stop = sectstop + interval.start + 1 + half_width
                 expanded_sect_length = section_stop - section_start
-                cur_interval = HTSeq.GenomicInterval(str(interval.chrom), section_start, section_stop, strand)
-                expanded_Nreads = get_reads_in_interval(cur_interval, array_of_reads)
-                sect_read_lengths = read_lengths_from_htseq(expanded_Nreads)
+
+                cur_pybedtools_interval = pybedtools.create_interval_from_list([interval.chrom,
+                                                                                section_start,
+                                                                                section_stop,
+                                                                                interval.name,
+                                                                                interval.score,
+                                                                                strand])
+
+                expanded_Nreads = get_reads_in_interval_pysam(cur_pybedtools_interval, interval.start, read_locations)
+                sect_read_lengths = read_lengths_from_pysam(expanded_Nreads)
                 sect_read_lengths = [sect_length - 1 if read > sect_length else read for read in sect_read_lengths]
                 peak_dict['sections'][sect]['expanded_Nreads'] = len(expanded_Nreads)
 
@@ -1133,9 +1168,14 @@ def call_peaks(interval, gene_length, bam_file=None, max_gap=25,
             genomic_start = interval.start + sectstart + peak_start
             genomic_stop = interval.start + sectstart + peak_stop
 
-            cur_interval = HTSeq.GenomicInterval(str(interval.chrom), genomic_start, genomic_stop,
-                                         strand)
-            number_reads_in_peak = count_reads_in_interval(cur_interval, array_of_reads)
+            cur_pybedtools_interval = pybedtools.create_interval_from_list([interval.chrom,
+                                                                                genomic_start,
+                                                                                genomic_stop,
+                                                                                interval.name,
+                                                                                interval.score,
+                                                                                strand])
+
+            number_reads_in_peak = count_reads_in_interval_pysam(cur_pybedtools_interval, interval.start, read_locations)
 
             peak_length = genomic_stop - genomic_start + 1
 
@@ -1156,9 +1196,14 @@ def call_peaks(interval, gene_length, bam_file=None, max_gap=25,
             area_start = max(0, (peak_center + sectstart) - windowsize)
             area_stop = min((peak_center + sectstart) + windowsize, len(wiggle))
 
-            cur_interval = HTSeq.GenomicInterval(str(interval.chrom), interval.start + area_start, interval.start + area_stop,
-                                         strand)
-            number_reads_in_area = count_reads_in_interval(cur_interval, array_of_reads)
+            cur_pybedtools_interval = pybedtools.create_interval_from_list([interval.chrom,
+                                                                                interval.start + area_start,
+                                                                                interval.start + area_stop,
+                                                                                interval.name,
+                                                                                interval.score,
+                                                                                strand])
+
+            number_reads_in_area = count_reads_in_interval_pysam(cur_pybedtools_interval, interval.start, read_locations)
             area_length = area_stop - area_start + 1
 
             peak_dict['clusters'].append(Peak(chrom=interval.chrom,

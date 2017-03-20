@@ -1,9 +1,11 @@
+import numpy
+
 def readsToWiggle_pysam(reads, int tx_start, int tx_end, keepstrand, usePos, bint fracional_input):
     """
     
     converts pysam to a wiggle vector and some other stuff.
     
-    input: ((bamfile.fetch obj), tx_start, tx_end, strand, readPos, trim
+    input: (bamfile.fetch obj), tx_start, tx_end, strand, readPos, trim
     bamfile.fetch obj is from pysam.Samfile().fetch    
     tx_start is the genome coordinate of the start position of the window you care about
     tx_stop is genome stop
@@ -20,10 +22,16 @@ def readsToWiggle_pysam(reads, int tx_start, int tx_end, keepstrand, usePos, bin
     cdef int next_pos
     cdef float increment_value
     #cdef vector[int] vect
-    
+
+    gene_size = tx_end - tx_start + 1
     lengths = []
-    wiggle = [0] * (tx_end - tx_start + 1)
-    pos_counts = [0] * (tx_end - tx_start + 1)
+    wiggle = numpy.zeros(shape = gene_size, dtype = 'i')
+    pos_counts = numpy.zeros(shape = gene_size, dtype = 'i')
+    explicit_locations = numpy.zeros(shape = gene_size, dtype = 'O')
+
+    for x in xrange(len(explicit_locations)):
+        explicit_locations[x] = set([])
+
     all_reads = set([])
     junctions = {}
     
@@ -58,8 +66,10 @@ def readsToWiggle_pysam(reads, int tx_start, int tx_end, keepstrand, usePos, bin
         all_reads.add((read_start, read_stop))
         
         increment_value = (1.0 / read_len) if fracional_input else 1.0
-        
-        for cur_pos, next_pos in zip(read.positions, read.positions[1:]):
+
+        cigops = list(get_full_length_cigar(read))
+
+        for cur_pos, next_pos, cigop in zip(read.positions, read.positions[1:], cigops):
             #if cur is not next to the next position than its a junction
             if cur_pos + 1 != next_pos:
                 junction = (cur_pos, next_pos)
@@ -68,8 +78,18 @@ def readsToWiggle_pysam(reads, int tx_start, int tx_end, keepstrand, usePos, bin
                 junctions[junction] += 1
                 
             wiggle[cur_pos - tx_start] += increment_value
-        
+            if cigop == 0: #Exact matches only, doing this because it duplicates HTSeq behavior
+                explicit_locations[cur_pos - tx_start].add(read)
+
         #needed to get last read counted
         wiggle[read.positions[-1] - tx_start] += increment_value
-                
-    return wiggle, junctions, pos_counts, lengths, all_reads
+        if cigops[-1] == 0:
+            explicit_locations[read.positions[-1] - tx_start].add(read)
+
+    return wiggle, junctions, pos_counts, lengths, all_reads, explicit_locations
+
+def get_full_length_cigar(read):
+    for t in read.cigartuples:
+        value, times = t
+        for x in xrange(times):
+            yield value
