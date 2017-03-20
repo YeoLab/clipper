@@ -879,8 +879,8 @@ def poissonP(reads_in_gene, reads_in_peak, gene_length, peak_length):
         return 1
 
 def get_reads_in_interval_pysam(interval, tx_start, full_read_array):
-    start = interval.start - tx_start
-    stop = interval.stop - tx_start
+    start = max(0, interval.start - tx_start)
+    stop = max(0, interval.stop - tx_start)
 
     return set().union(*[read for read in full_read_array[start:stop]])
 
@@ -1144,6 +1144,12 @@ def call_peaks(interval, gene_length, bam_file=None, max_gap=25,
 
             number_reads_in_peak = count_reads_in_interval_pysam(cur_pybedtools_interval, interval.start, read_locations)
 
+            if peak_number == 33 or peak_number == 37:
+                reads = get_reads_in_interval_pysam(cur_pybedtools_interval, interval.start, read_locations)
+                for read in reads:
+                    print read.qname
+
+                print
             peak_length = genomic_stop - genomic_start + 1
 
             logging.info("""Peak %d (%d - %d) has %d
