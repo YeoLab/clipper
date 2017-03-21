@@ -981,7 +981,9 @@ def call_peaks(interval, gene_length, bam_file=None, max_gap=25,
     htseq_exons = HTSeq.GenomicArrayOfSets(chroms="auto", stranded=False)
 
     for exon, exon_interval in zip(exons, bed_to_genomic_interval(exons)):
+        exon.stop += 1
         exonic_reads = get_reads_in_interval_pysam(exon, interval.start, read_locations)
+
         exon_read_lengths = read_lengths_from_pysam(exonic_reads)
         exon_read_lengths = [exon_interval.length - 1 if read > exon_interval.length else read for read in exon_read_lengths]
         total_exonic_reads += exon_read_lengths
@@ -989,7 +991,6 @@ def call_peaks(interval, gene_length, bam_file=None, max_gap=25,
         htseq_exons[exon_interval] += 'exon'
 
     mRNA_threshold = get_FDR_cutoff_binom(total_exonic_reads, total_exonic_length, binom_alpha)
-    #print premRNA_threshold, mRNA_threshold
     if not isinstance(premRNA_threshold, int):
         raise TypeError
 
