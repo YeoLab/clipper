@@ -29,31 +29,56 @@ def readsToWiggle_pysam(reads, int tx_start, int tx_end, keepstrand, usePos, bin
     #Something about numpy makes this break, the error is SystemError: Objects/listobject.c:169: bad argument to internal function
     #Probably better to use numpy arrays, but I don't know how much better
     
-    wiggle = [0] * gene_size #numpy.zeros(shape = gene_size, dtype = 'i')
-    pos_counts = [0] * gene_size #numpy.zeros(shape = gene_size, dtype = 'i')
-    explicit_locations = [0] * gene_size #numpy.zeros(shape = gene_size, dtype = 'O')
+    wiggle = [0] * gene_size
+    pos_counts = [0] * gene_size
+    explicit_locations = [0] * (gene_size + 1)
 
     for x in xrange(len(explicit_locations)):
         explicit_locations[x] = set([])
 
     all_reads = set([])
     junctions = {}
-    
+
     for read in reads:
+
+
+
         if read.is_reverse and keepstrand == "+":
             continue
         elif not read.is_reverse and keepstrand == "-":
             continue
-            
+
         read_start = read.positions[0]
         read_stop = read.positions[-1]
-        
+
         if read_start < tx_start or read_stop > tx_end:
+            #this is a really funny bug from porting HTSeq, the old code used start_d, for directional
+            #this lead to cases where a negative strand read could have a start_d > tx_start and a stop_d < tx_end
+            #but if the starts and stops were swapped, the end would fall outside of the tx_end.
+            #what I really want is just reads falling entirely inside the transcript, so they should be removed,
+            #but because I'm currently trying to replicate functionality exactly I need to build in a really odd expection
+            #to just add reads to my explicit location array, if they meet that criteria.
+            if read.is_reverse:
+                read_start_d = read.positions[-1]
+                read_stop_d = read.positions[0]
+
+                record_read = (read_start_d > tx_start) & (read_stop_d < tx_end)
+
+                if record_read:
+                    for cur_pos, cigop in zip(read.positions, get_full_length_cigar(read)):
+                        if cur_pos > gene_size:
+                            continue
+                        if cigop == 0: #Exact matches only, doing this because it duplicates HTSeq behavior
+                            explicit_locations[cur_pos - tx_start].add(read)
+
+
             continue
             
         read_len = len(read.positions)
         lengths.append(read_len)
-        
+
+
+
         if usePos == "center":
             pos_counts[(((read_stop + read_start) / 2) - tx_start)] += 1
         elif usePos == "start":
