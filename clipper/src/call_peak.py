@@ -1067,13 +1067,20 @@ def call_peaks(interval, gene_length, bam_file=None, max_gap=25,
                 peak_dict['sections'][sect]['expanded_Nreads'] = len(expanded_Nreads)
 
                 if method == "binomial":  #Uses Binomial Distribution to get cutoff if specified by user
-                    threshold = max(gene_threshold, get_FDR_cutoff_binom(sect_read_lengths, expanded_sect_length, binom_alpha))
+                    slop_threshold = get_FDR_cutoff_binom(readlengths=sect_read_lengths,
+                                                          genelength=expanded_sect_length,
+                                                          alpha=binom_alpha)
                 elif method == "random":
                     #use the minimum FDR cutoff between superlocal and gene-wide calculations
-                    threshold = max(gene_threshold, get_FDR_cutoff_mean(readlengths=sect_read_lengths, genelength=expanded_sect_length, alpha=fdr_alpha))
+                    slop_threshold = get_FDR_cutoff_mean(readlengths=sect_read_lengths,
+                                                         genelength=expanded_sect_length,
+                                                         alpha=fdr_alpha)
                 else:
                     raise ValueError("Method %s does not exist" % (method))
+                threshold = max(gene_threshold, slop_threshold)
+
                 logging.info("Using super-local threshold %d" %(threshold))
+
 
             else:
                 threshold = gene_threshold
