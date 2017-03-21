@@ -76,6 +76,10 @@ def readsToWiggle_pysam(reads, int tx_start, int tx_end, keepstrand, usePos, bin
             print "read not handled correctly, email developer"
             print read.qname
 
+        #this is a shitty hack to duplicate a bug in HTSeq, eventually I'll want to remove this
+        #when I don't care about exactly duplicating clipper functionality
+        record_read = (read_start > tx_start) & (read_stop < tx_end)
+
         for cur_pos, next_pos, cigop in zip(read.positions, read.positions[1:], cigops):
             #if cur is not next to the next position than its a junction
             if cur_pos + 1 != next_pos:
@@ -85,12 +89,12 @@ def readsToWiggle_pysam(reads, int tx_start, int tx_end, keepstrand, usePos, bin
                 junctions[junction] += 1
                 
             wiggle[cur_pos - tx_start] += increment_value
-            if cigop == 0: #Exact matches only, doing this because it duplicates HTSeq behavior
+            if cigop == 0 and record_read: #Exact matches only, doing this because it duplicates HTSeq behavior
                 explicit_locations[cur_pos - tx_start].add(read)
 
         #needed to get last read counted
         wiggle[read.positions[-1] - tx_start] += increment_value
-        if cigops[-1] == 0:
+        if cigops[-1] == 0 and record_read:
             explicit_locations[read.positions[-1] - tx_start].add(read)
 
     return wiggle, junctions, pos_counts, lengths, all_reads, explicit_locations
@@ -100,7 +104,7 @@ def get_full_length_cigar(read):
         value, times = t
 
         #value 3 is splice junction value 2 is deletion in read
-        if value == 3 or value == 2:
+        if value == 3 or value == 2 or value == 1:
             continue
         for x in xrange(times):
             yield value

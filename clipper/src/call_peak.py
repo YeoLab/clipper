@@ -1144,13 +1144,6 @@ def call_peaks(interval, gene_length, bam_file=None, max_gap=25,
 
             number_reads_in_peak = count_reads_in_interval_pysam(cur_pybedtools_interval, interval.start, read_locations)
 
-            if peak_number == 0:
-                reads = get_reads_in_interval_pysam(cur_pybedtools_interval, interval.start, read_locations)
-                for read in reads:
-                    print read.qname
-
-                print
-
             peak_length = genomic_stop - genomic_start + 1
 
             logging.info("""Peak %d (%d - %d) has %d
