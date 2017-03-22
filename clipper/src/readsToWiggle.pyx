@@ -51,16 +51,16 @@ def readsToWiggle_pysam(reads, int tx_start, int tx_end, keepstrand, usePos, bin
 
         if read.is_reverse:
             read_start_d = read_stop
-            read_stop_d = read_start
+            read_stop_d = read_start - 1
         else:
             read_start_d = read_start
-            read_stop_d = read_stop
+            read_stop_d = read_stop + 1
 
         #this is a shitty hack to duplicate a bug in HTSeq, eventually I'll want to remove this
         #when I don't care about exactly duplicating clipper functionality
 
         #Need the +1 because different indexing of positions and HTSeq
-        record_read = (read_start_d > tx_start) & (read_stop_d + 1 < tx_end)
+        record_read = (read_start_d > tx_start) & (read_stop_d < tx_end)
 
         if read_start < tx_start or read_stop > tx_end:
             #this is a really funny bug from porting HTSeq, the old code used start_d, for directional
