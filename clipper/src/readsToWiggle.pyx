@@ -31,7 +31,7 @@ def readsToWiggle_pysam(reads, int tx_start, int tx_end, keepstrand, usePos, bin
     
     wiggle = [0] * gene_size
     pos_counts = [0] * gene_size
-    explicit_locations = [0] * (gene_size + 1)
+    explicit_locations = [0] * (gene_size + 500)
 
     for x in xrange(len(explicit_locations)):
         explicit_locations[x] = set([])
@@ -41,8 +41,6 @@ def readsToWiggle_pysam(reads, int tx_start, int tx_end, keepstrand, usePos, bin
 
     for read in reads:
 
-
-
         if read.is_reverse and keepstrand == "+":
             continue
         elif not read.is_reverse and keepstrand == "-":
@@ -51,6 +49,18 @@ def readsToWiggle_pysam(reads, int tx_start, int tx_end, keepstrand, usePos, bin
         read_start = read.positions[0]
         read_stop = read.positions[-1]
 
+        if read.is_reverse:
+            read_start_d = read_stop
+            read_stop_d = read_start
+        else:
+            read_start_d = read_start
+            read_stop_d = read_start
+
+        #this is a shitty hack to duplicate a bug in HTSeq, eventually I'll want to remove this
+        #when I don't care about exactly duplicating clipper functionality
+
+        record_read = (read_start_d > tx_start) & (read_stop_d < tx_end)
+
         if read_start < tx_start or read_stop > tx_end:
             #this is a really funny bug from porting HTSeq, the old code used start_d, for directional
             #this lead to cases where a negative strand read could have a start_d > tx_start and a stop_d < tx_end
@@ -58,22 +68,16 @@ def readsToWiggle_pysam(reads, int tx_start, int tx_end, keepstrand, usePos, bin
             #what I really want is just reads falling entirely inside the transcript, so they should be removed,
             #but because I'm currently trying to replicate functionality exactly I need to build in a really odd expection
             #to just add reads to my explicit location array, if they meet that criteria.
-            if read.is_reverse:
-                read_start_d = read.positions[-1]
-                read_stop_d = read.positions[0]
 
-                record_read = (read_start_d > tx_start) & (read_stop_d < tx_end)
-
-                if record_read:
-                    for cur_pos, cigop in zip(read.positions, get_full_length_cigar(read)):
-                        if cur_pos > gene_size:
-                            continue
-                        if cigop == 0: #Exact matches only, doing this because it duplicates HTSeq behavior
-                            explicit_locations[cur_pos - tx_start].add(read)
-
+            if record_read:
+                for cur_pos, cigop in zip(read.positions, get_full_length_cigar(read)):
+                    if (cur_pos > tx_end + 500) | ((cur_pos - tx_start) < 0) :
+                        continue
+                    if cigop == 0: #Exact matches only, doing this because it duplicates HTSeq behavior
+                        explicit_locations[cur_pos - tx_start].add(read)
 
             continue
-            
+
         read_len = len(read.positions)
         lengths.append(read_len)
 
@@ -100,10 +104,6 @@ def readsToWiggle_pysam(reads, int tx_start, int tx_end, keepstrand, usePos, bin
         if len(cigops) != len(read.positions):
             print "read not handled correctly, email developer"
             print read.qname
-
-        #this is a shitty hack to duplicate a bug in HTSeq, eventually I'll want to remove this
-        #when I don't care about exactly duplicating clipper functionality
-        record_read = (read_start > tx_start) & (read_stop < tx_end)
 
         for cur_pos, next_pos, cigop in zip(read.positions, read.positions[1:], cigops):
             #if cur is not next to the next position than its a junction
