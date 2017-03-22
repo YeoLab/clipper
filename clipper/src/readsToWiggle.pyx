@@ -54,7 +54,7 @@ def readsToWiggle_pysam(reads, int tx_start, int tx_end, keepstrand, usePos, bin
             read_stop_d = read_start
         else:
             read_start_d = read_start
-            read_stop_d = read_start
+            read_stop_d = read_stop
 
         #this is a shitty hack to duplicate a bug in HTSeq, eventually I'll want to remove this
         #when I don't care about exactly duplicating clipper functionality
