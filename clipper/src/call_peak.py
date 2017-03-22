@@ -4,7 +4,7 @@ Created on Jul 25, 2012
 @author: gabrielp
 '''
 
-from collections import namedtuple, defaultdict
+from collections import namedtuple
 import logging
 import math
 
@@ -878,65 +878,28 @@ def poissonP(reads_in_gene, reads_in_peak, gene_length, peak_length):
         logging.error("Poisson cutoff failled %s " % (error))
         return 1
 
+def get_reads_in_interval_pysam(interval, tx_start, full_read_array):
+    start = max(0, interval.start - tx_start)
+    stop = max(0, interval.stop - tx_start)
 
-def read_array(reads, start, stop):
-    reads = (read for read in reads if (read.iv.start_d > start) & (read.iv.end_d < stop))
-    set_of_reads = HTSeq.GenomicArrayOfSets("auto", stranded=True)
-    for read in reads:
-        if read.aligned:
-                for cigop in read.cigar:
-                    if cigop.type != "M":
-                        continue
-                    set_of_reads[cigop.ref_iv] += read
-    return set_of_reads
+    return set().union(*[read for read in full_read_array[start:stop]])
 
 
-def get_reads_in_interval(interval, array_of_sets):
-    return set().union(*[baz for bar, baz in array_of_sets[interval].steps()])
+def count_reads_in_interval_pysam(interval, tx_start, full_read_array):
+    return len(get_reads_in_interval_pysam(interval, tx_start, full_read_array))
 
 
-def count_reads_in_interval(interval, array_of_sets):
-    return len(get_reads_in_interval(interval, array_of_sets))
+def get_aligned_read_length_pysam(read):
+    return sum([code_len for code, code_len in read.cigartuples if code == 0])
 
 
-def get_aligned_read_length(read):
-    return sum(cigar.size for cigar in read.cigar if cigar.type == "M")
-
-
-def read_lengths_from_htseq(reads):
-    return [get_aligned_read_length(read) for read in reads]
+def read_lengths_from_pysam(reads):
+    return [get_aligned_read_length_pysam(read) for read in reads]
 
 
 def bed_to_genomic_interval(bed):
     for interval in bed:
         yield HTSeq.GenomicInterval(str(interval.chrom), interval.start, interval.stop + 1, str(interval.strand))
-
-
-def count_read_lengths(reads, regions):
-    read_lengths = defaultdict(list)
-    for read in reads:
-        contained_items = set([])
-        for iv, val in regions[read.iv].steps():
-            for item in val:
-                contained_items.add(item)
-        for contained_item in contained_items:
-            read_lengths[contained_item].append(len(read.read.seq))
-    return read_lengths
-
-
-def correct_strand(reads, strand):
-    for read in reads:
-        if strand == "+":
-            if not read.is_reverse:
-                yield read
-        if strand == "-":
-            if read.is_reverse:
-                yield read
-
-
-def read_lengths(reads):
-    for read in reads:
-        yield read.qlen
 
 
 def call_peaks(interval, gene_length, bam_file=None, max_gap=25,
@@ -986,7 +949,7 @@ def call_peaks(interval, gene_length, bam_file=None, max_gap=25,
         elif strand == "-":
             strand = "+"
     (wiggle, jxns, pos_counts,
-     lengths, allreads) = readsToWiggle_pysam(subset_reads, interval.start,
+     lengths, allreads, read_locations) = readsToWiggle_pysam(subset_reads, interval.start,
                                               interval.stop, strand, "start", False)
 
     nreads_in_gene = sum(pos_counts)
@@ -1013,20 +976,21 @@ def call_peaks(interval, gene_length, bam_file=None, max_gap=25,
     exons = pybedtools.BedTool(exons)
     exons = exons.filter(lambda x: x.name == interval.attrs['gene_id']).saveas()
 
-    #Get the array of sets
-    total_exonic_length = 0
     total_exonic_reads = []
+    total_exonic_length = 0
     htseq_exons = HTSeq.GenomicArrayOfSets(chroms="auto", stranded=False)
-    for exon in exons:
-        subset_reads = list(read_lengths(correct_strand(bam_fileobj.fetch(reference=str(exon.chrom), start=exon.start, end=exon.stop), strand)))
-        total_exonic_reads += subset_reads
-        total_exonic_length += len(exon)
 
-    total_exonic_reads = [total_exonic_length - 1 if read >= total_exonic_length else read for read in total_exonic_reads]
+    for exon, exon_interval in zip(exons, bed_to_genomic_interval(exons)):
+        exon.stop += 1
+        exonic_reads = get_reads_in_interval_pysam(exon, interval.start, read_locations)
+
+        exon_read_lengths = read_lengths_from_pysam(exonic_reads)
+        exon_read_lengths = [exon_interval.length - 1 if read > exon_interval.length else read for read in exon_read_lengths]
+        total_exonic_reads += exon_read_lengths
+        total_exonic_length += exon_interval.length
+        htseq_exons[exon_interval] += 'exon'
 
     mRNA_threshold = get_FDR_cutoff_binom(total_exonic_reads, total_exonic_length, binom_alpha)
-
-    #print premRNA_threshold, mRNA_threshold
     if not isinstance(premRNA_threshold, int):
         raise TypeError
 
@@ -1041,39 +1005,35 @@ def call_peaks(interval, gene_length, bam_file=None, max_gap=25,
 
     peak_number = 0
 
-    print max_gap
     sections = find_sections(wiggle, max_gap)
     if plotit:
         plot_sections(wiggle, sections, premRNA_threshold)
 
-    total_section_reads = {}
     for sect in sections:
+
         sectstart, sectstop = sect
-        section_start = sectstart + interval.start
-        section_stop = sectstop + interval.start + 1
-        total_section_reads[sect] = list(read_lengths(correct_strand(bam_fileobj.fetch(reference=str(interval.chrom), start=section_start, end=section_stop), strand)))
-
-        half_width = 500
-        section_start = max(0, sectstart + interval.start - half_width)
-        section_stop = sectstop + interval.start + 1 + half_width
-        total_section_reads[tuple(list(sect) + ['slop'])] = list(read_lengths(correct_strand(bam_fileobj.fetch(reference=str(interval.chrom), start=section_start, end=section_stop), strand)))
-
-    for x, sect in enumerate(sections):
-        sectstart, sectstop = sect
-
-
         sect_length = sectstop - sectstart + 1
         data = wiggle[sectstart:(sectstop + 1)]
 
-        cur_interval = HTSeq.GenomicInterval(str(interval.chrom), sectstart + interval.start,
+        cur_interval = HTSeq.GenomicInterval(str(interval.chrom),
+                                             sectstart + interval.start,
                                              sectstop + interval.start + 1,
                                              strand)
+
         #Logic to use variable thresholds for exons or introns, still superseded by superLocal logic
-        overlaps_exon = len(reduce(set.union, (val for iv, val in htseq_exons[cur_interval].steps()))) > 0
+        overlaps_exon = len(reduce( set.union, ( val for iv, val in htseq_exons[cur_interval].steps()))) > 0
         gene_threshold = mRNA_threshold if overlaps_exon else premRNA_threshold
 
-        Nreads = len(total_section_reads[sect])
-        #print Nreads
+        #maybe make a function that takes a GI and converts it into a pybedtools interval
+        cur_pybedtools_interval = pybedtools.create_interval_from_list([interval.chrom,
+                                              sectstart + interval.start,
+                                              sectstop + interval.start + 1,
+                                              interval.name,
+                                              interval.score,
+                                              strand])
+
+        Nreads = count_reads_in_interval_pysam(cur_pybedtools_interval, interval.start, read_locations)
+
         cts = pos_counts[sectstart:(sectstop + 1)]
         xvals = arange(len(data))
         peak_dict['sections'][sect] = {}
@@ -1090,26 +1050,38 @@ def call_peaks(interval, gene_length, bam_file=None, max_gap=25,
 
         if user_threshold is None:
             if SloP:
+                half_width = 500
                 section_start = max(0, sectstart + interval.start - half_width)
                 section_stop = sectstop + interval.start + 1 + half_width
                 expanded_sect_length = section_stop - section_start
 
-                #Need to watch out for reads longer than the section
-                sect_read_lengths = total_section_reads[tuple(list(sect) + ['slop'])]
+                cur_pybedtools_interval = pybedtools.create_interval_from_list([interval.chrom,
+                                                                                section_start,
+                                                                                section_stop,
+                                                                                interval.name,
+                                                                                interval.score,
+                                                                                strand])
+
+                expanded_Nreads = get_reads_in_interval_pysam(cur_pybedtools_interval, interval.start, read_locations)
+                sect_read_lengths = read_lengths_from_pysam(expanded_Nreads)
                 sect_read_lengths = [sect_length - 1 if read > sect_length else read for read in sect_read_lengths]
+                peak_dict['sections'][sect]['expanded_Nreads'] = len(expanded_Nreads)
 
                 if method == "binomial":  #Uses Binomial Distribution to get cutoff if specified by user
-                    threshold = max(gene_threshold, get_FDR_cutoff_binom(sect_read_lengths,
-                                                                         expanded_sect_length,
-                                                                         binom_alpha))
+                    slop_threshold = get_FDR_cutoff_binom(readlengths=sect_read_lengths,
+                                                          genelength=expanded_sect_length,
+                                                          alpha=binom_alpha)
                 elif method == "random":
                     #use the minimum FDR cutoff between superlocal and gene-wide calculations
-                    threshold = max(gene_threshold, get_FDR_cutoff_mean(readlengths=sect_read_lengths,
-                                                                        genelength=expanded_sect_length,
-                                                                        alpha=fdr_alpha))
+                    slop_threshold = get_FDR_cutoff_mean(readlengths=sect_read_lengths,
+                                                         genelength=expanded_sect_length,
+                                                         alpha=fdr_alpha)
                 else:
                     raise ValueError("Method %s does not exist" % (method))
+                threshold = max(gene_threshold, slop_threshold)
+
                 logging.info("Using super-local threshold %d" %(threshold))
+
 
             else:
                 threshold = gene_threshold
@@ -1166,32 +1138,25 @@ def call_peaks(interval, gene_length, bam_file=None, max_gap=25,
         #occur, not the average of start and stop
 
         #Need to get all ranges, count number of reads in each range and compute from there
-
-        total_peak_reads = {}
-        for peak in peak_definitions:
-            peak_start, peak_stop, peak_center = peak
+        for peak_start, peak_stop, peak_center in peak_definitions:
 
             genomic_start = interval.start + sectstart + peak_start
             genomic_stop = interval.start + sectstart + peak_stop
 
-            total_peak_reads[peak] = list(read_lengths(correct_strand(bam_fileobj.fetch(reference=str(interval.chrom), start=genomic_start, end=genomic_stop), strand)))
+            cur_pybedtools_interval = pybedtools.create_interval_from_list([interval.chrom,
+                                                                                genomic_start,
+                                                                                genomic_stop,
+                                                                                interval.name,
+                                                                                interval.score,
+                                                                                strand])
 
-            area_start = max(0, (peak_center + sectstart) - windowsize)
-            area_stop = min((peak_center + sectstart) + windowsize, len(wiggle))
-            total_peak_reads[tuple(list(peak) + ['slop'])] = list(read_lengths(correct_strand(bam_fileobj.fetch(reference=str(interval.chrom), start=interval.start + area_start, end=interval.start + area_stop), strand)))
-
-        for peak in peak_definitions:
-            peak_start, peak_stop, peak_center = peak
-
-            genomic_start = interval.start + sectstart + peak_start
-            genomic_stop = interval.start + sectstart + peak_stop
-
-            number_reads_in_peak = len(total_peak_reads[peak])
+            number_reads_in_peak = count_reads_in_interval_pysam(cur_pybedtools_interval, interval.start, read_locations)
 
             peak_length = genomic_stop - genomic_start + 1
 
             logging.info("""Peak %d (%d - %d) has %d
-                          reads""" % (peak_number, peak_start, (peak_stop + 1), number_reads_in_peak))
+                          reads""" % (peak_number, peak_start,
+                                     (peak_stop + 1), number_reads_in_peak))
 
             #highest point in start stop
             genomic_center = interval.start + sectstart + peak_center
@@ -1203,8 +1168,17 @@ def call_peaks(interval, gene_length, bam_file=None, max_gap=25,
 
 
             #super local logic
+            area_start = max(0, (peak_center + sectstart) - windowsize)
+            area_stop = min((peak_center + sectstart) + windowsize, len(wiggle))
 
-            number_reads_in_area = len(total_peak_reads[tuple(list(peak) + ['slop'])])
+            cur_pybedtools_interval = pybedtools.create_interval_from_list([interval.chrom,
+                                                                                interval.start + area_start,
+                                                                                interval.start + area_stop,
+                                                                                interval.name,
+                                                                                interval.score,
+                                                                                strand])
+
+            number_reads_in_area = count_reads_in_interval_pysam(cur_pybedtools_interval, interval.start, read_locations)
             area_length = area_stop - area_start + 1
 
             peak_dict['clusters'].append(Peak(chrom=interval.chrom,
