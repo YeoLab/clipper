@@ -20,7 +20,6 @@ from clipper import data_dir
 from clipper.src.call_peak import call_peaks, poissonP
 
 logging.captureWarnings(True)
-#logging.basicConfig(level=logging.INFO)
 
 
 def check_for_index(bamfile):
@@ -540,6 +539,8 @@ def main(options):
     if options.np == 'autodetect':
         options.np = multiprocessing.cpu_count()
 
+    pool = multiprocessing.Pool(int(options.np))
+        
     bamfile = options.bam
     
     if os.path.exists(bamfile):
@@ -549,6 +550,7 @@ def main(options):
     else:
         logging.error("Bam file: %s is not defined" % (bamfile))
         raise IOError
+    
     if options.gtfFile:
         gene_tool = build_transcript_data_gtf(pybedtools.BedTool(options.gtfFile), options.premRNA).saveas()
     else:
@@ -580,24 +582,22 @@ def main(options):
     results = []
     if options.debug:
         for job in tasks:
-            print job
             jobs.append(func_star(job))
         
         for job in jobs:
             results.append(job)   
     
-    else:
-        with multiprocessing.Pool(int(options.np)) as pool:
-            jobs = [pool.apply_async(call_peaks, job) for job in tasks]
-
-            for job, task in zip(jobs, tasks):
-                try:
-                    results.append(job.get(timeout=options.timeout))
-                except multiprocessing.TimeoutError as error:
-                    logging.error("gene %s timed out" % (task[0].attrs['gene_id']))
-                except Exception as error:
-                    logging.error("gene %s error for some other reason" % (task[0].attrs['gene_id']))
-                    print error
+    else:        
+        jobs = [pool.apply_async(call_peaks, job) for job in tasks]
+        
+        for job, task in zip(jobs, tasks):
+            try:
+                results.append(job.get(timeout=options.timeout))
+            except multiprocessing.TimeoutError as error:
+                print
+                logging.error("gene %s timed out" % (task[0].attrs['gene_id']))
+        
+    pool.close()
 
     logging.info("finished with calling peaks")
 
@@ -641,6 +641,7 @@ def call_main():
     parser = OptionParser(usage=usage, description=description)
 
     parser.add_option("--bam", "-b", dest="bam", help="A bam file to call peaks on", type="string", metavar="FILE.bam")
+
     parser.add_option("--species", "-s", dest="species", help="A species for your peak-finding, either hg19 or mm9")
     #parser.add_option("--gtfFile", dest="gtfFile", help="use a gtf file instead of the AS structure data")
     parser.add_option("--outfile", "-o", dest="outfile", default="fitted_clusters", help="a bed file output, default:%default")
@@ -670,15 +671,10 @@ def call_main():
     parser.add_option("--timeout", dest="timeout", default=None, type=int, help="adds timeout (in seconds) to genes that take too long (useful for debugging only, or if you don't care about higly expressed genes)")
 
 
-
     (options, args) = parser.parse_args()
-    options.premRNA = True
-    options.bonferroni_correct = True
-    options.algorithm = "spline"
-    options.method = "binomial"
-    options.gtfFile = None
+ 
     if options.plotit:
-        options.debug = True
+        options.debug=True
 
     options.premRNA = True
     options.gtfFile = None

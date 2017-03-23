@@ -1,6 +1,5 @@
 from setuptools import setup
 from setuptools import find_packages
-
 from distutils.extension import Extension
 from Cython.Distutils import build_ext
 peaks = Extension("clipper.src.peaks", sources = ['clipper/src/peaksmodule.cc'],
@@ -8,7 +7,9 @@ peaks = Extension("clipper.src.peaks", sources = ['clipper/src/peaksmodule.cc'],
 #                  extra_compile_args = ['-O0'] 
 )                 
 
-readsToWiggle = Extension("clipper.src.readsToWiggle", ['clipper/src/readsToWiggle.pyx'])
+readsToWiggle = Extension("clipper.src.readsToWiggle", ['clipper/src/readsToWiggle.pyx'], 
+                          #include_dirs=[numpy.get_include()]
+                          )
 
 long_description = "CLIPPER - clip peak enrichment"
 setup(
