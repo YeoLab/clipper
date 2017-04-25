@@ -216,7 +216,7 @@ def save_bedtools(cluster_regions, clusters, assigned_dir):
 
 
 def fix_strand(interval, warn=True):
-    #this only is comptabale with bedtools >2.25.0
+    #this only is comptabale with bedtools 2.25.0
     #lst = interval.fields
     #del lst[3]
     #interval = pybedtools.interval_constructor(lst)
@@ -227,6 +227,22 @@ def fix_strand(interval, warn=True):
     interval.strand = strands[0]
     return interval
 
+def fix_strand_v26(interval, warn=True):
+    #this only is comptabale with bedtools 2.26.0
+    interval = list(interval)
+    interval.pop(3)
+    interval = pybedtools.create_interval_from_list(interval)
+
+    strands = list(set(interval.strand.split(",")))
+    
+    if len(strands) > 1 and warn:
+        #There is something odd going on between my local box, pybedtools and bedtools.  Merge isn't acting exacly the same, this works on TSCC
+        print interval
+        print interval.strand
+        print strands
+        raise NameError("Both strands are present, something went wrong during the merge")
+    interval.strand = strands[0]
+    return interval
 
 def fix_shuffled_strand(shuffled_tool, regions_file):
     """
@@ -315,11 +331,11 @@ def assign_to_regions(tool, clusters=None, assigned_dir=".", species="hg19", nra
         #move_name_real = functools.partial(move_name, original_length=len(tool[0].fields))
         #tool = tool.intersect(genes, wo=True, s=True).each(move_name_real).saveas()
         #fix_strand_ok = functools.partial(fix_strand, warn=False)
-        tool = tool.sort().merge(s=True, c="4,5,6", o="collapse,collapse,collapse").each(fix_strand).saveas()
+        tool = tool.sort().merge(s=True, c="4,5,6", o="collapse,collapse,collapse").each(fix_strand_v26).saveas()
     #elif not tool[0][7].isdigit():
     #    tool = tool.sort().merge(s=True, c="4,5,6", o="collapse,collapse,collapse").each(fix_strand).each(fix_name).saveas()
     else: #Clipper, this is ideal we like this technique
-        tool = tool.sort().merge(s=True, c="4,5,6,7,8", o="collapse,collapse,collapse,min,min").each(fix_strand).saveas()
+        tool = tool.sort().merge(s=True, c="4,5,6,7,8", o="collapse,collapse,collapse,min,min").each(fix_strand_v26).saveas()
 
     remaining_clusters = adjust_offsets(tool, offsets)
 
