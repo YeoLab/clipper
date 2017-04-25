@@ -130,7 +130,7 @@ def get_full_length_cigar(read):
         value, times = t
 
         #value 3 is splice junction value 2 is deletion in read
-        if value == 3 or value == 2 or value == 1:
+        if value == 3 or value == 2 or value == 1 or value == 4:
             continue
         for x in xrange(times):
             yield value
