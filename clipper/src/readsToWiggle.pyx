@@ -76,7 +76,7 @@ def readsToWiggle_pysam(reads, int tx_start, int tx_end, keepstrand, usePos, bin
                         continue
                     if cigop == 0: #Exact matches only, doing this because it duplicates HTSeq behavior
                         explicit_locations[cur_pos - tx_start].add(read)
-
+sc
             continue
 
         read_len = len(read.positions)
@@ -101,12 +101,8 @@ def readsToWiggle_pysam(reads, int tx_start, int tx_end, keepstrand, usePos, bin
         
         increment_value = (1.0 / read_len) if fracional_input else 1.0
 
-        cigops = list(get_full_length_cigar(read))
-        if len(cigops) != len(read.positions):
-            print "read not handled correctly, email developer"
-            print read.qname
-
-        for cur_pos, next_pos, cigop in zip(read.positions, read.positions[1:], cigops):
+        positions = list(get_full_length_cigar(read))
+        for cur_pos, next_pos in zip(positions, positions[1:]):
             #if cur is not next to the next position than its a junction
             if cur_pos + 1 != next_pos:
                 junction = (cur_pos, next_pos)
@@ -115,22 +111,30 @@ def readsToWiggle_pysam(reads, int tx_start, int tx_end, keepstrand, usePos, bin
                 junctions[junction] += 1
                 
             wiggle[cur_pos - tx_start] += increment_value
-            if cigop == 0 and record_read: #Exact matches only, doing this because it duplicates HTSeq behavior
+            if record_read:
                 explicit_locations[cur_pos - tx_start].add(read)
 
         #needed to get last read counted
         wiggle[read.positions[-1] - tx_start] += increment_value
-        if cigops[-1] == 0 and record_read:
+        if record_read:
             explicit_locations[read.positions[-1] - tx_start].add(read)
 
     return wiggle, junctions, pos_counts, lengths, all_reads, explicit_locations
 
 def get_full_length_cigar(read):
+    positions = enumerate(read.positions)
     for t in read.cigartuples:
         value, times = t
 
         #value 3 is splice junction value 2 is deletion in read
-        if value == 3 or value == 2 or value == 1 or value == 4:
+        if value == 1 or value == 3 or value == 4:
             continue
+
+        if value == 2:  #In the case of a deletion yeild from the previous current position, this could be buggy in the case of deletions occuring after anything but a match
+            for x in xrange(times):
+                cur_position += 1
+                yield cur_position
+
         for x in xrange(times):
-            yield value
+            cur_position = positions.next()[1]
+            yield cur_position
