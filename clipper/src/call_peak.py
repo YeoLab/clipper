@@ -878,12 +878,36 @@ def poissonP(reads_in_gene, reads_in_peak, gene_length, peak_length):
         logging.error("Poisson cutoff failled %s " % (error))
         return 1
 
+#################################################################################################
+### REMOVED IN V4
+#################
+#def read_array(reads, start, stop):
+#    reads = (read for read in reads if (read.iv.start_d > start) & (read.iv.end_d < stop))
+#    set_of_reads = HTSeq.GenomicArrayOfSets("auto", stranded=True)
+#    for read in reads:
+#        if read.aligned:
+#                for cigop in read.cigar:
+#                    if cigop.type != "M":
+#                        continue
+#                    set_of_reads[cigop.ref_iv] += read
+#    return set_of_reads
+#def get_reads_in_interval(interval, array_of_sets):
+#    return set().union(*[baz for bar, baz in array_of_sets[interval].steps()])
+#def count_reads_in_interval(interval, array_of_sets):
+#    return len(get_reads_in_interval(interval, array_of_sets))
+#def get_aligned_read_length(read):
+#    return sum(cigar.size for cigar in read.cigar if cigar.type == "M")
+#def read_lengths_from_htseq(reads):
+#    return [get_aligned_read_length(read) for read in reads]
+#################################################################################################
+#
+#
+##################################################################################################
+### ADDED IN V4
 def get_reads_in_interval_pysam(interval, tx_start, full_read_array):
     start = max(0, interval.start - tx_start)
     stop = max(0, interval.stop - tx_start)
-
     return set().union(*[read for read in full_read_array[start:stop]])
-
 
 def count_reads_in_interval_pysam(interval, tx_start, full_read_array):
     return len(get_reads_in_interval_pysam(interval, tx_start, full_read_array))
@@ -895,6 +919,7 @@ def get_aligned_read_length_pysam(read):
 
 def read_lengths_from_pysam(reads):
     return [get_aligned_read_length_pysam(read) for read in reads]
+##################################################################################################
 
 
 def bed_to_genomic_interval(bed):
@@ -907,7 +932,11 @@ def call_peaks(interval, gene_length, bam_file=None, max_gap=25,
                min_reads=3, poisson_cutoff=0.05,
                plotit=False, w_cutoff=10, windowsize=1000, 
                SloP=False, max_width=None, min_width=None,
-               algorithm="spline", reverse_strand=False, exons=None):
+               algorithm="spline", reverse_strand=False, exons=None
+               ###################################
+               ### ADDED IN V4
+               ,gene_no=0 ):                 # ADDED logging per gene feature (github call_peaks which does not log each gene)
+               ###################################
     
     """
 
@@ -931,6 +960,14 @@ def call_peaks(interval, gene_length, bam_file=None, max_gap=25,
     max_gap   - int max gap of classic peak calling algorithm peak
 
     """
+    ###########################################################################
+    # print("starting call_peaks on gene_no:", gene_no, "interval:", interval)
+    genecallpeaksloggingperiode = 100
+    should_log_gene_call_peaks_this_time = (gene_no % genecallpeaksloggingperiode == 0)
+    ###########################################################################
+    if should_log_gene_call_peaks_this_time:
+        logging.info(" starting call_peaks on gene_no {}".format(gene_no))
+    ###########################################################################
 
     if plotit:
         plt.rcParams['interactive'] = True
@@ -948,9 +985,29 @@ def call_peaks(interval, gene_length, bam_file=None, max_gap=25,
             strand = "-"
         elif strand == "-":
             strand = "+"
+#################################################################################################
+### ADDED IN V4
+#################
     (wiggle, jxns, pos_counts,
      lengths, allreads, read_locations) = readsToWiggle_pysam(subset_reads, interval.start,
                                               interval.stop, strand, "start", False)
+#################################################################################################
+
+#################################################################################################
+### REMOVED IN V4
+#################
+#    (wiggle, jxns, pos_counts, lengths, allreads) = readsToWiggle_pysam(
+#         subset_reads, interval.start, interval.stop, strand, "start", False)
+#################################################################################################
+
+#################################################################################################
+### REMOVED IN V4
+#################
+#    #This is the worst of hacks, need to factor out pysam eventually
+#    bam_fileobj = Robust_BAM_Reader(bam_file)
+#    subset_reads = list(bam_fileobj.fetch(reference=str(interval.chrom), start=interval.start, end=interval.stop))
+#    array_of_reads = read_array(subset_reads, interval.start, interval.stop)
+#################################################################################################
 
     nreads_in_gene = sum(pos_counts)
     gene_length = int(gene_length)
@@ -1208,5 +1265,8 @@ def call_peaks(interval, gene_length, bam_file=None, max_gap=25,
         import sys
         plt.show()
         v = sys.stdin.read(1)
+    ###################################################
+    # print("returning gene_no:", gene_no, "peak_dict:", peak_dict)
+    ####################################################
 
     return peak_dict
