@@ -1,22 +1,24 @@
+#!/bin/env python
 
+from __future__ import print_function
 from collections import defaultdict
 import gzip
 import logging
-import math
+#import math                # unused
 import multiprocessing 
 import numpy as np
 from optparse import OptionParser, SUPPRESS_HELP
 import os
 import pickle
-import random
+#import random              # unused
 import sys
 from subprocess import call
-import time
+#import time                # unused
 import pandas as pd
 import pybedtools
 
 import clipper
-from clipper import data_dir
+#from clipper import data_dir             # unused
 from clipper.src.call_peak import call_peaks, poissonP
 
 logging.captureWarnings(True)
@@ -141,6 +143,9 @@ def add_species(species, chrs, bed, mrna, premrna):
     par["premRNA"] = premrna
     return par
  
+##############################
+# only used along with --debug, was used by github code, but no longer necessary
+##############################
 def func_star(varables):
     """ covert f([1,2]) to f(1,2) """
     return call_peaks(*varables)
@@ -173,7 +178,7 @@ def build_transcript_data_gtf_as_structure(species, pre_mrna):
     pre_mrna - if true uses pre mRNA length instead of mRNA length
     
     """
-    results = []
+    bedtoolintervals = []
     x = clipper.data_file(species + ".AS.STRUCTURE.COMPILED.gff")
     gtf_file = pybedtools.BedTool(x)
     for gene in gtf_file:
@@ -183,7 +188,7 @@ def build_transcript_data_gtf_as_structure(species, pre_mrna):
             attrs += "transcript_ids=%s;" % (gene.attrs['transcript_ids']) 
         attrs += "effective_length=%s" % (str(effective_length)) 
         
-        results.append(pybedtools.create_interval_from_list(map(str, [gene['chrom'], 
+        bedtoolintervals.append(pybedtools.create_interval_from_list(map(str, [gene['chrom'], 
                                                                       "AS_STRUCTURE", 
                                                                       "mRNA", 
                                                                       str(gene.start + 1), 
@@ -195,7 +200,7 @@ def build_transcript_data_gtf_as_structure(species, pre_mrna):
                                                                       ])))
         
             
-    return pybedtools.BedTool(results)
+    return pybedtools.BedTool(bedtoolintervals)
 
 def build_transcript_data_gtf(gtf_file, pre_mrna):
     
@@ -240,10 +245,10 @@ def build_transcript_data_gtf(gtf_file, pre_mrna):
             longest_genes[cur_gene] = transcript
     
     #convert back into a gtf file 
-    results = []
+    bedtoolintervals = []
     for gene in longest_genes.values():
         effective_length = gene['stop'] - gene['start'] if pre_mrna else gene['mRNA_length']
-        results.append(pybedtools.create_interval_from_list([gene['chrom'], 
+        bedtoolintervals.append(pybedtools.create_interval_from_list([gene['chrom'], 
                                         "AS_STRUCTURE", 
                                         "mRNA", 
                                         str(gene['start']), 
@@ -252,37 +257,35 @@ def build_transcript_data_gtf(gtf_file, pre_mrna):
                                         gene['strand'], 
                                         ".",
                                         "gene_id=" + gene['gene_id'] + "; transcript_id=" + gene['transcript_id'] + "; effective_length=" + str(effective_length)]))
-    return pybedtools.BedTool(results)
+    return pybedtools.BedTool(bedtoolintervals)
 
-def build_transcript_data_bed(bed_file, pre_mrna):
-    
-    """
-    
-    Generates gene lengths and gene names from BED12 file
-    
-    bed_file - pybedtools object defining genes
-    pre_mrna - flag True indicates use pre-mRNA lengths instead of mRNA lengths 
-    
-    TODO just turn this totally into a pybedtools object instead of converting 
-    it to a dictionary
-    """
-    raise NotImplementedError("use custom gff file")
-    gene_info = {}
-    gene_lengths = {}
-    
-    for line in bed_file:
-        
-        #builds gene info
-        gene_info[line.name] = [line.chrom, line.name, line.start, line.stop, line.strand]
-        #builds gene lengths
-        
-        if pre_mrna:
-            gene_lengths[line.name] = line.stop - line.start
-        else:
-            #Just gets the lengths of the exons (although no mention of cds or not... not important)
-            gene_lengths[line.name] = sum([int(x) for x in line[10][:-1].strip().split(",")])
-    
-    return gene_info, gene_lengths
+########################################################################################################
+# TODO unused!
+##############
+# def build_transcript_data_bed(bed_file, pre_mrna):
+#     """
+#     Generates gene lengths and gene names from BED12 file
+#     bed_file - pybedtools object defining genes
+#     pre_mrna - flag True indicates use pre-mRNA lengths instead of mRNA lengths
+#     """
+#     # TODO just turn this totally into a pybedtools object instead of converting it to a dictionary
+#
+#     raise NotImplementedError("use custom gff file")
+#
+#     #TODO this code is unreachable!
+#     gene_info = {}
+#     gene_lengths = {}
+#     for line in bed_file:
+#         #builds gene info
+#         gene_info[line.name] = [line.chrom, line.name, line.start, line.stop, line.strand]
+#         #builds gene lengths
+#         if pre_mrna:
+#             gene_lengths[line.name] = line.stop - line.start
+#         else:
+#             #Just gets the lengths of the exons (although no mention of cds or not... not important)
+#             gene_lengths[line.name] = sum([int(x) for x in line[10][:-1].strip().split(",")])
+#     return gene_info, gene_lengths
+#######################################################################################################
 
 def build_transcript_data(species, gene_bed, gene_mrna, gene_pre_mrna, pre_mrna):
     
@@ -359,7 +362,7 @@ def build_transcript_data(species, gene_bed, gene_mrna, gene_pre_mrna, pre_mrna)
     return pybedtools.BedTool(gtf_list)
 
 
-def count_transcriptome_reads(results):
+def count_transcriptome_reads(peaks_dicts):
     
     """ 
     
@@ -370,13 +373,17 @@ def count_transcriptome_reads(results):
     returns int, the number of reads in the transcriptome
     
     """
+    ################################################
+    logging.info(" number of reads per gene result")
+    ################################################
     #count total number of reads in transcriptiome
     transcriptome_reads = 0
 
-    for gene_result in results:
-        if gene_result is not None:
-            logging.info("nreads: %d" % (gene_result['nreads']))
-            transcriptome_reads += gene_result['nreads']
+    for peaks_dict_no, peaks_dict in enumerate(peaks_dicts):
+        if peaks_dict is not None:
+            if int(peaks_dict['nreads']) > 10 :
+                logging.info("     gene_result_no: %s , number_of_reads: %d" % (peaks_dict_no, peaks_dict['nreads']))
+            transcriptome_reads += peaks_dict['nreads']
 
     return transcriptome_reads
 
@@ -412,8 +419,8 @@ def superlocal_poissonP(cluster):
                     cluster['size'])
 
 
-def write_peak(cluster):
-    return "\t".join([str(x) for x in [
+def write_peak_bedtool_string(cluster):
+    cluster_info_list = [
         cluster.chrom,
         cluster.genomic_start,
         cluster.genomic_stop,
@@ -422,20 +429,18 @@ def write_peak(cluster):
         cluster.strand,
         cluster.thick_start,
         cluster.thick_stop,
-        ]])
+        ]
+    cluster_bedtool_string = "\t".join([str(info) for info in cluster_info_list])
+    return cluster_bedtool_string
 
 def dictify(some_named_tuple):
     return dict((s, getattr(some_named_tuple, s)) for s in some_named_tuple._fields)
 
 
-def make_peak_df(results):
-    peaks = []
-    for gene_result in results:
-        # alert user that there aren't any clusters for specific gene
-        for cluster in gene_result['clusters']:
-            peaks.append(dictify(cluster))
-    peaks = pd.DataFrame(peaks)
-    return peaks
+def make_peak_dataframe(peaks_dicts):
+    peaks_list = [dictify(cluster) for peaks_dict in peaks_dicts for cluster in peaks_dict['clusters' ]]
+    peaks_dataframe = pd.DataFrame(peaks_list)
+    return peaks_dataframe
 
 
 def bh_correct(df):
@@ -449,13 +454,15 @@ def bh_correct(df):
     df['padj'] = df.sort_values("final_p_value", ascending=False).bh_corrected.cummin()
     return df.sort_index()
 
-def filter_results(results, poisson_cutoff, transcriptome_size,
+def filter_peaks_dicts(peaks_dicts, poisson_cutoff, transcriptome_size,
                    transcriptome_reads, use_global_cutoff, 
-                   bonferroni_correct, algorithm="spline", superlocal=False, min_width=50):
+                   bonferroni_correct, algorithm="spline", superlocal=False, min_width=50,
+                   bypassfiltering=False):
+    # TODO bonferroni_correct is now always True!
     
     """
     
-    Takes a list of results, filters them based off of various argunments and returns only the filtered
+    Takes a list of peaks_dict's, filters them based off of various argunments and returns only the filtered
     reads
     
     options - the options object from the initial parsing
@@ -465,36 +472,53 @@ def filter_results(results, poisson_cutoff, transcriptome_size,
     
     """
 
-    peaks = make_peak_df(results)
-
-    total_clusters = len(peaks)
+    peaks_dataframe = make_peak_dataframe(peaks_dicts)
+    total_clusters = len(peaks_dataframe)
+    #########################################################################
+    logging.info(" total clusters BEFORE filtering : %s" % (total_clusters))
+    #########################################################################
     if total_clusters == 0:
-        print "no peaks detected in dataset"
+        logging.info(" no peaks detected in dataset")
         return []
 
+    # TODO always False !
     if algorithm == "classic":
-        peaks['peak_length'] = peaks['peak_length'].apply(lambda x: max(x, min_width))
-    peaks['transcriptome_size'] = transcriptome_size
-    peaks['transcriptome_reads'] = transcriptome_reads
-    peaks['transcriptome_poisson_p'] = peaks.apply(transcriptome_poissonP, axis=1) if use_global_cutoff else np.nan
-    peaks['transcript_poisson_p'] = peaks.apply(transcript_poissonP, axis=1)
-    peaks['superlocal_poisson_p'] = peaks.apply(superlocal_poissonP, axis=1) if superlocal else np.nan
+        peaks_dataframe['peak_length'] = peaks_dataframe['peak_length'].apply(lambda x: max(x, min_width))
+    peaks_dataframe['transcriptome_size'] = transcriptome_size
+    peaks_dataframe['transcriptome_reads'] = transcriptome_reads
+    peaks_dataframe['transcriptome_poisson_p'] = peaks_dataframe.apply(transcriptome_poissonP, axis=1) if use_global_cutoff else np.nan
+    peaks_dataframe['transcript_poisson_p'] = peaks_dataframe.apply(transcript_poissonP, axis=1)
+    peaks_dataframe['superlocal_poisson_p'] = peaks_dataframe.apply(superlocal_poissonP, axis=1) if superlocal else np.nan
 
     if algorithm == "classic":
-        peaks['final_p_value'] = peaks[['transcript_poisson_p', 'superlocal_poisson_p']].max(axis=1)
+    # TODO this never happens!
+        peaks_dataframe['final_p_value'] = peaks_dataframe[['transcript_poisson_p', 'superlocal_poisson_p']].max(axis=1)
     else:
-        peaks['final_p_value'] = peaks[['transcript_poisson_p', 'superlocal_poisson_p']].min(axis=1)
+    # TODO this is always the case!
+        peaks_dataframe['final_p_value'] = peaks_dataframe[['transcript_poisson_p', 'superlocal_poisson_p']].min(axis=1)
 
     if bonferroni_correct:
-        peaks = bh_correct(peaks)
-        #peaks['final_p_value'] = (peaks['final_p_value'] * total_clusters)
+    # TODO always True!
+        peaks_dataframe = bh_correct(peaks_dataframe)
+        #peaks_dataframe['final_p_value'] = (peaks_dataframe['final_p_value'] * total_clusters)    # TODO still needed?
 
+    if bypassfiltering :
+        filtered_peaks_dataframe = peaks_dataframe
+    else:
     #This is a bug I should fix, padj isn't getting printed, the uncorreded p-value is
-    final_result = peaks[peaks['padj'] < poisson_cutoff]
+        filtered_peaks_dataframe = peaks_dataframe[peaks_dataframe['padj'] < poisson_cutoff]
 
-    return final_result.apply(write_peak, axis=1).values
+    #########################################################################
+    logging.info(" total clusters AFTER filtering : %s" % len(filtered_peaks_dataframe))
+    #########################################################################
+    filtered_peak_bedtool_strings = filtered_peaks_dataframe.apply(write_peak_bedtool_string, axis=1).values
+    filtered_peak_bedtool_tsv = "\n".join(filtered_peak_bedtool_strings) + "\n"
+    return filtered_peak_bedtool_tsv
 
 
+########################################################################
+# TODO unused!
+##############
 def mapper(options, line):
     bedtool = pybedtools.BedTool(line, from_string=True)
 
@@ -513,7 +537,6 @@ def mapper(options, line):
                       int(options.minreads), options.poisson_cutoff, 
                       options.plotit, 10, 1000, options.SloP, False)
 
-
 def hadoop_mapper(options):
     
     """
@@ -525,6 +548,7 @@ def hadoop_mapper(options):
    
     for line in sys.stdin:
         mapper(options, line)
+#########################################################################
 
 
 def get_exon_bed(species):
@@ -533,7 +557,7 @@ def get_exon_bed(species):
     return os.path.join(clipper.data_dir(), "regions", "%s_%s.bed" % (short_species, "exons"))
 
 def main(options):
-    
+    logging.info("options : {}".format(options))
     check_for_index(options.bam)
     
     if options.np == 'autodetect':
@@ -552,65 +576,73 @@ def main(options):
         raise IOError
     
     if options.gtfFile:
-        gene_tool = build_transcript_data_gtf(pybedtools.BedTool(options.gtfFile), options.premRNA).saveas()
+        # TODO always False - no longer an option
+        bedtool = build_transcript_data_gtf(pybedtools.BedTool(options.gtfFile), options.premRNA)
     else:
-        gene_tool = build_transcript_data_gtf_as_structure(options.species, 
-                                                           options.premRNA).saveas()
+        bedtool = build_transcript_data_gtf_as_structure(options.species, options.premRNA)
+    bedtool.saveas()
 
-    #gets all the gene_tool to call peaks on
+    #gets a bedtool of all genes to call peaks on
     if options.gene:
-        gene_tool = gene_tool.filter(lambda x: x.attrs['gene_id'] in options.gene)
+        bedtool = bedtool.filter(lambda x: x.attrs['gene_id'] in options.gene)
 
-    #truncates for max gene_tool
+    # options.maxgenes   # truncates for max bedtool
     if options.maxgenes:
-        print len(gene_tool)
-        print options.maxgenes
-        print type(options.maxgenes)
-        gene_tool = gene_tool.random_subset(int(options.maxgenes))
+        logging.info(" number of genes before maxing : {}".format(len(bedtool)))
+        logging.info(" max genes from user input: {}".format(options.maxgenes))
+        if options.maxgenes < len(bedtool):
+            bedtool = bedtool.random_subset(int(options.maxgenes))
+        else:
+            logging.info(" number of genes <= max genes from user , not truncating genes")
+            pass
 
     exons = get_exon_bed(options.species)
 
-    gene_tool = gene_tool.saveas()
+    bedtool = bedtool.saveas()
 
-    tasks = [(gene, gene.attrs['effective_length'], bamfile, options.max_gap, options.FDR_alpha,
+    tasks = [(bedtool_interval, bedtool_interval.attrs['effective_length'], bamfile, options.max_gap, options.FDR_alpha,
               options.threshold, options.binom, options.method, options.minreads, options.poisson_cutoff,
               options.plotit, 10, 1000, options.SloP, options.max_width,
               options.min_width, options.algorithm,
-              options.reverse_strand, exons) for gene in gene_tool]
+              # TODO options.algorithm now always "spline" !
+              options.reverse_strand, exons
+              ###################################
+              ,gene_no                  # ADDED (github call_peaks does not log each gene)
+              ###################################
+              )
+             for gene_no, bedtool_interval in enumerate(bedtool)]
 
-    jobs = []
-    results = []
+    print("len(tasks):", len(tasks))
+
+    #jobs = []
+    peaks_dicts = []
+    # generate list of all peaks_dict's, (one peaks_dict per gene)
+    ##############################################################
     if options.debug:
-        for job in tasks:
-            jobs.append(func_star(job))
-        
-        for job in jobs:
-            results.append(job)   
+        peaks_dicts = [call_peaks(*task) for task in tasks]
     
     else:        
-        jobs = [pool.apply_async(call_peaks, job) for job in tasks]
+        jobs = [pool.apply_async(call_peaks, task) for task in tasks]
         
         for job, task in zip(jobs, tasks):
             try:
-                results.append(job.get(timeout=options.timeout))
+                peaks_dicts.append(job.get(timeout=options.timeout))
             except multiprocessing.TimeoutError as error:
                 print
-                logging.error("gene %s timed out" % (task[0].attrs['gene_id']))
+                logging.error("gene %s timed out after %s minutes on bedinterval: %s" % (task[0].attrs['gene_id'], options.timeout / 60,  task[0] ))
         
     pool.close()
+    logging.info("finished call_peaks on all genes")
+    # logging.info(" unfiltered peaks_dicts: {}".format(peaks_dicts))
 
-    logging.info("finished with calling peaks")
-
-    if options.save_pickle is True:
-        with open(options.outfile + ".all_peaks.pickle", 'w') as pickle_file:  
-            pickle.dump(results, file=pickle_file)                
+    logging.info(" starting adding up transcriptome-wise reads")
+    transcriptome_reads = count_transcriptome_reads(peaks_dicts)
+    transcriptome_size = count_transcriptome_length(peaks_dicts)
     
-    transcriptome_reads = count_transcriptome_reads(results)
-    transcriptome_size = count_transcriptome_length(results)
+    logging.info(" transcriptome size in bases: {}".format(transcriptome_size))
+    logging.info(" transcriptome total number of reads: {}".format(transcriptome_reads))
 
-    logging.info("""Transcriptome size is %d, transcriptome reads are %d""" % (transcriptome_size, transcriptome_reads))
-
-    filtered_peaks = filter_results(results, 
+    filtered_peak_bedtool_tsv = filter_peaks_dicts(peaks_dicts,
                               options.poisson_cutoff, 
                               transcriptome_size,  
                               transcriptome_reads, 
@@ -618,18 +650,47 @@ def main(options):
                               options.bonferroni_correct,
                               options.algorithm,
                               options.SloP,
-                              options.min_width)
-            
-    outbed = options.outfile
+                              options.min_width,
+                              bypassfiltering=False)
 
-    pybedtools.BedTool("\n".join(filtered_peaks), from_string=True).sort(stream=True).saveas(outbed)
+    # logging.info(" 1: {}".format(filtered_peak_bedtool_tsv))
+    ##########################################################################################
+    # writing files
+    ################
+    # options.outfileU, options.outfileF, options.save_pickle
+    #========================================================
+    #outbedU = options.outfileU
+    outbedF = options.outfileF
+    wether_to_save_pickle = options.save_pickle
+    #
+    # writing tsv files
+    # with open(outbedU + ".tsv", 'w') as tsvfile:
+    #     tsvfile.write(unfiltered_peak_bedtool_tsv)
+    with open(outbedF + ".tsv", 'w') as tsvfile:
+        tsvfile.write(filtered_peak_bedtool_tsv)
+    #
+    # writing bed files
+    # pybedtools.BedTool(unfiltered_peak_bedtool_tsv, from_string=True).sort(stream=True).saveas(outbedU)
+    # pybedtools.BedTool(unfiltered_peak_bedtool_tsv, from_string=True).sort().saveas(outbedU)
+    # logging.info(" wrote unfiltered peaks to %s" % (outbedU))
+    pybedtools.BedTool(filtered_peak_bedtool_tsv, from_string=True).sort(stream=True).saveas(outbedF)
+    #pybedtools.BedTool(filtered_peak_bedtool_tsv, from_string=True).saveas(outbedF)
+    logging.info(" wrote filtered peaks to %s" % (outbedF))
+    #
+    # writing pickle files
+    if wether_to_save_pickle is True:
+    #     with open(outbedU + ".pickle", 'w') as picklefile:
+    #         pickle.dump(peaks_dicts, file=picklefile)
+        with open(outbedF + ".pickle", 'w') as picklefile:                     # TODO Can't pickle save after filtering ? as we have a tsv now, not a peaks_dicts list !?
+            pickle.dump(peaks_dicts, file=picklefile)
+    ##########################################################################################
 
-    logging.info("wrote peaks to %s" % (options.outfile))
-    
 def call_main():
     
-    usage = """\npython peakfinder.py -b <bamfile> -s <hg18/hg19/mm9>\n OR 
-    \npython peakfinder.py -b <bamfile> --customBED <BEDfile> --customMRNA 
+    usage = """
+    THIS IS THE FASTERPEAKS VERSION
+    python peakfinder.py -b <bamfile> -s <hg18/hg19/mm9>  OR 
+    python peakfinder.py -b <bamfile> --customBED <BEDfile> --customMRNA 
     <mRNA lengths> --customPREMRNA <premRNA lengths>"""
     description = """CLIPper. Michael Lovci, Gabriel Pratt 2012. 
                      CLIP peakfinder that uses fitted smoothing splines to 
@@ -644,28 +705,32 @@ def call_main():
 
     parser.add_option("--species", "-s", dest="species", help="A species for your peak-finding, either hg19 or mm9")
     #parser.add_option("--gtfFile", dest="gtfFile", help="use a gtf file instead of the AS structure data")
-    parser.add_option("--outfile", "-o", dest="outfile", default="fitted_clusters", help="a bed file output, default:%default")
+    parser.add_option("--outfile", "-o", dest="outfileF", default="fitted_clusters", help="a bed file output, default:%default")
+    # parser.add_option("--outfileU", "-u", dest="outfileU", default="fitted_clusters", help="a bed file output, default:%default")
     parser.add_option("--gene", "-g", dest="gene", action="append", help="A specific gene you'd like try", metavar="GENENAME")
     parser.add_option("--minreads", dest="minreads", help="minimum reads required for a section to start the fitting process.  Default:%default", default=3, type="int", metavar="NREADS")
     #parser.add_option("--premRNA", dest="premRNA", action="store_true", help="use premRNA length cutoff, default:%default", default=False)
     parser.add_option("--poisson-cutoff", dest="poisson_cutoff", type="float", help="p-value cutoff for poisson test, Default:%default", default=0.05, metavar="P")
     parser.add_option("--disable_global_cutoff", dest="use_global_cutoff", action="store_false", help="disables global transcriptome level cutoff to CLIP-seq peaks, Default:On", default=True, metavar="P")
     parser.add_option("--FDR", dest="FDR_alpha", type="float", default=0.05, help="FDR cutoff for significant height estimation, default=%default")
-    #parser.add_option("--threshold-method", dest="method", default="binomial", help="Method used for determining height threshold, Can use default=random or binomial")
+    # TODO uncommented for cwl sake, but does not do anything
+    parser.add_option("--threshold-method", dest="method", default="binomial", help="Method used for determining height threshold, Can use default=random or binomial")
     parser.add_option("--binomial", dest="binom", type="float", default=0.05, help ="Alpha significance threshold for using Binomial distribution for determining height threshold, default=%default")
     parser.add_option("--threshold", dest="threshold", type="int", default=None, help="Skip FDR calculation and set a threshold yourself")
     parser.add_option("--maxgenes", dest="maxgenes", default=None, type="int", help="stop computation after this many genes, for testing", metavar="NGENES")
     parser.add_option("--processors", dest="np", default="autodetect", help="Number of processors to use. Default: All processors on machine", type="str", metavar="NP")
-    #parser.add_option("--superlocal", action="store_true", dest="SloP", default=False, help="Use super-local p-values, counting reads in a 1KB window around peaks")
+    # TODO uncommented for cwl sake, but does not do anything
+    parser.add_option("--superlocal", action="store_true", dest="SloP", default=False, help="Use super-local p-values, counting reads in a 1KB window around peaks")
     parser.add_option("--plot", "-p", dest="plotit", action="store_true", help="make figures of the fits", default=False)
-    parser.add_option("--verbose", "-v", dest="verbose", action="store_true", default=False)
-    parser.add_option("--quiet", "-q", dest="quiet", action="store_true", default=False, help="suppress notifications")
+    parser.add_option("--verbose", "-v", dest="verbose", action="store_true", default=False)                                            # TODO unused ?
+    parser.add_option("--quiet", "-q", dest="quiet", action="store_true", default=False, help="suppress notifications")                 # TODO unused ?
     parser.add_option("--save-pickle", dest="save_pickle", default=False, action="store_true", help="Save a pickle file containing the analysis")
     parser.add_option("--debug", dest="debug", default=False, action="store_true", help="disables multipcoressing in order to get proper error tracebacks")
     #parser.add_option("--max_width", dest="max_width", type="int", default=75, help="Defines max width for classic algorithm, default: %default")
     #parser.add_option("--min_width", dest="min_width", type="int", default=50, help="Defines min width for classic algorithm, default: %default")
     parser.add_option("--max_gap", dest="max_gap",type="int", default=15, help="defines maximum gap between reads before calling a region a new section, default: %default")
-    #parser.add_option("--bonferroni", dest="bonferroni_correct",action="store_true", default=False, help="Perform Bonferroni on data before filtering")
+    # TODO uncommented for cwl sake, but does not do anything
+    parser.add_option("--bonferroni", dest="bonferroni_correct",action="store_true", default=False, help="Perform Bonferroni on data before filtering")
     #parser.add_option("--algorithm", dest="algorithm",default="spline", help="Defines algorithm to run, currently spline, classic, gaussian")
     #parser.add_option("--reverse_strand", dest="reverse_strand",default=False, action="store_true", help="adds option to reverse strand")
     parser.add_option("--timeout", dest="timeout", default=None, type=int, help="adds timeout (in seconds) to genes that take too long (useful for debugging only, or if you don't care about higly expressed genes)")
@@ -673,13 +738,21 @@ def call_main():
 
     (options, args) = parser.parse_args()
  
+    ##########################################################################
+    logfile = options.outfileF + '.log'
+    logging.basicConfig(filename=logfile ,level=logging.DEBUG)
+    logging.getLogger().addHandler(logging.StreamHandler(sys.stdout))
+    ##########################################################################
     if options.plotit:
         options.debug=True
 
     options.premRNA = True
     options.gtfFile = None
+    # overrides uncommented parser option --threshold-method
     options.method = "binomial"
+    # overrides uncommented parser option --superlocal
     options.SloP = True
+    # overrides uncommented parser option --bonferroni
     options.bonferroni_correct = True
     options.algorithm = "spline"
     options.reverse_strand = False
@@ -690,9 +763,16 @@ def call_main():
     if not (options.bam and ((options.species) or (options.gtfFile))): 
         parser.print_help()
         exit()
+    # log current directory content
+    # for file in os.listdir('.'):          
+    #     print(file)
         
-    logging.info("Starting peak calling")
+    logging.info("starting peakfinder on all genes")
     main(options)
+    logging.info(" finished peakfinder on all genes")
+    # log current directory content
+    # for file in os.listdir('.'):           
+    #     print(file)
 
 
 if __name__ == "__main__":
