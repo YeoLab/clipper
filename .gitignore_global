@@ -2,6 +2,7 @@
 ##################
 *.pyc
 *.so
+*.c
 
 # Packages #
 ############
@@ -39,3 +40,6 @@ setuptools_git-1.0-py2.7.egg
 *mm9.fa
 *mm9.fa.fai
 *mm9_phastcons.bw
+*.BED
+*.fa
+*compseq
