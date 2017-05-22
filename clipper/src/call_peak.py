@@ -881,7 +881,6 @@ def poissonP(reads_in_gene, reads_in_peak, gene_length, peak_length):
 def get_reads_in_interval_pysam(interval, tx_start, full_read_array):
     start = max(0, interval.start - tx_start)
     stop = max(0, interval.stop - tx_start)
-
     return set().union(*[read for read in full_read_array[start:stop]])
 
 
@@ -931,6 +930,14 @@ def call_peaks(interval, gene_length, bam_file=None, max_gap=25,
     max_gap   - int max gap of classic peak calling algorithm peak
 
     """
+    ###########################################################################
+    # print("starting call_peaks on gene_no:", gene_no, "interval:", interval)
+    #genecallpeaksloggingperiode = 100
+    #should_log_gene_call_peaks_this_time = (gene_no % genecallpeaksloggingperiode == 0)
+    ###########################################################################
+    #if should_log_gene_call_peaks_this_time:
+    #    logging.info(" starting call_peaks on gene_no {}".format(gene_no))
+    ###########################################################################
 
     if plotit:
         plt.rcParams['interactive'] = True
@@ -1208,5 +1215,8 @@ def call_peaks(interval, gene_length, bam_file=None, max_gap=25,
         import sys
         plt.show()
         v = sys.stdin.read(1)
+    ###################################################
+    # print("returning gene_no:", gene_no, "peak_dict:", peak_dict)
+    ####################################################
 
     return peak_dict
