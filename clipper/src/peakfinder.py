@@ -639,7 +639,6 @@ def main(options):
     pool.close()
     #################################################################
     logging.info("finished call_peaks on all genes")
-    # logging.info(" unfiltered peaks_dicts: {}".format(peaks_dicts))
     #################################################################
 
     ############################################################
@@ -671,30 +670,19 @@ def main(options):
     # writing files
     ###############
 
-    # options.outfileU, options.outfileF, options.save_pickle
-    #========================================================
-    #outbedU = options.outfileU
+    # options.outfileF, options.save_pickle
+    #======================================
     outbedF = options.outfileF
     wether_to_save_pickle = options.save_pickle
     #
     # writing tsv files
-    #===================
-    # with open(outbedU + ".tsv", 'w') as tsvfile:
-    #     tsvfile.write(unfiltered_peak_bedtool_tsv)
+    #==================
     with open(outbedF + ".tsv", 'w') as tsvfile:
         tsvfile.write(filtered_peak_bedtool_tsv)
     #
     # writing bed files
     #==================
-    # pybedtools.BedTool(unfiltered_peak_bedtool_tsv, from_string=True).sort(stream=True).saveas(outbedU)
-    # pybedtools.BedTool(unfiltered_peak_bedtool_tsv, from_string=True).sort().saveas(outbedU)
-    ###########################################################
-    # logging.info(" wrote unfiltered peaks to %s" % (outbedU))
-    ###########################################################
-
     pybedtools.BedTool(filtered_peak_bedtool_tsv, from_string=True).sort(stream=True).saveas(outbedF)
-    #pybedtools.BedTool(filtered_peak_bedtool_tsv, from_string=True).saveas(outbedF)
-
     ########################################################
     #logging.info(" wrote filtered peaks to %s" % (outbedF))
     ########################################################
@@ -702,9 +690,6 @@ def main(options):
     # writing pickle files
     #=====================
     if wether_to_save_pickle is True:
-    #     with open(outbedU + ".pickle", 'w') as picklefile:
-    #         pickle.dump(peaks_dicts, file=picklefile)
-
         with open(outbedF + ".pickle", 'w') as picklefile:                     # TODO Can't pickle save after filtering ? as we have a tsv now, not a peaks_dicts list !?
             pickle.dump(peaks_dicts, file=picklefile)
 
@@ -731,7 +716,6 @@ def call_main():
     parser.add_option("--species", "-s", dest="species", help="A species for your peak-finding, either hg19 or mm9")
     #parser.add_option("--gtfFile", dest="gtfFile", help="use a gtf file instead of the AS structure data")
     parser.add_option("--outfile", "-o", dest="outfileF", default="fitted_clusters", help="a bed file output, default:%default")
-    # parser.add_option("--outfileU", "-u", dest="outfileU", default="fitted_clusters", help="a bed file output, default:%default")
     parser.add_option("--gene", "-g", dest="gene", action="append", help="A specific gene you'd like try", metavar="GENENAME")
     parser.add_option("--minreads", dest="minreads", help="minimum reads required for a section to start the fitting process.  Default:%default", default=3, type="int", metavar="NREADS")
     #parser.add_option("--premRNA", dest="premRNA", action="store_true", help="use premRNA length cutoff, default:%default", default=False)
