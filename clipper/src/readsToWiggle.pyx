@@ -76,7 +76,7 @@ def readsToWiggle_pysam(reads, int tx_start, int tx_end, keepstrand, usePos, bin
                         continue
                     if cigop == 0: #Exact matches only, doing this because it duplicates HTSeq behavior
                         explicit_locations[cur_pos - tx_start].add(read)
-sc
+
             continue
 
         read_len = len(read.positions)
