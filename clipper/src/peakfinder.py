@@ -4,21 +4,16 @@ from __future__ import print_function
 from collections import defaultdict
 import gzip
 import logging
-#import math                # unused
-import multiprocessing 
+import multiprocessing
 import numpy as np
 from optparse import OptionParser, SUPPRESS_HELP
 import os
 import pickle
-#import random              # unused
-import sys
 from subprocess import call
-#import time                # unused
 import pandas as pd
 import pybedtools
 
 import clipper
-#from clipper import data_dir             # unused
 from clipper.src.call_peak import call_peaks, poissonP
 
 logging.captureWarnings(True)
@@ -49,7 +44,8 @@ def check_for_index(bamfile):
         
         if process == -11: 
             raise NameError("file %s not of correct type" % (bamfile))
-        
+
+
 def build_geneinfo(bed):
     
     """
@@ -81,6 +77,7 @@ def build_geneinfo(bed):
     bedfile.close()
     return gene_info
 
+
 def build_lengths(length_file):
     
     """
@@ -111,7 +108,6 @@ def build_lengths(length_file):
     except ValueError:
         raise ValueError("file not formatted correctly, expects two columns gene<tab>length")
     return gene_lengths
-
 
 
 def add_species(species, chrs, bed, mrna, premrna):
@@ -170,6 +166,7 @@ def get_acceptable_species():
     
     return acceptable_species
 
+
 def build_transcript_data_gtf_as_structure(species, pre_mrna):
     
     """
@@ -188,19 +185,19 @@ def build_transcript_data_gtf_as_structure(species, pre_mrna):
             attrs += "transcript_ids=%s;" % (gene.attrs['transcript_ids']) 
         attrs += "effective_length=%s" % (str(effective_length)) 
         
-        bedtoolintervals.append(pybedtools.create_interval_from_list(map(str, [gene['chrom'], 
-                                                                      "AS_STRUCTURE", 
-                                                                      "mRNA", 
-                                                                      str(gene.start + 1), 
-                                                                      str(gene.stop + 1),
-                                                                      "0", 
-                                                                      gene['strand'], 
-                                                                      ".",
-                                                                      attrs
-                                                                      ])))
-        
-            
+        bedtoolintervals.append(pybedtools.create_interval_from_list(map(str, [gene['chrom'],
+                                                                               "AS_STRUCTURE",
+                                                                               "mRNA",
+                                                                               str(gene.start + 1),
+                                                                               str(gene.stop + 1),
+                                                                               "0",
+                                                                               gene['strand'],
+                                                                               ".",
+                                                                               attrs
+                                                                               ])))
+
     return pybedtools.BedTool(bedtoolintervals)
+
 
 def build_transcript_data_gtf(gtf_file, pre_mrna):
     
@@ -259,33 +256,6 @@ def build_transcript_data_gtf(gtf_file, pre_mrna):
                                         "gene_id=" + gene['gene_id'] + "; transcript_id=" + gene['transcript_id'] + "; effective_length=" + str(effective_length)]))
     return pybedtools.BedTool(bedtoolintervals)
 
-########################################################################################################
-# TODO unused!
-##############
-# def build_transcript_data_bed(bed_file, pre_mrna):
-#     """
-#     Generates gene lengths and gene names from BED12 file
-#     bed_file - pybedtools object defining genes
-#     pre_mrna - flag True indicates use pre-mRNA lengths instead of mRNA lengths
-#     """
-#     # TODO just turn this totally into a pybedtools object instead of converting it to a dictionary
-#
-#     raise NotImplementedError("use custom gff file")
-#
-#     #TODO this code is unreachable!
-#     gene_info = {}
-#     gene_lengths = {}
-#     for line in bed_file:
-#         #builds gene info
-#         gene_info[line.name] = [line.chrom, line.name, line.start, line.stop, line.strand]
-#         #builds gene lengths
-#         if pre_mrna:
-#             gene_lengths[line.name] = line.stop - line.start
-#         else:
-#             #Just gets the lengths of the exons (although no mention of cds or not... not important)
-#             gene_lengths[line.name] = sum([int(x) for x in line[10][:-1].strip().split(",")])
-#     return gene_info, gene_lengths
-#######################################################################################################
 
 def build_transcript_data(species, gene_bed, gene_mrna, gene_pre_mrna, pre_mrna):
     
@@ -433,6 +403,7 @@ def write_peak_bedtool_string(cluster):
     cluster_bedtool_string = "\t".join([str(info) for info in cluster_info_list])
     return cluster_bedtool_string
 
+
 def dictify(some_named_tuple):
     return dict((s, getattr(some_named_tuple, s)) for s in some_named_tuple._fields)
 
@@ -516,46 +487,11 @@ def filter_peaks_dicts(peaks_dicts, poisson_cutoff, transcriptome_size,
     return filtered_peak_bedtool_tsv
 
 
-########################################################################
-# TODO unused!
-##############
-def mapper(options, line):
-    bedtool = pybedtools.BedTool(line, from_string=True)
-
-    #loads in the last bedline, because bedtools doesn't have a .next()
-    for bedline in bedtool:
-        pass
-    
-    if options.premRNA:
-        length = bedline.stop - bedline.start
-    else:
-        length = sum([int(x) for x in bedline[10][:-1].strip().split(",")]) #Just gets the lengths of the exons (although no mention of cds or not... not important)
-    
-    print call_peaks([bedline.chrom, bedline.name, bedline.start, bedline.stop,
-                      bedline.strand], length, options.bam, int(options.max_gap), 
-                      options.FDR_alpha, options.threshold, 
-                      int(options.minreads), options.poisson_cutoff, 
-                      options.plotit, 10, 1000, options.SloP, False)
-
-
-def hadoop_mapper(options):
-    
-    """
-    
-    Expermental mapper to give call peaks (running call_peak function) from hadoop
-    
-    """
-    #being lazy for now will make this integrated eventually
-   
-    for line in sys.stdin:
-        mapper(options, line)
-#########################################################################
-
-
 def get_exon_bed(species):
 
     short_species = species.split("_")[0]
     return os.path.join(clipper.data_dir(), "regions", "%s_%s.bed" % (short_species, "exons"))
+
 
 def main(options):
     ##############################################
