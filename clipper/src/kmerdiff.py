@@ -66,14 +66,16 @@ def kmer_diff(file1, file2, k):
         raise IOError(file1 + " does not exist")
     if not os.path.exists(file2):
         raise IOError(file2 + " does not exist")
-    
+
+    out_file1 = "{}.{}.compseq".format(file1, k)
+    out_file2 = "{}.{}.compseq".format(file2, k)
     #call compseq
     with open(os.devnull, 'w') as fnull:
         try:
             subprocess.call(['compseq',
                              '-word', str(k),
                              '-sequence', file1,
-                             '-outfile', file1 + ".compseq"],
+                             '-outfile', out_file1],
                                 shell=False,
                                 stdout=fnull,
                                 stderr=fnull
@@ -82,7 +84,7 @@ def kmer_diff(file1, file2, k):
             subprocess.call(['compseq',
                              '-word', str(k),
                              '-sequence', file2,
-                             '-outfile', file2 + ".compseq"],
+                             '-outfile', out_file2],
                                 shell=False,
                                 stdout=fnull,
                                 stderr=fnull
@@ -92,8 +94,8 @@ def kmer_diff(file1, file2, k):
             raise e
 
     
-    n1, freq1 = parse_compseq(file1 + ".compseq")
-    n2, freq2 = parse_compseq(file2 + ".compseq")
+    n1, freq1 = parse_compseq(out_file1)
+    n2, freq2 = parse_compseq(out_file2)
     
     results = {}
     for key in freq1.keys():
