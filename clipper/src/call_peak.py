@@ -7,8 +7,8 @@ Created on Jul 25, 2012
 from collections import namedtuple
 import logging
 import math
-
-
+import matplotlib
+matplotlib.use('agg')
 import HTSeq
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
@@ -945,7 +945,7 @@ def call_peaks(interval, gene_length, bam_file=None, max_gap=25,
 
     bam_fileobj = pysam.Samfile(bam_file, 'rb')
     #fixes non-standard chrom file names (without the chr)
-    if not interval.chrom.startswith("chr"):
+    if not interval.chrom.startswith("chr") and not interval.chrom.startswith("ERCC") and not interval.chrom.startswith("phiX"):
         interval.chrom = "chr" + interval.chrom
 
     subset_reads = list(bam_fileobj.fetch(reference=str(interval.chrom), start=interval.start, end=interval.stop))
