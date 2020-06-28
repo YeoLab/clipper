@@ -193,8 +193,10 @@ class Test(unittest.TestCase):
     def test_readsToWiggle_pysam(self):
         reads = pysam.Samfile(os.path.join(clipper.test_dir(), "allup_test.bam"))      
         reads = reads.fetch(region="chr15:91536649-91537641")
-        wiggle, jxns, pos_counts, lengths, allreads = readsToWiggle_pysam(reads, 91537632, 91537675, '-', 'center', False)
+        wiggle, jxns, pos_counts, lengths, allreads, explicit_locations = readsToWiggle_pysam(reads, 91537632, 91537675, '-', 'center', False)
         #wiggle, pos_counts, lengths = readsToWiggle_pysam(reads, 91537632, 91537675, '-', 'center', False)
+
+
          
         wiggle_true = [  2. ,  2.,   2. ,  2. ,  2. ,  2.  , 2. ,  2. , 11. , 11.,  11. , 11.  ,11. , 11. , 11.,
    11. , 11.,  11.,  11. , 11.  ,11. , 11. , 11. , 11.,  11. , 11. , 11.  ,11. , 11.  ,11.,
@@ -224,7 +226,7 @@ class Test(unittest.TestCase):
             
         reads = pysam.Samfile(os.path.join(clipper.test_dir(), "allup_test.bam"))      
         reads = reads.fetch(region="chr15:91536649-91537641")
-        wiggle, jxns, pos_counts, lengths, allreads = readsToWiggle_pysam(reads, 91537632, 91537675, '-', 'center', True)
+        wiggle, jxns, pos_counts, lengths, allreads,  explicit_locations = readsToWiggle_pysam(reads, 91537632, 91537675, '-', 'center', True)
 
         wiggle_true = [0.06060606060606061, 0.06060606060606061, 0.06060606060606061, 0.06060606060606061, 0.06060606060606061, 0.06060606060606061, 0.06060606060606061, 0.06060606060606061, 0.33333333333333326, 0.33333333333333326, 0.33333333333333326, 0.33333333333333326, 0.33333333333333326, 0.33333333333333326, 0.33333333333333326, 0.33333333333333326, 0.33333333333333326, 0.33333333333333326, 0.33333333333333326, 0.33333333333333326, 0.33333333333333326, 0.33333333333333326, 0.33333333333333326, 0.33333333333333326, 0.33333333333333326, 0.33333333333333326, 0.33333333333333326, 0.33333333333333326, 0.33333333333333326, 0.33333333333333326, 0.33333333333333326, 0.33333333333333326, 0.33333333333333326, 0.2727272727272727, 0.2727272727272727, 0.2727272727272727, 0.2727272727272727, 0.2727272727272727, 0.2727272727272727, 0.2727272727272727, 0.2727272727272727, 0.0, 0.0, 0.0]
         print wiggle_true
