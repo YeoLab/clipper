@@ -218,6 +218,7 @@ TODO: Modify to allow for threshold-ed margins
 
 */
 extern "C" PyObject *peaks_find_sections(PyObject *self, PyObject *args) {
+  // return contiguous bases with read > 0; termed "section"
   std::vector<PyObject*> sections(0); //vector of sections because appending to a python list takes a very long time
   PyObject *wiggle; //list of read densities
   int margin;

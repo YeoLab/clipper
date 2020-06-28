@@ -433,7 +433,7 @@ def filter_peaks_dicts(peaks_dicts, poisson_cutoff, transcriptome_size,
     
     """
     
-    Takes a list of peaks_dict's, filters them based off of various argunments and returns only the filtered
+    Takes a list of peaks_dict's, filters them based off of various arguments and returns only the filtered
     reads
     
     options - the options object from the initial parsing

@@ -922,13 +922,25 @@ def call_peaks(interval, gene_length, bam_file=None, max_gap=25,
     poisson_cutoff - p-value for signifance cut off for number of reads in peak that gets called - might want to use ashifted distribution
     plotit - makes figures 
 
-    w_cutoff - width cutoff, peaks narrower than this are discarted 
+    w_cutoff - width cutoff, peaks narrower than this are discarded
     windowssize - for super local calculation distance left and right to look 
-    SloP - super local p-value instead of gene-wide p-value
+    SloP - super local p-value instead of gene-wide p-value (+/- 500 b.p. of each section)
     max_width - int maximum with of classic peak calling algorithm peak
     min_width - int min width of classic peak calling algorithm peak
     max_gap   - int max gap of classic peak calling algorithm peak
 
+    returns peak_dict, dictionary containing
+     peak_dict['clusters']: list of Peak objects
+     peak_dict['sections']: key: section
+        ['nreads'] how many reads in this section
+        ['threshold'] = threshold // either be suerlocal threshold, mRNA threshold or pre-mRNA threshold
+
+        ['tried'] = True
+        ['nPeaks'] = number of peaks
+     peak_dict['nreads']: No. reads in gene
+     peak_dict['threshold']
+     peak_dict['loc']: interval
+     peak_dict['Nclusters']: total peaks in transcript
     """
     ###########################################################################
     # print("starting call_peaks on gene_no:", gene_no, "interval:", interval)
@@ -944,10 +956,12 @@ def call_peaks(interval, gene_length, bam_file=None, max_gap=25,
         pass
 
     bam_fileobj = pysam.Samfile(bam_file, 'rb')
+
     #fixes non-standard chrom file names (without the chr)
     if not interval.chrom.startswith("chr") and not interval.chrom.startswith("ERCC") and not interval.chrom.startswith("phiX"):
         interval.chrom = "chr" + interval.chrom
 
+    # fetch reads in the genomic region
     subset_reads = list(bam_fileobj.fetch(reference=str(interval.chrom), start=interval.start, end=interval.stop))
     strand = str(interval.strand)
     if reverse_strand:
@@ -955,6 +969,8 @@ def call_peaks(interval, gene_length, bam_file=None, max_gap=25,
             strand = "-"
         elif strand == "-":
             strand = "+"
+
+    # convert pysam to a wiggle vector, junction, positional count(coverage), read lengths, all_reads, location
     (wiggle, jxns, pos_counts,
      lengths, allreads, read_locations) = readsToWiggle_pysam(subset_reads, interval.start,
                                               interval.stop, strand, "start", False)
@@ -1012,16 +1028,18 @@ def call_peaks(interval, gene_length, bam_file=None, max_gap=25,
 
     peak_number = 0
 
-    sections = find_sections(wiggle, max_gap)
+    sections = find_sections(wiggle, max_gap) # return list of base with contiguous read > 0 (gap allowed)
     if plotit:
         plot_sections(wiggle, sections, premRNA_threshold)
 
+    # for each section, call peaks
     for sect in sections:
 
         sectstart, sectstop = sect
         sect_length = sectstop - sectstart + 1
         data = wiggle[sectstart:(sectstop + 1)]
 
+        # make interval for teh section
         cur_interval = HTSeq.GenomicInterval(str(interval.chrom),
                                              sectstart + interval.start,
                                              sectstop + interval.start + 1,
@@ -1031,7 +1049,7 @@ def call_peaks(interval, gene_length, bam_file=None, max_gap=25,
         overlaps_exon = len(reduce( set.union, ( val for iv, val in htseq_exons[cur_interval].steps()))) > 0
         gene_threshold = mRNA_threshold if overlaps_exon else premRNA_threshold
 
-        #maybe make a function that takes a GI and converts it into a pybedtools interval
+        #maybe make a function that takes a genomic interval and converts it into a pybedtools interval
         cur_pybedtools_interval = pybedtools.create_interval_from_list([interval.chrom,
                                               sectstart + interval.start,
                                               sectstop + interval.start + 1,
@@ -1057,9 +1075,10 @@ def call_peaks(interval, gene_length, bam_file=None, max_gap=25,
 
         if user_threshold is None:
             if SloP:
+                # super local p-value: section +/- 500 b.p.'; instead of using whole gene's length and read, use this extended region
                 half_width = 500
-                section_start = max(0, sectstart + interval.start - half_width)
-                section_stop = sectstop + interval.start + 1 + half_width
+                section_start = max(0, sectstart + interval.start - half_width) # aim at -500 offset from section start
+                section_stop = sectstop + interval.start + 1 + half_width # aim at _500 from section stop
                 expanded_sect_length = section_stop - section_start
 
                 cur_pybedtools_interval = pybedtools.create_interval_from_list([interval.chrom,
@@ -1091,6 +1110,7 @@ def call_peaks(interval, gene_length, bam_file=None, max_gap=25,
 
 
             else:
+                # if not use super local threshold (+/- 500 bp), use mRNA_threshold for exon; premRNA_threshold if section does not overlap with exon
                 threshold = gene_threshold
         else:
             threshold = user_threshold
