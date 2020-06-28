@@ -57,6 +57,11 @@ class Peak(namedtuple('Peak', ['chrom',
     pass
 
 def get_FDR_cutoff_binom(readlengths, genelength, alpha, mincut = 2):
+    ''' model number of reads by binomial distribution, retyrb the FDR_cutoff(no. reads needed)
+    readlengths: list of read length in a genomic region
+    genelength: length of genomie region
+    mincut: min number of reads; if FDR cutoff < mincut, return mincut
+    return the FDR_cutoff(no. reads needed) for premRNA_threshold, mRNA_threshold or superlocalthreshold for read lengths, gene lengths'''
     number_reads = len(readlengths)
     
     if number_reads == 0:
@@ -68,7 +73,7 @@ def get_FDR_cutoff_binom(readlengths, genelength, alpha, mincut = 2):
         if prob > 1:
             raise ValueError("probability of >= 1 read per-base > 1")
         try:
-            k = int(binom.ppf(1 - (alpha), number_reads, prob))
+            k = int(binom.ppf(1 - (alpha), number_reads, prob)) # percent point function (ppf) inverse of cdf; which number of reads we need tp
             if k < mincut:
                 return mincut
             else:
@@ -86,7 +91,7 @@ def get_FDR_cutoff_mode(readlengths,
     """
     
     Find randomized method, as in FOX2 ES NSMB paper.
-    
+    currently not used
     """
     
     if readlengths.__len__() < 20: # if you have very few reads on a gene, don't waste time trying to find a cutoff
@@ -129,7 +134,7 @@ def get_FDR_cutoff_mean(readlengths,
                         alpha=0.05):
     """
     
-    Find randomized method, as in FOX2ES NSMB paper.
+    Find randomized method, as in FOX2ES NSMB paper. (randomly place read along gene length to get FDR_cuttoff)
     MEAN, not MODE
     scatter reads, calcaluate number of reads to pass fdr threshold, takes average observed cutoff
     readlengths -- list of lengths of aligned portions of reads
@@ -144,7 +149,6 @@ def get_FDR_cutoff_mean(readlengths,
     
     """
 
-    
     
     #if you have very few reads on a gene, don't waste time 
     #trying to find a cutoff        
@@ -850,12 +854,12 @@ def poissonP(reads_in_gene, reads_in_peak, gene_length, peak_length):
     Paramaters
     ----------
     reads_in_gene: Integer representing number of reads in gene
-    reads_in_peak: Integer reperesnting the number of reads in a specific peak
+    reads_in_peak: Integer representing the number of reads in a specific peak
     gene_length: Integer representing length of gene
     peak_length: Integer representing length of peak
     
     Returns double, the p-value that the peak is significant
-    If calcluation fails returns 1
+    If calculation fails returns 1
     
     """
     

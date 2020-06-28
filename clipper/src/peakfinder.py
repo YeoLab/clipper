@@ -369,6 +369,8 @@ def count_transcriptome_length(results):
 
 
 def transcriptome_poissonP(cluster):
+    ''' applied to peaks_dataframe with params in there
+    return P value indicating if the number of reads in peak is significant by comparing whole transcriptome'''
     return poissonP(cluster.transcriptome_reads,
                     cluster.number_reads_in_peak,
                     cluster.transcriptome_size,
@@ -376,6 +378,8 @@ def transcriptome_poissonP(cluster):
 
 
 def transcript_poissonP(cluster):
+    ''' applied to peaks_dataframe with params in there
+        return P value indicating if the number of reads in peak is significant by comparing whole transcript'''
     return poissonP(cluster.nreads_in_gene,
                     cluster.number_reads_in_peak,
                     cluster.effective_length,
@@ -383,6 +387,8 @@ def transcript_poissonP(cluster):
 
 
 def superlocal_poissonP(cluster):
+    ''' applied to peaks_dataframe with params in there
+        return P value indicating if the number of reads in peak is significant by comparing local area (section +/- 500)'''
     return poissonP(cluster.area_reads,
                     cluster.number_reads_in_peak,
                     cluster.area_size,
@@ -409,6 +415,7 @@ def dictify(some_named_tuple):
 
 
 def make_peak_dataframe(peaks_dicts):
+    ''' make peak_dicts['cluster'](peaks) into dataframe'''
     peaks_list = [dictify(cluster) for peaks_dict in peaks_dicts for cluster in peaks_dict['clusters' ]]
     peaks_dataframe = pd.DataFrame(peaks_list)
     return peaks_dataframe
