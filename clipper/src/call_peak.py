@@ -695,7 +695,7 @@ class Classic(PeakGenerator):
 
 from sklearn import mixture
 
-class MyGMM(mixture.GMM):
+class MyGMM(mixture.GaussianMixture):
 
     def bic(self, X, scoreWeight = 2, complexityWeight=4):
         return (-scoreWeight * self.score(X).sum() +
