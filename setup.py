@@ -22,7 +22,7 @@ setup(
     ext_modules = [readsToWiggle, peaks],
 
     package_data = {
-        'clipper' : ['data/*.gff', 'data/regions/*.bed']
+        'clipper' : ['data/*.gff', 'data/regions/*.bed', 'test/data/*']
         },
 
     install_requires = ['setuptools', 
