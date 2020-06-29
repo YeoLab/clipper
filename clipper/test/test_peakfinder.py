@@ -538,44 +538,44 @@ class Test(unittest.TestCase):
         build_transcript_data(None, clipper.data_file("test.AS.STRUCTURE_genes.BED.gz"), clipper.data_file("test.AS.STRUCTURE_mRNA.lengths"), None, False)
         build_transcript_data(None, clipper.data_file("test.AS.STRUCTURE_genes.BED.gz"), None, clipper.data_file("test.AS.STRUCTURE_mRNA.lengths"), True)
     
-    def test_transcriptome_filter(self):
-        
-        """
-        
-        Tests transcriptome filter
-        not great tests, but good enough to make sure we don't have regressions
-        
-        """
-        
-       
-        cluster = Peak(0,0,0,0,0,0,0,0,0,5,0,10,0,0,0,0)
-        #cluster = {'Nreads' : 5, "size" : 10}
-        transcriptome_size = 1000
-        transcriptome_reads = 10000
-        poisson_cutoff = .05
-        
-        result = transcriptome_filter(poisson_cutoff, transcriptome_size, transcriptome_reads, cluster)
-        
-        self.assertEqual(result, 1) 
-        
-        #cluster = {'Nreads' : 10000, "size" : 100}
-        cluster = Peak(0,0,0,0,0,0,0,0,0,10000,0,100,0,0,0,0)
-        
-        transcriptome_size = 1000
-        transcriptome_reads = 10000
-        poisson_cutoff = .05
-        
-        result = transcriptome_filter(poisson_cutoff, transcriptome_size, transcriptome_reads, cluster)
-        self.assertEqual(result,0.0)
-        
-        #cluster = {'Nreads' : 0, "size" : 0}
-        cluster = Peak(0,0,0,0,0,0,0,0,0,0,0,0,0)
-        transcriptome_size = 0
-        transcriptome_reads = 10000
-        poisson_cutoff = .05
-        
-        result = transcriptome_filter(poisson_cutoff, transcriptome_size, transcriptome_reads, cluster)
-        self.assertEqual(result, 1)
+    # def test_transcriptome_filter(self):
+    #
+    #     """
+    #     DEPRECATED, no function named `transcriptome_filter`
+    #     Tests transcriptome filter
+    #     not great tests, but good enough to make sure we don't have regressions
+    #
+    #     """
+    #
+    #
+    #     cluster = Peak(0,0,0,0,0,0,0,0,0,5,0,10,0,0,0,0)
+    #     #cluster = {'Nreads' : 5, "size" : 10}
+    #     transcriptome_size = 1000
+    #     transcriptome_reads = 10000
+    #     poisson_cutoff = .05
+    #
+    #     result = transcriptome_filter(poisson_cutoff, transcriptome_size, transcriptome_reads, cluster)
+    #
+    #     self.assertEqual(result, 1)
+    #
+    #     #cluster = {'Nreads' : 10000, "size" : 100}
+    #     cluster = Peak(0,0,0,0,0,0,0,0,0,10000,0,100,0,0,0,0)
+    #
+    #     transcriptome_size = 1000
+    #     transcriptome_reads = 10000
+    #     poisson_cutoff = .05
+    #
+    #     result = transcriptome_filter(poisson_cutoff, transcriptome_size, transcriptome_reads, cluster)
+    #     self.assertEqual(result,0.0)
+    #
+    #     #cluster = {'Nreads' : 0, "size" : 0}
+    #     cluster = Peak(0,0,0,0,0,0,0,0,0,0,0,0,0)
+    #     transcriptome_size = 0
+    #     transcriptome_reads = 10000
+    #     poisson_cutoff = .05
+    #
+    #     result = transcriptome_filter(poisson_cutoff, transcriptome_size, transcriptome_reads, cluster)
+    #     self.assertEqual(result, 1)
         
     def test_filter_results(self):
         
