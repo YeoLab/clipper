@@ -220,8 +220,8 @@ def build_transcript_data_gtf(gtf_file, pre_mrna):
     
     #get all transcripts, their starts, stops and mrna lengths
     transcripts = defaultdict(default_transcript)
-    gtf_file = gtf_file.filter(lambda x: x[2] == 'exon')
-    gtf_file.saveas()
+    gtf_file = gtf_file.filter(lambda x: x[2] == 'exon').saveas()
+
 
     for interval in gtf_file:
         cur_transcript = transcripts[interval.attrs['transcript_id']]
