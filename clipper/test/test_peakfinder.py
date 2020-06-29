@@ -28,7 +28,7 @@ class Test(unittest.TestCase):
         args = ["--bam", clipper.test_file("allup_test.bam"),
                  "--species", "hg19",
                  "--gene", "ENSG00000198901",
-                 "--outfile" + os.getcwd() + "/allup_peak_results.bed",
+                 "--outfile", os.getcwd() + "/allup_peak_results.bed",
                  "--debug",
                 ]
 
@@ -113,11 +113,12 @@ class Test(unittest.TestCase):
         try to detect crashes
         
         """
-    
-        args = ["-b", clipper.test_file("allup_test.bam"),
-                 "-s", "hg19",
-                 "-g", "ENSG00000198901", 
-                 "--outfile=" + os.getcwd() + "/allup_peak_results.bed",
+
+        args = ["--bam", clipper.test_file("allup_test.bam"),
+                "--species", "hg19",
+                "--gene", "ENSG00000198901",
+                "--outfile", os.getcwd() + "/allup_peak_results.bed",
+                "--debug",
                 ]
 
         (options, args) = self.parser.parse_args(args)
@@ -151,28 +152,28 @@ class Test(unittest.TestCase):
         #cleanup
         os.remove(os.getcwd() + "/allup_peak_results.bed")
     
-    def test_gtf_allup(self):
-        
-        """
-    
-        Performs basic all up test on entire program (using classic algorithm) using gtf file
-        
-        """
-        
-        #self.assertTrue(False, "test is currently disabled output from logging causes it to crash")
-        args = ["-b", clipper.test_file("allup_test.bam"),
-                 "--gtfFile", clipper.test_file("ensembl_test.gtf"),
-                 "-g", "ENSG00000198901", 
-                 "--outfile=" + os.getcwd() + "/allup_peak_results_ensembl_test.bed",
-                 "--debug",
-                 "--algorithm=classic"
-                ]
-
-        (options, args) = self.parser.parse_args(args)
-        options = override_options(options)
-        
-        
-        main(options)
+    # def test_gtf_allup(self):
+    #
+    #     """
+    #
+    #     Performs basic all up test on entire program (using classic algorithm) using gtf file
+    #
+    #     """
+    #
+    #     #self.assertTrue(False, "test is currently disabled output from logging causes it to crash")
+    #     args = ["-b", clipper.test_file("allup_test.bam"),
+    #              "--gtfFile", clipper.test_file("ensembl_test.gtf"),
+    #              "-g", "ENSG00000198901",
+    #              "--outfile=" + os.getcwd() + "/allup_peak_results_ensembl_test.bed",
+    #              "--debug",
+    #              "--algorithm=classic"
+    #             ]
+    #
+    #     (options, args) = self.parser.parse_args(args)
+    #     options = override_options(options)
+    #
+    #
+    #     main(options)
         
     def test_filter(self):
         
@@ -183,15 +184,14 @@ class Test(unittest.TestCase):
         detects only one peak when filter is enabled and detects two peaks when filter is disabled
         
         """
-    
-        args = ["-b", clipper.test_file("transcriptome_filter.sort.bam"),
-                 "-s", "hg19",
-                  "-g", "ENSG00000198901", 
-                  '-g', "ENSG00000226167",
-                   "--outfile=" + os.getcwd() + "/cut_off_included.bed",
-                   "-q",
-                   "--debug"
-                ]    
+        args = ["--bam", clipper.test_file("transcriptome_filter.sort.bam"),
+                "--species", "hg19",
+                "--gene", "ENSG00000198901",
+                "--outfile", os.getcwd() + "/cut_off_included.bed",
+                "-q",
+                "--debug",
+                ]
+
         (options, args) = self.parser.parse_args(args)
         options = override_options(options)
         main(options)
