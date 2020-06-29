@@ -6,7 +6,7 @@ Unit tests for kmerdiff
 '''
 import unittest
 import clipper
-from kmerdiff import *
+from clipper.src.kmerdiff import *
 from collections import namedtuple
 class Test(unittest.TestCase):
 
