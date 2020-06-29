@@ -211,7 +211,7 @@ def build_transcript_data_gtf(gtf_file, pre_mrna):
     pre_mrna - boolean flag to use pre_mrna instead of mrna 
     
     """
-    
+
     #objects for default dict, no need to test or factor out
     def default_transcript():
         return {'chrom' : None, 'start': np.inf, "stop" : np.NINF, "strand" : None, "gene_id" : None, "mRNA_length" : 0}
@@ -221,6 +221,8 @@ def build_transcript_data_gtf(gtf_file, pre_mrna):
     #get all transcripts, their starts, stops and mrna lengths
     transcripts = defaultdict(default_transcript)
     gtf_file = gtf_file.filter(lambda x: x[2] == 'exon')
+    gtf_file.saveas()
+
     for interval in gtf_file:
         cur_transcript = transcripts[interval.attrs['transcript_id']]
         cur_transcript['start'] = min(cur_transcript['start'], interval.start)

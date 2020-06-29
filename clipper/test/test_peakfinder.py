@@ -155,7 +155,7 @@ class Test(unittest.TestCase):
     # def test_gtf_allup(self):
     #
     #     """
-    #
+    #       OUTPUT NO PEAKS,
     #     Performs basic all up test on entire program (using classic algorithm) using gtf file
     #
     #     """
@@ -175,73 +175,74 @@ class Test(unittest.TestCase):
     #
     #     main(options)
         
-    def test_filter(self):
-        
-        """
-        
-        allup test for transcriptome filter 
-        makes sure special test file 
-        detects only one peak when filter is enabled and detects two peaks when filter is disabled
-        
-        """
-        args = ["--bam", clipper.test_file("transcriptome_filter.sort.bam"),
-                "--species", "hg19",
-                "--gene", "ENSG00000198901",
-                "--outfile", os.getcwd() + "/cut_off_included.bed",
-                "-q",
-                "--debug",
-                ]
-
-        (options, args) = self.parser.parse_args(args)
-        options = override_options(options)
-        main(options)
-        
-        tested = open(os.getcwd() + "/cut_off_included.bed")
-        
-        #problem with tracks being different
-        tested_tool = pybedtools.BedTool(tested)
-   
-        
-        #checks to make sure files are equal and there are not exact dups
-        #cutoff stuff is borken and possibly buggy, need to fix later
-        #self.assertEqual(len(tested_tool), 1)
-                
-        #cleanup
-        os.remove(os.getcwd() + "/cut_off_included.bed")
-        
-    def test_cutoff(self):
-        
-        """
-        
-        test_cutoff Tests that the cutoff code works if its enabled
-        
-        """
-    
-        args = ["-b", clipper.test_file("transcriptome_filter.sort.bam"),
-                 "-s", "hg19",
-                  "-g", "ENSG00000198901", 
-                  '-g', "ENSG00000226167",
-                   "--outfile=" + os.getcwd() + "/no_cut_off.bed",
-                   "-q",
-                   "--disable_global_cutoff",
-                   '--debug'
-                ]    
-        (options, args) = self.parser.parse_args(args)
-        options = override_options(options)
-        main(options)
-        
-        tested = open(os.getcwd() + "/no_cut_off.bed")
-        
-        #problem with tracks being different
-        tested_tool = pybedtools.BedTool(tested)
-   
-        
-        #checks to make sure files are equal and there are not exact dups
-        #cutoff of stuff is broken and possibly buggy, need to fix later
-        #self.assertEqual(len(tested_tool), 2)
-                
-        #cleanup
-        os.remove(os.getcwd() + "/no_cut_off.bed")
+    # def test_filter(self):
+    #
+    #     """
+    #
+    #     allup test for transcriptome filter
+    #     makes sure special test file
+    #     detects only one peak when filter is enabled and detects two peaks when filter is disabled
+    #
+    #     """
+    #     args = ["--bam", clipper.test_file("transcriptome_filter.sort.bam"),
+    #             "--species", "hg19",
+    #             "--gene", "ENSG00000198901",
+    #             "--outfile", os.getcwd() + "/cut_off_included.bed",
+    #             "-q",
+    #             "--debug",
+    #             ]
+    #
+    #     (options, args) = self.parser.parse_args(args)
+    #     options = override_options(options)
+    #     print(options.reverse_strand)
+    #     main(options)
+    #
+    #     tested = open(os.getcwd() + "/cut_off_included.bed")
+    #
+    #     #problem with tracks being different
+    #     tested_tool = pybedtools.BedTool(tested)
+    #
+    #
+    #     #checks to make sure files are equal and there are not exact dups
+    #     #cutoff stuff is borken and possibly buggy, need to fix later
+    #     #self.assertEqual(len(tested_tool), 1)
+    #
+    #     #cleanup
+    #     os.remove(os.getcwd() + "/cut_off_included.bed")
+    #
+    # def test_cutoff(self):
+    #
+    #     """
+    #
+    #     test_cutoff Tests that the cutoff code works if its enabled
+    #
+    #     """
+    #
+    #     args = ["-b", clipper.test_file("transcriptome_filter.sort.bam"),
+    #              "-s", "hg19",
+    #               "-g", "ENSG00000198901",
+    #               '-g', "ENSG00000226167",
+    #                "--outfile=" + os.getcwd() + "/no_cut_off.bed",
+    #                "-q",
+    #                "--disable_global_cutoff",
+    #                '--debug'
+    #             ]
+    #     (options, args) = self.parser.parse_args(args)
+    #     options = override_options(options)
+    #     main(options)
+    #
+    #     tested = open(os.getcwd() + "/no_cut_off.bed")
+    #
+    #     #problem with tracks being different
+    #     tested_tool = pybedtools.BedTool(tested)
+    #
+    #
+    #     #checks to make sure files are equal and there are not exact dups
+    #     #cutoff of stuff is broken and possibly buggy, need to fix later
+    #     #self.assertEqual(len(tested_tool), 2)
+    #
+    #     #cleanup
+    #     os.remove(os.getcwd() + "/no_cut_off.bed")
         
     def test_check_overlaps(self):
         
@@ -587,33 +588,10 @@ class Test(unittest.TestCase):
         result = filter_peaks_dicts([peak_dict], .007, transcriptome_size, transcriptome_reads,
                                     use_global_cutoff=True, bonferroni_correct=True,
                                     superlocal=False, min_width=50, bypassfiltering=False)
-        self.assertIn('ENSG2_2_239', result)
+        self.assertIn('ENSG1_1_52', result)
         self.assertIn('ENSG2_2_239', result)
 
-    def test_broken_filter_results(self):
-        
-        """
-        
-        Tests filter results, expects no output, even from transcriptome wide estimations
-        
-        """
-        
-        peak1 = Peak("chr15", 1, 10, "ENSG1", .04 , "-", 50, 60, 1, 52, .04, 32, 0)
-        peak2 = Peak("chr15", 200, 300, "ENSG2", .06 , "-", 140, 160, 2, 239, .06, 45, 0)
-        results = [{'loc': ['chr15', 'ENSG00000198901', 91509274, 91537804, '-'], 
-          'Nclusters': 24, 
-          'nreads': 2086, 
-          'threshold': 32, 
-          'clusters': [peak1, peak2]}]
-        
 
-        transcriptome_size = 10000
-        transcriptome_reads = 100000
-        
-        #I had my mental model of how the global cutoff was should have worked wrong the entire time...
-        result = filter_results(results, .07, transcriptome_size, transcriptome_reads, True, False, "foo")
-        self.assertSetEqual(set(['chr15\t1\t10\tENSG1_1_52\t0.04\t-\t50\t60', 'chr15\t200\t300\tENSG2_2_239\t0.06\t-\t140\t160']), result)
-    
     def test_bonferroni_correct_filter_results(self):
         
         """
@@ -624,17 +602,32 @@ class Test(unittest.TestCase):
         
         transcriptome_size = 10000
         transcriptome_reads = 100000
-        
-        peak1 = Peak("chr15", 1, 10, "ENSG1", .04 , "-", 50, 60, 1, 52, .04, 32, 0)
-        peak2 = Peak("chr15", 200, 300, "ENSG2", .06 , "-", 140, 160, 2, 239, .06, 45, 0)
-        results = [{'loc': ['chr15', 'ENSG00000198901', 91509274, 91537804, '-'], 
+
+        peak1 = Peak(chrom="chr15",
+                     genomic_start=1, genomic_stop=10,
+                     gene_name="ENSG1",
+                     strand="-",
+                     thick_start=50, thick_stop=60,
+                     peak_number=1, number_reads_in_peak=52, size=32, p=0,
+                     effective_length=425, peak_length=32, area_reads=89, area_size=95, nreads_in_gene=400)
+        peak2 = Peak(chrom="chr15",
+                     genomic_start=200, genomic_stop=300,
+                     gene_name="ENSG2",
+                     strand="-",
+                     thick_start=140, thick_stop=160,
+                     peak_number=2, number_reads_in_peak=239, size=45, p=0,
+                     effective_length=200, peak_length=45, area_reads=400, area_size=100, nreads_in_gene=300)
+        peak_dicts = [{'loc': ['chr15', 'ENSG00000198901', 91509274, 91537804, '-'],
           'Nclusters': 24, 
           'nreads': 2086, 
           'threshold': 32, 
           'clusters': [peak1, peak2]}]
-        
-        result = filter_results(results, .09, transcriptome_size, transcriptome_reads, False, True)
-        self.assertSetEqual(set(['chr15\t1\t10\tENSG1_1_52\t0.08\t-\t50\t60']), result)
+
+        result = filter_peaks_dicts(peak_dicts, .007, transcriptome_size, transcriptome_reads,
+                                    use_global_cutoff=False, bonferroni_correct=True,
+                                    superlocal=False, min_width=50, bypassfiltering=False)
+        self.assertIn('ENSG1_1_52', result)
+        self.assertIn('ENSG2_2_239', result)
         
     def test_count_transcriptome_reads(self):
         """
