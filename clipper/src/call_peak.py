@@ -672,13 +672,13 @@ class Classic(PeakGenerator):
                     pass
                 #Change peak calculation and p-value min width calculation
                 #also visualization min width should be ~10
-                peak_center = peak_start + self.yData[peak_start:peak_stop].index(max(self.yData[peak_start:peak_stop]))
+                peak_center = peak_start + np.where(self.yData[peak_start:peak_stop] == max(self.yData[peak_start:peak_stop]))[0][0]
                 peak_definitions.append((peak_start, peak_stop, peak_center))
                 in_peak = False
             
             #if the max width has been reached
             if in_peak and peak_stop - peak_start >= self.max_width:
-                peak_center = peak_start + self.yData[peak_start:peak_stop].index(max(self.yData[peak_start:peak_stop]))
+                peak_center = peak_start + np.where(self.yData[peak_start:peak_stop] == max(self.yData[peak_start:peak_stop]))[0][0]
 
                 peak_definitions.append((peak_start, peak_stop, peak_center))
                 in_peak = False
@@ -688,7 +688,7 @@ class Classic(PeakGenerator):
             if peak_stop - peak_start < self.min_width:
                 peak_stop = peak_start + self.min_width
             
-            peak_center = peak_start + self.yData[peak_start:peak_stop].index(max(self.yData[peak_start:peak_stop]))
+            peak_center = peak_start + np.where(self.yData[peak_start:peak_stop] == max(self.yData[peak_start:peak_stop]))[0][0]
             peak_definitions.append((peak_start, peak_stop, peak_center))
         
         return peak_definitions
