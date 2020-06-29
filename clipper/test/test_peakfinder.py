@@ -16,76 +16,24 @@ class Test(unittest.TestCase):
         General setup, currently creates parser for various allup tests
         
         """
-        
-        usage="\npython peakfinder.py -b <bamfile> -s <hg18/hg19/mm9>\n OR \npython peakfinder.py -b <bamfile> --customBED <BEDfile> --customMRNA <mRNA lengths> --customPREMRNA <premRNA lengths>"
-        description="Fitted Accurate Peaks. Michael Lovci 2012. CLIP peakfinder that uses fitted smoothing splines to define clusters of binding.  Computation is performed in parallel using MPI.  You may decide to use the pre-built gene lists by setting the --species parameter or alternatively you can define your own list of genes to test in BED6/12 format and provide files containing the length of each gene in PREMRNA form and MRNA form (both are required). Questions should be directed to michaeltlovci@gmail.com."
-        self.parser = OptionParser(usage=usage, description=description)
-    
-        self.parser.add_option("--bam", "-b", dest="bam", help="A bam file to call peaks on", type="string", metavar="FILE.bam")
-    
-        self.parser.add_option("--species", "-s", dest="species", help="A species for your peak-finding")
-    
-        self.parser.add_option("--customBED", dest="geneBEDfile", help="bed file to call peaks on, must come withOUT species and with customMRNA and customPREMRNA", metavar="BEDFILE")
-        self.parser.add_option("--customMRNA", dest="geneMRNAfile", help="file with mRNA lengths for your bed file in format: GENENAME<tab>LEN", metavar="FILE")
-        self.parser.add_option("--customPREMRNA", dest="genePREMRNAfile", help="file with pre-mRNA lengths for your bed file in format: GENENAME<tab>LEN", metavar="FILE")
-        self.parser.add_option("--gtfFile", dest="gtfFile", help="use a gtf file instead of the AS structure data")
-
-        self.parser.add_option("--outdir", dest="prefix", default=os.getcwd(), help="output directory, default=cwd")    
-        self.parser.add_option("--outfile", dest="outfile", default="fitted_clusters", help="a bed file output, default:%default")
-
-        self.parser.add_option("--threshold-method", dest="method", default="random", help="Method used for determining height th\
-        reshold, Can use default=Randomization or Binomial")
-        self.parser.add_option("--binomial", dest="binom", type="float", default=0.001, help ="Alpha significance threshold for using Bi")  
-        self.parser.add_option("--gene", "-g", dest="gene", action="append", help="A specific gene you'd like try", metavar="GENENAME")
-        self.parser.add_option("--plot", "-p", dest="plotit", action="store_true", help="make figures of the fits", default=False)
-        self.parser.add_option("--verbose", "-v", dest="verbose", action="store_true", default=False)
-        self.parser.add_option("--quiet", "-q", dest="quiet", action="store_true", default=False, help="suppress notifications")
-    
-        self.parser.add_option("--minreads", dest="minreads", help="minimum reads required for a section to start the fitting process.  Default:%default", default=3, type="int", metavar="NREADS")
-        self.parser.add_option("--trim", dest="trim", action="store_true", default=False, help="Trim reads with the same start/stop to count as 1")
-        self.parser.add_option("--premRNA", dest="premRNA", action="store_true", help="use premRNA length cutoff, default:%default", default=False)
-        self.parser.add_option("--poisson-cutoff", dest="poisson_cutoff", type="float", help="p-value cutoff for poisson test, Default:%default", default=0.05, metavar="P")
-        self.parser.add_option("--FDR", dest="FDR_alpha", type="float", default=0.05, help="FDR cutoff for significant height estimation, default=%default")
-        self.parser.add_option("--threshold", dest="threshold", type="int", default=None, help="Skip FDR calculation and set a threshold yourself")
-        self.parser.add_option("--serial", dest="serial", action="store_true", help="run genes in sequence (not parallel)")
-        self.parser.add_option("--maxgenes", dest="maxgenes", default=None, help="stop computation after this many genes, for testing", metavar="NGENES")
-        self.parser.add_option("--job_name", dest="job_name", default="FAP", help="name for submitted job. Not used with --serial.  default:%default", metavar="NAME")
-        self.parser.add_option("--processors", dest="np", default="autodetect", help="number of processors to use. Not used with --serial.  default:%default", type="str", metavar="NP")
-        self.parser.add_option("--notify", dest="notify", default=None, help="email address to notify of start, errors and completion", metavar="EMAIL")
-        self.parser.add_option("--superlocal", action = "store_true", dest="SloP", default=False, help="Use super-local p-values, counting reads in a 1KB window around peaks")
-        self.parser.add_option("--color", dest="color", default="0,0,0", help="R,G,B Color for BED track output, default:black (0,0,0)")
-        self.parser.add_option("--start", dest="start", default=False, action="store_true", help=SUPPRESS_HELP) #private, don't use
-        self.parser.add_option("--save-pickle", dest="save_pickle", default=False, action = "store_true", help="Save a pickle file containing the analysis")
-        self.parser.add_option("--debug", dest="debug", default=False, action="store_true", help="disables multipcoressing in order to get proper error tracebacks")
-        self.parser.add_option("--disable_global_cutoff", dest="use_global_cutoff", action="store_false", help="disables global transcriptome level cutoff to CLIP-seq peaks, Default:On", default=True, metavar="P")
-        self.parser.add_option("--bedFile", dest="bedFile", help="use a bed file instead of the AS structure data")
-        self.parser.add_option("--max_width", dest="max_width", type="int", default=75, help="Defines max width for classic algorithm")
-        self.parser.add_option("--min_width", dest="min_width", type="int", default=50, help="Defines min width for classic algorithm")
-        self.parser.add_option("--max_gap", dest="max_gap",type="int", default=10, help="defines min gap for classic algorithm")
-        self.parser.add_option("--algorithm", dest="algorithm",default="spline", help="Defines algorithm to run, currently Spline, or Classic")
-        self.parser.add_option("--hadoop", dest="hadoop",default=False, action="store_true", help="Run in hadoop mode")
-        self.parser.add_option("--bonferroni", dest="bonferroni_correct",action="store_true", default=False, help="Perform Bonferroni on data before filtering")
-
-
-    
+        # modulize parser from peak_finder to ensure unified bahaviour
+        self.parser = option_parser()
     def test_allup(self):
         
         """
-    
         Performs basic all up test on entire program (except for main)
-        
         """
         
         #self.assertTrue(False, "test is currently disabled output from logging causes it to crash")
-        args = ["-b", clipper.test_file("allup_test.bam"),
-                 "-s", "hg19",
-                 "-g", "ENSG00000198901", 
-                 "--outfile=" + os.getcwd() + "/allup_peak_results.bed",
+        args = ["--bam", clipper.test_file("allup_test.bam"),
+                 "--species", "hg19",
+                 "--gene", "ENSG00000198901",
+                 "--outfile" + os.getcwd() + "/allup_peak_results.bed",
                  "--debug",
                 ]
 
         (options, args) = self.parser.parse_args(args)
-        
+        options = override_options(options)
         
         main(options)
         
@@ -115,47 +63,48 @@ class Test(unittest.TestCase):
         #cleanup
         os.remove(os.getcwd() + "/allup_peak_results.bed")
     
-    def test_classic_allup(self):
-        
-        """
-    
-        Performs basic all up test on entire program (using classic algorithm) (except for main)
-        
-        """
-        
-        #self.assertTrue(False, "test is currently disabled output from logging causes it to crash")
-        args = ["-b", clipper.test_file("allup_test.bam"),
-                 "-s", "hg19",
-                 "-g", "ENSG00000198901", 
-                 "--outfile=" + os.getcwd() + "/allup_peak_results_classic.bed",
-                 "--debug",
-                 "--algorithm=classic"
-                ]
-
-        (options, args) = self.parser.parse_args(args)
-        
-        
-        main(options)
-        
-        tested = open(os.getcwd() + "/allup_peak_results_classic.bed")
-        correct = open(clipper.test_file("peak_results_no_overlap.BED"))
-        
-        
-        #problem with tracks being different
-        tested_tool = pybedtools.BedTool(tested)
-        correct_tool = pybedtools.BedTool(correct)
-                
-        #self.assertAlmostEqual(len(tested_tool), len(correct_tool), delta=3)
-
-        """
-        for test, correct in zip(tested_tool, correct_tool):
-            self.assertEqual(test, correct)
-        
-
-        """
-        
-        #cleanup
-        os.remove(os.getcwd() + "/allup_peak_results_classic.bed")
+    # def test_classic_allup(self):
+    #
+    #     """
+    #     DON't NEED TO TEST SINCE OVERRIDE method option with spline
+    #     Performs basic all up test on entire program (using classic algorithm) (except for main)
+    #
+    #     """
+    #
+    #     #self.assertTrue(False, "test is currently disabled output from logging causes it to crash")
+    #     args = ["-b", clipper.test_file("allup_test.bam"),
+    #              "-s", "hg19",
+    #              "-g", "ENSG00000198901",
+    #              "--outfile=" + os.getcwd() + "/allup_peak_results_classic.bed",
+    #              "--debug",
+    #              "--algorithm=classic"
+    #             ]
+    #
+    #     (options, args) = self.parser.parse_args(args)
+    #     options = override_options(options)
+    #
+    #
+    #     main(options)
+    #
+    #     tested = open(os.getcwd() + "/allup_peak_results_classic.bed")
+    #     correct = open(clipper.test_file("peak_results_no_overlap.BED"))
+    #
+    #
+    #     #problem with tracks being different
+    #     tested_tool = pybedtools.BedTool(tested)
+    #     correct_tool = pybedtools.BedTool(correct)
+    #
+    #     #self.assertAlmostEqual(len(tested_tool), len(correct_tool), delta=3)
+    #
+    #     """
+    #     for test, correct in zip(tested_tool, correct_tool):
+    #         self.assertEqual(test, correct)
+    #
+    #
+    #     """
+    #
+    #     #cleanup
+    #     os.remove(os.getcwd() + "/allup_peak_results_classic.bed")
     def test_allup_parrallel(self):
         
         """
@@ -172,6 +121,7 @@ class Test(unittest.TestCase):
                 ]
 
         (options, args) = self.parser.parse_args(args)
+        options = override_options(options)
         
         
         main(options)
@@ -219,6 +169,7 @@ class Test(unittest.TestCase):
                 ]
 
         (options, args) = self.parser.parse_args(args)
+        options = override_options(options)
         
         
         main(options)
@@ -242,6 +193,7 @@ class Test(unittest.TestCase):
                    "--debug"
                 ]    
         (options, args) = self.parser.parse_args(args)
+        options = override_options(options)
         main(options)
         
         tested = open(os.getcwd() + "/cut_off_included.bed")
@@ -275,6 +227,7 @@ class Test(unittest.TestCase):
                    '--debug'
                 ]    
         (options, args) = self.parser.parse_args(args)
+        options = override_options(options)
         main(options)
         
         tested = open(os.getcwd() + "/no_cut_off.bed")
@@ -310,6 +263,7 @@ class Test(unittest.TestCase):
                    "--debug"
                 ]    
         (options, args) = self.parser.parse_args(args)
+        options = override_options(options)
         main(options)
         
         #tests to make sure there are no overlaps
