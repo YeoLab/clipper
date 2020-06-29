@@ -8,7 +8,7 @@ TODO: RENAME class
 
 tests Class to fit data to a smooth curve
 
-will use inheretince scheme, either a gausian pattern or the old style
+will use inheritance scheme, either a Gaussian pattern or the old style
 
 will need to generalize tests to both subclasses, main class will probably be a 
 interface

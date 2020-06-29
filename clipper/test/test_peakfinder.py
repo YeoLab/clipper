@@ -577,7 +577,7 @@ class Test(unittest.TestCase):
     #     result = transcriptome_filter(poisson_cutoff, transcriptome_size, transcriptome_reads, cluster)
     #     self.assertEqual(result, 1)
         
-    def test_filter_results(self):
+    def test_filter_peaks_dicts(self):
         
         """
         
@@ -586,25 +586,55 @@ class Test(unittest.TestCase):
         good for regression tests, need to do better verification...
         
         """
-        
-        peak1 = Peak("chr15", 1, 10, "ENSG1", .04 , "-", 50, 60, 1, 52, .04, 32, 0)
-        peak2 = Peak("chr15", 200, 300, "ENSG2", .06 , "-", 140, 160, 2, 239, .06, 45, 0)
-        results = [{'loc': ['chr15', 'ENSG00000198901', 91509274, 91537804, '-'], 
+
+        peak1 = Peak(chrom="chr15",
+                     genomic_start=1, genomic_stop=10,
+                     gene_name="ENSG1",
+                     strand="-",
+                     thick_start=50, thick_stop=60,
+                     peak_number=1, number_reads_in_peak=52, size=32, p = 0,
+                     effective_length=425, peak_length = 32, area_reads=89, area_size = 95, nreads_in_gene=400)
+        peak2 = Peak(chrom="chr15",
+                     genomic_start=200, genomic_stop=300,
+                     gene_name="ENSG2",
+                     strand="-",
+                     thick_start=140, thick_stop=160,
+                     peak_number=2, number_reads_in_peak=239, size=45, p=0,
+                     effective_length=200, peak_length=45, area_reads=400, area_size=100, nreads_in_gene=300)
+
+
+        peak_dict = {'loc': ['chr15', 'ENSG00000198901', 91509274, 91537804, '-'],
           'Nclusters': 24, 
           'nreads': 2086, 
           'threshold': 32, 
-          'clusters': [peak1, peak2]}]
+          'clusters': [peak1, peak2]}
         
 
         transcriptome_size = 10000
         transcriptome_reads = 100000
-        
-        result = filter_results(results, .07, transcriptome_size, transcriptome_reads, False, False, "foo")
-        self.assertSetEqual(set(['chr15\t1\t10\tENSG1_1_52\t0.04\t-\t50\t60', 'chr15\t200\t300\tENSG2_2_239\t0.06\t-\t140\t160']), result)
-       
-        
-        result = filter_results(results, .05, transcriptome_size, transcriptome_reads, False, False)
-        self.assertSetEqual(set(['chr15\t1\t10\tENSG1_1_52\t0.04\t-\t50\t60']), result)
+
+        # try different params
+        result = filter_peaks_dicts([peak_dict], .07, transcriptome_size, transcriptome_reads,
+                                    use_global_cutoff=False, bonferroni_correct=True,
+                                    superlocal=True, min_width=50, bypassfiltering=False)
+
+        ans='chr15\t1\t10\tENSG1_1_52\t0.000199322700259\t-\t50\t60\nchr15\t200\t300\tENSG2_2_239\t2.24979875151e-58\t-\t140\t160\n'
+        self.assertIn('ENSG1_1_52', result)
+        self.assertIn('ENSG2_2_239', result)
+
+        # lower poission cutoff
+        result = filter_peaks_dicts([peak_dict], .00001, transcriptome_size, transcriptome_reads,
+                                    use_global_cutoff=False, bonferroni_correct=True,
+                                    superlocal=True, min_width=50, bypassfiltering=False)
+        self.assertIn('ENSG2_2_239', result)
+        self.assertNotIn('ENSG1_1_52', result)
+
+        # use global cutoff
+        result = filter_peaks_dicts([peak_dict], .007, transcriptome_size, transcriptome_reads,
+                                    use_global_cutoff=True, bonferroni_correct=True,
+                                    superlocal=False, min_width=50, bypassfiltering=False)
+        self.assertIn('ENSG2_2_239', result)
+        self.assertIn('ENSG2_2_239', result)
 
     def test_broken_filter_results(self):
         

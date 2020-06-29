@@ -234,9 +234,9 @@ class SmoothingSpline(PeakGenerator):
         """
         
         xRange -- the range to interpolate the spline over, must be monotonically increasing
-        yData  -- the yAxis of the spline that corosponds to the xRange
+        yData  -- the yAxis of the spline that correosponds to the xRange
         smoothingFactor -- tradeoff between smoothness of the spline and how well it fits
-        lossFunction -- loss function to use to optomize the spline
+        lossFunction -- loss function to use to optimize the spline
         
         """
         
@@ -246,7 +246,7 @@ class SmoothingSpline(PeakGenerator):
             #smoothingFactor = 0.25 * numpy.sum(yData) #
             smoothing_factor = len(xRange)
 
-        #degree of spline (cubic)
+        # degree of spline (cubic)
         self.k = 3
         self.num_reads = num_reads
         self.smoothing_factor = smoothing_factor
@@ -276,7 +276,7 @@ class SmoothingSpline(PeakGenerator):
 
         from scipy.linalg import norm
 
-        #the exponent is a magic number and subject to change
+        # the exponent is a magic number and subject to change
         err = (norm_weight*norm(spline(self.xRange))**2) + (residual_weight*sqrt(spline.get_residual()))
         return err
 
