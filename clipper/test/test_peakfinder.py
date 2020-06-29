@@ -481,9 +481,11 @@ class Test(unittest.TestCase):
         
         result = get_acceptable_species()
         
-        #just a quick test to make sure it works, probably need to fix this
-        #later
-        self.assertSetEqual(result, set(["test", "hg19", "mm9", "mm10", "ce10", "regions", "genes"]))
+        # make sure some main genomes are in here.
+        self.assertIn("hg19", result)
+        self.assertIn("mm9", result)
+        self.assertIn("mm10", result)
+        self.assertIn("GRCh38", result)
     
       
     def test_build_transcript_data(self):
