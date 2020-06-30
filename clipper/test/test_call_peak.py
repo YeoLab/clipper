@@ -62,27 +62,7 @@ class Test(unittest.TestCase):
         assert result == 20
         
         
-    def test_poissonP(self):
-        
-        """
-    
-        Performs unit testing on poissonP
-        
-        Will not test math behind calling poisson fuction more than nessessary as it has already been tested by scipy
-        
-        """ 
-        
-        #Case: fewer than 3 reads fall within a peak region: Expected result should return as though there are 3 expected reads
-        result = poissonP(50, 3, 50, 2)
-        self.assertAlmostEqual(result, (1 - 0.64723188878223115)) #manually calculated on personal computer stats.poisson.cdf(3, 3)
-        
-        #Case: More than 3 reads fall within a peak region. Expected: Result should return as normal (+1 of what ever it should be)
-        result = poissonP(50, 3, 50, 4)
-        self.assertAlmostEqual(result, (1 - 0.26502591529736164)) #manually calculated stats.poisson.cdf(3, 5)
-    
-        #Case: poissonp throws an exception. Expected: Result should return 1
-        result = poissonP(None, None, None, None)    
-        assert 1 == result
+
     
     
     def test_call_peaks(self):
