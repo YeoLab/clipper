@@ -240,7 +240,7 @@ class SmoothingSpline(PeakGenerator):
             smoothing_factor = len(xRange)
 
         # degree of spline (cubic)
-        self.k = 3
+        self.k = min(3, len(xRange)-1) # ensure degree less than length of data
         self.num_reads = num_reads
         self.smoothing_factor = smoothing_factor
         self.spline = None
