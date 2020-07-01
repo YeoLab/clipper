@@ -7,10 +7,10 @@ Please visit our wiki page to learn more about usage of clipper: https://github.
 ## Installation
 
 ```shell script
-# recreate conda environment
+# recreate PYTHON3 conda environment
 cd clipper
-conda env create -f environment.yml
-conda activate clipper
+conda env create -f environment3.yml
+conda activate clipper3
 python setup.py install
 ```
 ## Command Line Usage
@@ -25,7 +25,7 @@ cd clipper/clipper/test
 python -m unittest discover
 ```
 Right now the test coverage is still not 100%.
-And `test_spline.py` don't pass. 
+And some subprocess warnings are not handled.
 
 ## Reference
 Yeo GW, Coufal NG, Liang TY, Peng GE, Fu XD, Gage FH. An RNA code for the FOX2 splicing regulator revealed by mapping RNA-protein interactions in stem cells. Nat Struct Mol Biol. 2009;16(2):130-137. doi:10.1038/nsmb.1545
