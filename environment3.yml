@@ -75,7 +75,6 @@ dependencies:
   - wheel=0.34.2=py37_0
   - xz=5.2.5=h7b6447c_0
   - zlib=1.2.11=h7b6447c_3
-  - pip:
-    - clipper==0.2.0
+
 prefix: /home/hermuba/anaconda3/envs/clipper3
 
