@@ -136,5 +136,5 @@ def get_full_length_cigar(read):
                 yield cur_position
 
         for x in xrange(times):
-            cur_position = positions.next()[1]
+            cur_position = next(positions)[1]
             yield cur_position

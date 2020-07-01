@@ -10,6 +10,7 @@ Please visit our wiki page to learn more about usage of clipper: https://github.
 # recreate conda environment
 cd clipper
 conda env create -f environment.yml
+conda activate clipper
 python setup.py install
 ```
 ## Command Line Usage

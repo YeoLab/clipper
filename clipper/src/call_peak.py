@@ -3,18 +3,20 @@ Created on Jul 25, 2012
 @author: mlovci
 @author: gabrielp
 '''
+from __future__ import print_function
 
 from collections import namedtuple
 import logging
 import math
 import matplotlib
+from functools import reduce
 
 matplotlib.use('agg')
 import HTSeq
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 from matplotlib.path import Path
-from math import sqrt
+from math import sqrt, floor
 from numpy import diff, sign, append, array, arange, r_, empty
 import numpy as np
 import pysam
@@ -48,10 +50,11 @@ class Peak(namedtuple('Peak', ['chrom',
                                ])):
     def __repr__(self):
         """bed8 format"""
-        return "\t".join(map(str, [self.chrom, self.genomic_start, self.genomic_stop,
+        to_string = map(str, [self.chrom, self.genomic_start, self.genomic_stop,
                                    "_".join(map(str, [self.gene_name, self.peak_number, self.number_reads_in_peak])),
                                    self.strand,
-                                   self.thick_start, self.thick_stop]))
+                                   self.thick_start, self.thick_stop])
+        return "\t".join(list(to_string))
 
     def __len__(self):
         return self.genomic_stop - self.genomic_start
@@ -87,7 +90,7 @@ def get_FDR_cutoff_binom(readlengths, genelength, alpha = 0.05, mincut=2):
             else:
                 return k
         except:
-            print read_length, mean_read_length, genelength, prob, alpha, number_reads
+            print(read_length, mean_read_length, genelength, prob, alpha, number_reads)
             raise
 
 
@@ -108,7 +111,7 @@ def get_FDR_cutoff_mode(readlengths, genelength, iterations=1000,mincut=2,alpha=
         try:
             process = Popen([cmd, "-f", "stdin", "-L", str(genelength), "-r", str(iterations), "-a", str(alpha)],
                             stdin=PIPE, stdout=PIPE)
-            results, err = process.communicate("\n".join(map(str, readlengths)))
+            results, err = process.communicate("\n".join(list(map(str, readlengths))))
             return_val = process.wait()
             bad = 0
         except OSError:
@@ -501,11 +504,13 @@ class SmoothingSpline(PeakGenerator):
             if (arr[i] > arr[i + 1]) and increasing is True:
                 increasing = False
                 # gets the local maxima midpoint
-                maxima[(max_range_start + i) / 2] = True
+                midpoint = floor((max_range_start + i) / 2)
+                maxima[midpoint] = True
 
         # catches last case
         if increasing:
-            maxima[(max_range_start + len(arr) - 1) / 2] = True
+            midpoint = floor((max_range_start + len(arr) - 1) / 2)
+            maxima[midpoint] = True
 
         return maxima
 
@@ -524,7 +529,7 @@ class SmoothingSpline(PeakGenerator):
         # walks through array, finding local minima ranges
 
         # hacky way to initalize a new array to all false
-        minima = (arr == -1)
+        minima = (arr == -1) # initialize at all false
         min_range_start = 0
         decreasing = False
         for i in range(len(arr[:-1])):
@@ -539,7 +544,8 @@ class SmoothingSpline(PeakGenerator):
             if (arr[i] < arr[i + 1]) and decreasing is True:
                 decreasing = False
                 # gets the local minima midpoint
-                minima[(min_range_start + i) / 2] = True
+                midpoint = floor((min_range_start + i) / 2)
+                minima[midpoint] = True
 
         return minima
 
@@ -595,7 +601,7 @@ class SmoothingSpline(PeakGenerator):
 
             raise
 
-        # descretizes the data so it is easy to get regions above a given threshold
+        # discretizes the data so it is easy to get regions above a given threshold
         spline_values = array([int(x) for x in optimizedSpline(self.xRange)])
         if plotit is True:
             self.plot()
@@ -714,7 +720,7 @@ class GaussMix(PeakGenerator):
             try:
                 model = MyGMM(n_components, covariance_type='full').fit(gmm_result)
             except Exception as e:
-                print e
+                print(e)
 
             if best_model is None or model.bic(self.yData) < best_model.bic(self.yData):
                 best_model = model
@@ -943,9 +949,9 @@ def call_peaks(interval, gene_length, bam_file=None, max_gap=25,
     # pre-mRNA Threshold
     if user_threshold is None:
         if method == "binomial":  # Uses Binomial Distribution to get cutoff if specified by user
-            # print len(lengths), gene_length, binom_alpha
+            # print(len(lengths), gene_length, binom_alpha)
             premRNA_threshold = get_FDR_cutoff_binom(lengths, gene_length, binom_alpha)
-            # print premRNA_threshold
+            # print(premRNA_threshold)
         elif method == "random":
             premRNA_threshold = get_FDR_cutoff_mean(readlengths=lengths,
                                                     genelength=gene_length,
@@ -1012,12 +1018,9 @@ def call_peaks(interval, gene_length, bam_file=None, max_gap=25,
         gene_threshold = mRNA_threshold if overlaps_exon else premRNA_threshold
 
         # maybe make a function that takes a genomic interval and converts it into a pybedtools interval
-        cur_pybedtools_interval = pybedtools.create_interval_from_list([interval.chrom,
-                                                                        sectstart + interval.start,
-                                                                        sectstop + interval.start + 1,
-                                                                        interval.name,
-                                                                        interval.score,
-                                                                        strand])
+        bed_format = [interval.chrom,sectstart + interval.start,sectstop + interval.start + 1,interval.name,interval.score,strand]
+        bed_format = list(map(str, bed_format))
+        cur_pybedtools_interval = pybedtools.create_interval_from_list(bed_format)
 
         Nreads = count_reads_in_interval_pysam(cur_pybedtools_interval, interval.start, read_locations)
 
@@ -1043,12 +1046,9 @@ def call_peaks(interval, gene_length, bam_file=None, max_gap=25,
                 section_stop = sectstop + interval.start + 1 + half_width  # aim at _500 from section stop
                 expanded_sect_length = section_stop - section_start
 
-                cur_pybedtools_interval = pybedtools.create_interval_from_list([interval.chrom,
-                                                                                section_start,
-                                                                                section_stop,
-                                                                                interval.name,
-                                                                                interval.score,
-                                                                                strand])
+                bed_format = [interval.chrom, section_start,section_stop,interval.name,interval.score,strand]
+                bed_format = list(map(str, bed_format))
+                cur_pybedtools_interval = pybedtools.create_interval_from_list(bed_format)
 
                 expanded_Nreads = get_reads_in_interval_pysam(cur_pybedtools_interval, interval.start, read_locations)
                 sect_read_lengths = read_lengths_from_pysam(expanded_Nreads)
@@ -1088,7 +1088,7 @@ def call_peaks(interval, gene_length, bam_file=None, max_gap=25,
             continue
 
         if algorithm == "spline":
-            data = map(float, data)
+            data = list(map(float, data))
             # Magic number for initial smoothing, but it works
             initial_smoothing_value = ((sectstop - sectstart + 1) ** (1 / 3)) + 10
 
@@ -1101,11 +1101,11 @@ def call_peaks(interval, gene_length, bam_file=None, max_gap=25,
                                      num_reads=Nreads)
 
         elif algorithm == "gaussian":
-            cts = map(float, cts)
+            cts = list(map(float, cts))
             fitter = GaussMix(xvals, cts)
 
         elif algorithm == "classic":
-            data = map(float, data)
+            data = list(map(float, data))
             fitter = Classic(xvals, data, max_width, min_width, max_gap)
 
         try:
@@ -1131,12 +1131,10 @@ def call_peaks(interval, gene_length, bam_file=None, max_gap=25,
             genomic_start = interval.start + sectstart + peak_start
             genomic_stop = interval.start + sectstart + peak_stop
 
-            cur_pybedtools_interval = pybedtools.create_interval_from_list([interval.chrom,
-                                                                            genomic_start,
-                                                                            genomic_stop,
-                                                                            interval.name,
-                                                                            interval.score,
-                                                                            strand])
+            # save to bedtool
+            bed_format = [interval.chrom,genomic_start,genomic_stop,interval.name,interval.score,strand]
+            bed_format = list(map(str, bed_format)) # create_interval_only_take_str
+            cur_pybedtools_interval = pybedtools.create_interval_from_list(bed_format)
 
             number_reads_in_peak = count_reads_in_interval_pysam(cur_pybedtools_interval, interval.start,
                                                                  read_locations)
@@ -1159,12 +1157,9 @@ def call_peaks(interval, gene_length, bam_file=None, max_gap=25,
             area_start = max(0, (peak_center + sectstart) - windowsize)
             area_stop = min((peak_center + sectstart) + windowsize, len(wiggle))
 
-            cur_pybedtools_interval = pybedtools.create_interval_from_list([interval.chrom,
-                                                                            interval.start + area_start,
-                                                                            interval.start + area_stop,
-                                                                            interval.name,
-                                                                            interval.score,
-                                                                            strand])
+            bed_format = [interval.chrom,interval.start + area_start,interval.start + area_stop,interval.name,interval.score,strand]
+            bed_format = list(map(str, bed_format))
+            cur_pybedtools_interval = pybedtools.create_interval_from_list(bed_format)
 
             number_reads_in_area = count_reads_in_interval_pysam(cur_pybedtools_interval, interval.start,
                                                                  read_locations)

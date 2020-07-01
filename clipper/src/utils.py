@@ -63,16 +63,10 @@ def build_transcript_data_gtf_as_structure(species, pre_mrna):
             attrs += "transcript_ids=%s;" % (gene.attrs['transcript_ids'])
         attrs += "effective_length=%s" % (str(effective_length))
 
-        bedtool_intervals.append(pybedtools.create_interval_from_list(map(str, [gene['chrom'],
-                                                                               "AS_STRUCTURE",
-                                                                               "mRNA",
-                                                                               str(gene.start + 1),
-                                                                               str(gene.stop + 1),
-                                                                               "0",
-                                                                               gene['strand'],
-                                                                               ".",
-                                                                               attrs
-                                                                               ])))
+        # add to bedtool_intervals
+        to_string = map(str, [gene['chrom'],"AS_STRUCTURE","mRNA",str(gene.start + 1),str(gene.stop + 1),"0",gene['strand'],".",attrs]) # map object
+        bedtool_intervals.append(pybedtools.create_interval_from_list(list(to_string)))
+
 
     return pybedtools.BedTool(bedtool_intervals)
 

@@ -7,6 +7,7 @@ Refactored on June 29, 2020
 @author: algaebrown
 
 '''
+from __future__ import print_function
 
 ############################################################
 ####### This files calls the whole pipeline ################
@@ -49,12 +50,11 @@ def main(options):
     #    # TODO always False - no longer an option
     #   bedtool = build_transcript_data_gtf(pybedtools.BedTool(options.gtfFile), options.premRNA)
     # else:
-    bedtool = build_transcript_data_gtf_as_structure(options.species, options.premRNA)
-    bedtool.saveas()
+    bedtool = build_transcript_data_gtf_as_structure(options.species, options.premRNA).saveas()
 
     # gets a bedtool of all genes to call peaks on
     if options.gene:
-        bedtool = bedtool.filter(lambda x: x.attrs['gene_id'].split('.')[0] in options.gene)  ### bug
+        bedtool = bedtool.filter(lambda x: x.attrs['gene_id'].split('.')[0] in options.gene).saveas()  ### bug
 
     # options.maxgenes   # truncates for max bedtool
     if options.maxgenes:
@@ -62,11 +62,11 @@ def main(options):
         logging.info(" max genes from user input: {}".format(options.maxgenes))
         ########################################################################
         if options.maxgenes < len(bedtool):
-            bedtool = bedtool.random_subset(int(options.maxgenes))
+            bedtool = bedtool.random_subset(int(options.maxgenes)).saveas()
         else:
             logging.info(" number of genes <= max genes from user , not truncating genes")
             pass
-    bedtool = bedtool.saveas()
+
     if len(bedtool) == 0:
         raise Warning('Bedtool length is 0; check gene id')
 

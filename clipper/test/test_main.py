@@ -1,3 +1,4 @@
+from __future__ import print_function
 import unittest
 from clipper.src.main import *
 import clipper
@@ -31,12 +32,12 @@ class Test(unittest.TestCase):
         correct_tool = pybedtools.BedTool(correct)
 
         # checks to make sure files are equal and there are not exact dups
-        print len(tested_tool)
-        print len(correct_tool)
+        print(len(tested_tool))
+        print(len(correct_tool))
 
         self.assertAlmostEqual(len(tested_tool), len(correct_tool), delta=3)
-        print len(tested_tool)
-        print len(correct_tool)
+        print(len(tested_tool))
+        print(len(correct_tool))
 
         # cleanup
         os.remove(os.getcwd() + "/allup_peak_results.bed")
@@ -69,12 +70,12 @@ class Test(unittest.TestCase):
         correct_tool = pybedtools.BedTool(correct)
 
         # checks to make sure files are equal and there are not exact dups
-        print len(tested_tool)
-        print len(correct_tool)
+        print(len(tested_tool))
+        print(len(correct_tool))
 
         self.assertAlmostEqual(len(tested_tool), len(correct_tool), delta=3)
-        print len(tested_tool)
-        print len(correct_tool)
+        print(len(tested_tool))
+        print(len(correct_tool))
         # assert False
         """
         for test, correct in zip(tested_tool, correct_tool):
