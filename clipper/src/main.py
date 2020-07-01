@@ -156,7 +156,7 @@ def option_parser():
         python peakfinder.py -b <bamfile> -s <hg18/hg19/mm9> OR 
         python peakfinder.py -b <bamfile> --customBED <BEDfile> --customMRNA 
         <mRNA lengths> --customPREMRNA <premRNA lengths>"""
-    description = """CLIPper. Michael Lovci, Gabriel Pratt 2012. 
+    description = """CLIPper. Michael Lovci, Gabriel Pratt 2012, Hsuan-lin Her 2020.
                          CLIP peakfinder that uses fitted smoothing splines to 
                          define clusters of binding.  Computation is performed in
                          parallel using parallelPython. 
