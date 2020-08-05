@@ -19,15 +19,17 @@ using std::ifstream;
 // this program gets the expected frequency of heights of reads
 // randomly distributed r times over a gene of length L
 // adapted to C++ by Michael Lovci
-extern "C" PyMODINIT_FUNC initpeaks(void); /* Forward */
+extern "C" PyMODINIT_FUNC PyInit_peaks(void); /* Forward */
 
 int main(int argc, char **argv)
 {
-  Py_SetProgramName(argv[0]);
+  wchar_t progname[FILENAME_MAX + 1];
+  mbstowcs(progname, argv[0], strlen(argv[0]) + 1);
+  Py_SetProgramName(progname);
     
   Py_Initialize();
   
-  initpeaks();  
+  PyInit_peaks();
 }
 
 /*
@@ -83,13 +85,13 @@ extern "C" PyObject *peaks_shuffle(PyObject *self, PyObject *args)
       GENE[i] = 0;
     }
     
-    for( int i = 0; i < HEIGHT.size(); i++) {
+    for( int i = 0; (unsigned)i < HEIGHT.size(); i++) {
       HEIGHT[i] = 0;
     }
 
     //for each read assign it randomly
     for (int i=0; i < num_reads; i++){
-      long len = PyInt_AsLong(PyList_GetItem(reads, i));
+      long len = PyLong_AsLong(PyList_GetItem(reads, i));
 
       //error checking for obviously invalid reads
       if (len + 1 >= L){
@@ -98,10 +100,10 @@ extern "C" PyObject *peaks_shuffle(PyObject *self, PyObject *args)
 	//return NULL;
       }
       int ran;
-      
+
       //Pick a random location within the gene that the read can map to
       ran = rand() % (L - len - 1); //correct possible positions of reads based on size of gene and size of read
-      
+
       if (ran + len >= L) {
 	PyErr_SetString(PyExc_ValueError, "read is assigned past end of gene, this is a bug");
 	return NULL;
@@ -114,13 +116,13 @@ extern "C" PyObject *peaks_shuffle(PyObject *self, PyObject *args)
 	GENE[position]++;
       }
     }
-    
+
     int total_num_peaks = 0;
     int max_height = 0;
     for (int j = 0; j < L; j++) {
-      
+
       //if not enough read depth, resize
-      if (GENE[j] >= HEIGHT.size()) { 
+      if ((unsigned)GENE[j] >= HEIGHT.size()) {
 	  HEIGHT.resize(GENE[j] + 100, 0);
 	}
 
@@ -133,19 +135,19 @@ extern "C" PyObject *peaks_shuffle(PyObject *self, PyObject *args)
 	max_height = GENE[j];
       }
     }
-    
+
     //here is where you compute what height is significant.
     double PVAL[max_height];
     std::vector<int> sig_heights;
     PVAL[0] = 1; // set pvalue for height 0 = to 1;
 
     for (int height = 1; height < max_height; height++){
-      
+
       //Initialize p-value to 1 for all heights
       PVAL[height] = 1;
 
       //counts number of peaks that are higher than height
-      int bigger_peaks = 0; 
+      int bigger_peaks = 0;
       for (int height2=height; height2 < max_height; height2++){
 	bigger_peaks += HEIGHT[height2];
       }
@@ -158,15 +160,15 @@ extern "C" PyObject *peaks_shuffle(PyObject *self, PyObject *args)
 
       if (a < 1 && bigger_peaks > 0){
 	sig_heights.push_back(height);
-      }  
+      }
     }
 
     double N_heights = sig_heights.size();
     double R = 0.0;
     double correctedP[sizeof(PVAL) / sizeof(PVAL[0])];
     std::vector<int> corr_sig_heights;
-    
-    
+
+
     //This is janky need help from mike
     for (int ele = sig_heights.size() - 1; ele >= 0; ele--){
       correctedP[sig_heights[ele]] = PVAL[sig_heights[ele]] * N_heights/(N_heights - R);
@@ -190,17 +192,17 @@ extern "C" PyObject *peaks_shuffle(PyObject *self, PyObject *args)
 
     //Assign height cutoff to output vector
     int height_cutoff = corr_sig_heights[(corr_sig_heights.size() - 1)]; // height cutoff is the smallest height that is still significant.
-    if (height_cutoff > OBS_CUTOFF.size()) {
+    if ((unsigned)height_cutoff > OBS_CUTOFF.size()) {
       OBS_CUTOFF.resize(height_cutoff + 100, 0L);
     }
-    OBS_CUTOFF[height_cutoff]++;  
+    OBS_CUTOFF[height_cutoff]++;
   }
-  
+
   PyObject *returnList = PyList_New(OBS_CUTOFF.size());
-  
+
   //construct return list
-  for (int cut = 0; cut < OBS_CUTOFF.size(); cut++) {
-    PyList_SetItem(returnList, cut, PyInt_FromLong(OBS_CUTOFF[cut]));
+  for (int cut = 0; (unsigned)cut < OBS_CUTOFF.size(); cut++) {
+    PyList_SetItem(returnList, cut, PyLong_FromLong(OBS_CUTOFF[cut]));
   }
 
   return returnList;
@@ -218,6 +220,7 @@ TODO: Modify to allow for threshold-ed margins
 
 */
 extern "C" PyObject *peaks_find_sections(PyObject *self, PyObject *args) {
+  // return contiguous bases with read > 0; termed "section"
   std::vector<PyObject*> sections(0); //vector of sections because appending to a python list takes a very long time
   PyObject *wiggle; //list of read densities
   int margin;
@@ -231,35 +234,35 @@ extern "C" PyObject *peaks_find_sections(PyObject *self, PyObject *args) {
   if(!PyArg_ParseTuple(args, "Oi", &wiggle, &margin)) {
       return NULL;
     }
-  
-  int wiggle_size = PyList_Size(wiggle); 
-  
+
+  int wiggle_size = PyList_Size(wiggle);
+
   //walk along the wiggle track looking for gaps wider than the margin, when that happens output the region
-  for (; loc < wiggle_size; loc++) { 
+  for (; loc < wiggle_size; loc++) {
     double cur_wiggle_value = PyFloat_AsDouble(PyList_GetItem(wiggle, loc));
 
-    //If the current value is non-zero assume you are in a section and if you are not in a section set this location as the start of the section 
+    //If the current value is non-zero assume you are in a section and if you are not in a section set this location as the start of the section
     if (cur_wiggle_value > 0) {
       gap = 0;
-      
+
       //if not in section mark this location as the first part of a section
       if(!in_section) {
 	    start = loc;
       }
 
       in_section = true;
-      //sets the new start after 
-      
+      //sets the new start after
+
     } else {
       gap += 1;
-      //sets new section if any only if we just left a section 
+      //sets new section if any only if we just left a section
       if(in_section && gap > margin ) {
          in_section = false;
          stop = loc - gap + 1; //sets the stop to the last location that a real value has been seen
 	 //adds section to list
 	 PyObject *section = PyTuple_New(2);
-	 PyTuple_SetItem(section, 0, PyInt_FromLong(start));
-	 PyTuple_SetItem(section, 1, PyInt_FromLong(stop));
+	 PyTuple_SetItem(section, 0, PyLong_FromLong(start));
+	 PyTuple_SetItem(section, 1, PyLong_FromLong(stop));
 	 sections.push_back(section);
       }
     }
@@ -268,27 +271,27 @@ extern "C" PyObject *peaks_find_sections(PyObject *self, PyObject *args) {
   //catch last potential section
   if ( in_section ) {
     PyObject *section = PyTuple_New(2);
-    PyTuple_SetItem(section, 0, PyInt_FromLong(start));
-    PyTuple_SetItem(section, 1, PyInt_FromLong(loc - (gap + 1)));
-   
+    PyTuple_SetItem(section, 0, PyLong_FromLong(start));
+    PyTuple_SetItem(section, 1, PyLong_FromLong(loc - (gap + 1)));
+
     sections.push_back(section);
 
   }
-  
+
   PyObject *returnList = PyList_New(sections.size());
-  
+
   //transform vector to pylist
-  for (int i = 0; i < sections.size(); i++) {
+  for (int i = 0; (unsigned)i < sections.size(); i++) {
     PyList_SetItem(returnList, i, sections[i]);
   }
-  
-  return returnList; 
+
+  return returnList;
 }
 
 /* fast version of reads to wiggle */
 extern "C" PyObject *peaks_readsToWiggle_pysam(PyObject *self, PyObject *args) {
-  
-  
+
+
   //Define arguments passed in
   PyObject *reads; //list of reads
   int tx_start;
@@ -299,10 +302,10 @@ extern "C" PyObject *peaks_readsToWiggle_pysam(PyObject *self, PyObject *args) {
   bool makeFractional; //flag to return either whole number coverage or coverage normalized by length of reads
   //parse args
   if(!PyArg_ParseTuple(args, "OiissO", &reads, &tx_start, &tx_end, &keepstrand, &usePos, &fractional_input)) {
-    PyErr_SetString(PyExc_TypeError, "One of the argunments is null");  
+    PyErr_SetString(PyExc_TypeError, "One of the argunments is null");
     return NULL;
   }
-  
+
   //error checking
   if(!(strcmp(usePos,"center") || strcmp(usePos, "start") || strcmp(usePos, "end"))) {
     	PyErr_SetString(PyExc_NameError, "usePos must be either center, start or end");
@@ -310,8 +313,8 @@ extern "C" PyObject *peaks_readsToWiggle_pysam(PyObject *self, PyObject *args) {
   }
  makeFractional = PyObject_IsTrue(fractional_input);
   //set list sizes to do calculations on (NEVER SET BEFORE parsing the tuple)
-  
-  std::vector<double> wiggle(tx_end - tx_start + 1, 0);    
+
+  std::vector<double> wiggle(tx_end - tx_start + 1, 0);
   std::vector<int> pos_counts(tx_end - tx_start + 1, 0);
   std::vector<int> lengths;
 
@@ -325,13 +328,13 @@ extern "C" PyObject *peaks_readsToWiggle_pysam(PyObject *self, PyObject *args) {
 
   jxns = PyDict_New();
   allreads = PySet_New(NULL);
-  
+
   while (item = PyIter_Next(iterator)) {
 
-    
+
     //skips reads on the wrong strand
     PyObject *is_reverse = PyObject_GetAttrString(item, "is_reverse");
-    
+
     if (is_reverse == Py_True && !strcmp(keepstrand, "+")) {
       continue;
       Py_DECREF(item);
@@ -339,12 +342,12 @@ extern "C" PyObject *peaks_readsToWiggle_pysam(PyObject *self, PyObject *args) {
       continue;
       Py_DECREF(item);
     }
-    
-    //sets read stard and stop location 
+
+    //sets read stard and stop location
     PyObject *aligned_positions = PyObject_GetAttrString(item, "positions");
-    
+
     int positions_size = PyList_Size(aligned_positions);
-    
+
     PyObject *Pyread_start = PyList_GetItem(aligned_positions, 0);
     PyObject *Pyread_stop = PyList_GetItem(aligned_positions, positions_size - 1);
 
@@ -357,26 +360,26 @@ extern "C" PyObject *peaks_readsToWiggle_pysam(PyObject *self, PyObject *args) {
       Py_DECREF(item);
       continue;
     }
-    
-  
+
+
     //doing the hacky version of getting the read size, just getting all the aligned locations
     lengths.push_back(positions_size);
-    
-    //choose where to align single reads 
+
+    //choose where to align single reads
     if (!strcmp(usePos, "center")) {
-      pos_counts[(((read_stop + read_start) / 2) - tx_start)] += 1; //assign pos counts 
+      pos_counts[(((read_stop + read_start) / 2) - tx_start)] += 1; //assign pos counts
     } else if (!strcmp(usePos, "start")) {
       if (strcmp(keepstrand, "+")) {
 	pos_counts[read_start - tx_start]++;
       } else {
 	pos_counts[read_stop - tx_start]++;
-      } 
+      }
     } else if (!strcmp(usePos, "end")) {
       if (strcmp(keepstrand, "+")) {
 	pos_counts[read_stop - tx_start]++;
       } else {
 	pos_counts[read_start - tx_start]++;
-      } 
+      }
     } else {
       Py_DECREF(item);
       Py_DECREF(iterator);
@@ -385,10 +388,10 @@ extern "C" PyObject *peaks_readsToWiggle_pysam(PyObject *self, PyObject *args) {
 
     //generate wiggle track from files
 
-    
+
     PyObject *read_loc = PyTuple_New(2);
-    PyTuple_SetItem(read_loc, 0, PyInt_FromLong(read_start));
-    PyTuple_SetItem(read_loc, 1, PyInt_FromLong(read_stop));
+    PyTuple_SetItem(read_loc, 0, PyLong_FromLong(read_start));
+    PyTuple_SetItem(read_loc, 1, PyLong_FromLong(read_stop));
     PySet_Add(allreads, read_loc);
 
 
@@ -401,31 +404,31 @@ extern "C" PyObject *peaks_readsToWiggle_pysam(PyObject *self, PyObject *args) {
 	Py_DECREF(iterator);
 	return NULL;
       }
-      
+
       long pos = PyLong_AsLong(cur);
       if (i+1 < positions_size){
 	PyObject *nextcur  = PyList_GetItem(aligned_positions, (i+1));
 	long nextpos = PyLong_AsLong(nextcur);
 	if (nextpos > (pos +1)){
-	  // fprintf(stderr,"junction: %d : ", pos);	  
-	  // fprintf(stderr,"%d \n",  nextpos);	  
+	  // fprintf(stderr,"junction: %d : ", pos);
+	  // fprintf(stderr,"%d \n",  nextpos);
 	  // the next position is > than this position + 1. this is a junction
 	  // coordinates are iffy... check it very closely if jxns is to be used.
 	  PyObject *jxn = PyTuple_New(2);
-	  PyTuple_SetItem(jxn, 0, PyInt_FromLong(pos+1));
-	  PyTuple_SetItem(jxn, 1, PyInt_FromLong(nextpos+1));
-	  
+	  PyTuple_SetItem(jxn, 0, PyLong_FromLong(pos+1));
+	  PyTuple_SetItem(jxn, 1, PyLong_FromLong(nextpos+1));
+
 	  if (PyDict_Contains(jxns, jxn)){
-	    
+
 	    PyObject *jxnCount = PyDict_GetItem(jxns,jxn);
-	    long incremented = PyInt_AsLong(jxnCount);
+	    long incremented = PyLong_AsLong(jxnCount);
 	    incremented++;
-	    
-	    PyDict_SetItem(jxns, jxn, PyInt_FromLong(incremented));
+
+	    PyDict_SetItem(jxns, jxn, PyLong_FromLong(incremented));
 	  } else{
-	    PyDict_SetItem(jxns, jxn, PyInt_FromLong(1));
+	    PyDict_SetItem(jxns, jxn, PyLong_FromLong(1));
 	  }
-	}	
+	}
       }
 
       //Py_DECREF(cur);
@@ -436,39 +439,39 @@ extern "C" PyObject *peaks_readsToWiggle_pysam(PyObject *self, PyObject *args) {
 	wiggle[wig_index]++;
       }
     }
-    
-    
+
+
 
     Py_DECREF(aligned_positions);
     Py_DECREF(item);
 
   }
   Py_DECREF(iterator); // iteration has ended, garbage collect it
-  
+
   //return reads;
-  //all 3 items have been generated, convert them into PyLists and return them as a tuple 
-  
+  //all 3 items have been generated, convert them into PyLists and return them as a tuple
+
   //convert lengths to pylist
   PyObject *retLengths = PyList_New(lengths.size());
-  
+
   //transform vector to pylist
-  for (int i = 0; i < lengths.size(); i++) {
-    PyList_SetItem(retLengths, i, PyInt_FromLong(lengths[i]));
+  for (int i = 0; (unsigned)i < lengths.size(); i++) {
+    PyList_SetItem(retLengths, i, PyLong_FromLong(lengths[i]));
   }
 
   //convert single counts and wiggle as pylist
   PyObject *retWiggle = PyList_New(wiggle.size());
   PyObject *retPos_counts = PyList_New(pos_counts.size());
-  
+
   //transform vector to pylist
-  for (int i = 0; i < wiggle.size(); i++) {
+  for (int i = 0; (unsigned)i < wiggle.size(); i++) {
     if(makeFractional) {
       PyList_SetItem(retWiggle, i, PyFloat_FromDouble(wiggle[i]));
     } else {
-      PyList_SetItem(retWiggle, i, PyInt_FromLong(wiggle[i]));
+      PyList_SetItem(retWiggle, i, PyLong_FromLong(wiggle[i]));
     }
-    
-    PyList_SetItem(retPos_counts, i, PyInt_FromLong(pos_counts[i]));
+
+    PyList_SetItem(retPos_counts, i, PyLong_FromLong(pos_counts[i]));
   }
  
   //add 3 lists to tuple and return
@@ -495,10 +498,18 @@ static PyMethodDef peaks_methods[] = {
     {NULL, NULL, 0, NULL}           /* sentinel */
 };
 
-extern "C" PyMODINIT_FUNC initpeaks(void) 
+static struct PyModuleDef peaksmodule = {
+    PyModuleDef_HEAD_INIT,
+    "peaks",
+    "Python interface for the peaks C library function",
+    -1,
+    peaks_methods
+};
+
+extern "C" PyMODINIT_FUNC PyInit_peaks(void)
 {
   PyImport_AddModule("peaks");
-  Py_InitModule("peaks", peaks_methods);
+  PyModule_Create(&peaksmodule);
 }
 
 int usage(char *program_name)

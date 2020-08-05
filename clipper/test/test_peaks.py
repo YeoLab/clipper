@@ -3,6 +3,7 @@ Created on Jul 17, 2012
 
 @author: gabrielp
 '''
+from __future__ import print_function
 
 import unittest
 from clipper.src.peaks import find_sections, shuffle #readsToWiggle_pysam
@@ -79,7 +80,7 @@ class Test(unittest.TestCase):
     def test_small_sizes(self):
         #makes sure it works on edge cases
         result = shuffle(100, 3, 0, .05, [2,3,4])
-        print result
+        print(result)
         #Screw this, removing the test, uniform distribution should return all zeros anyway...
         #self.assertEqual(sum(result), 3)
     
@@ -90,7 +91,7 @@ class Test(unittest.TestCase):
     """
     def test_find_sections(self):
         #setup 
-        print "testing find sectionds"
+        print("testing find sectionds")
         #Null Case
         self.assertRaises(TypeError, find_sections, (None, 0))
         
@@ -155,7 +156,7 @@ class Test(unittest.TestCase):
                    3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 
                    3, 3, 3, 3]
         result = find_sections(wiggle, 15)
-        print result
+        print(result)
         #start is greater than end
         self.assertGreater(result[1][0], result[0][1], "first region: %s, second region %s, start of section value is less than end of first" %(result[0][1], result[1][0] )) 
     
@@ -193,14 +194,16 @@ class Test(unittest.TestCase):
     def test_readsToWiggle_pysam(self):
         reads = pysam.Samfile(os.path.join(clipper.test_dir(), "allup_test.bam"))      
         reads = reads.fetch(region="chr15:91536649-91537641")
-        wiggle, jxns, pos_counts, lengths, allreads = readsToWiggle_pysam(reads, 91537632, 91537675, '-', 'center', False)
+        wiggle, jxns, pos_counts, lengths, allreads, explicit_locations = readsToWiggle_pysam(reads, 91537632, 91537675, '-', 'center', False)
         #wiggle, pos_counts, lengths = readsToWiggle_pysam(reads, 91537632, 91537675, '-', 'center', False)
+
+
          
         wiggle_true = [  2. ,  2.,   2. ,  2. ,  2. ,  2.  , 2. ,  2. , 11. , 11.,  11. , 11.  ,11. , 11. , 11.,
    11. , 11.,  11.,  11. , 11.  ,11. , 11. , 11. , 11.,  11. , 11. , 11.  ,11. , 11.  ,11.,
    11. , 11.,  11.,   9. ,  9. ,  9. ,  9. ,  9.,   9. ,  9.,   9. ,  0. ,  0.,   0.]
         
-        print wiggle
+        print(wiggle)
         for true, test in zip(wiggle_true, wiggle):
             self.assertEqual(test, true)
         #
@@ -224,11 +227,11 @@ class Test(unittest.TestCase):
             
         reads = pysam.Samfile(os.path.join(clipper.test_dir(), "allup_test.bam"))      
         reads = reads.fetch(region="chr15:91536649-91537641")
-        wiggle, jxns, pos_counts, lengths, allreads = readsToWiggle_pysam(reads, 91537632, 91537675, '-', 'center', True)
+        wiggle, jxns, pos_counts, lengths, allreads,  explicit_locations = readsToWiggle_pysam(reads, 91537632, 91537675, '-', 'center', True)
 
         wiggle_true = [0.06060606060606061, 0.06060606060606061, 0.06060606060606061, 0.06060606060606061, 0.06060606060606061, 0.06060606060606061, 0.06060606060606061, 0.06060606060606061, 0.33333333333333326, 0.33333333333333326, 0.33333333333333326, 0.33333333333333326, 0.33333333333333326, 0.33333333333333326, 0.33333333333333326, 0.33333333333333326, 0.33333333333333326, 0.33333333333333326, 0.33333333333333326, 0.33333333333333326, 0.33333333333333326, 0.33333333333333326, 0.33333333333333326, 0.33333333333333326, 0.33333333333333326, 0.33333333333333326, 0.33333333333333326, 0.33333333333333326, 0.33333333333333326, 0.33333333333333326, 0.33333333333333326, 0.33333333333333326, 0.33333333333333326, 0.2727272727272727, 0.2727272727272727, 0.2727272727272727, 0.2727272727272727, 0.2727272727272727, 0.2727272727272727, 0.2727272727272727, 0.2727272727272727, 0.0, 0.0, 0.0]
-        print wiggle_true
-        print wiggle
+        print(wiggle_true)
+        print(wiggle)
         for true, test in zip(wiggle_true, wiggle):
             self.assertAlmostEqual(test, true, 4)
             
