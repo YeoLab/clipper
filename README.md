@@ -16,7 +16,11 @@ python setup.py install
 ## Command Line Usage
 
 ```shell script
-clipper -h
+# shows all the options
+clipper -h 
+
+# minimal command
+clipper -b YOUR_BAM_FILE.bam -o YOUR_OUT_FILE.bed -s hg19
 ````
 
 ## Run test
@@ -26,6 +30,17 @@ python -m unittest discover
 ```
 Right now the test coverage is still not 100%.
 And some subprocess warnings are not handled.
+
+
+## Frequently Asked Questions:
+1. How do use additional reference genome?
+[See here for instructions: Supporting additional species](https://github.com/YeoLab/clipper/wiki/Supporting-additional-species)
+
+2. Where can I use specify the Input bam file?
+Currently CLIPper does include input normalization. The input normalization pipeline is in another repository: [Merge Peaks](https://github.com/YeoLab/merge_peaks)
+
+## Questions and suggestions
+please open an issue in the repo. or email Charlene `hsher@ucsd.edu`
 
 ## Reference
 Yeo GW, Coufal NG, Liang TY, Peng GE, Fu XD, Gage FH. An RNA code for the FOX2 splicing regulator revealed by mapping RNA-protein interactions in stem cells. Nat Struct Mol Biol. 2009;16(2):130-137. doi:10.1038/nsmb.1545
