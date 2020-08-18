@@ -152,7 +152,7 @@ def option_parser():
     :return: OptionParser object
     '''
     usage = """
-        THIS IS CLIPPER FOR ECLIP VERSION 0.1.4
+        THIS IS CLIPPER FOR ECLIP VERSION 2.0.0
         python peakfinder.py -b <bamfile> -s <hg18/hg19/mm9> OR 
         python peakfinder.py -b <bamfile> --customBED <BEDfile> --customMRNA 
         <mRNA lengths> --customPREMRNA <premRNA lengths>"""
