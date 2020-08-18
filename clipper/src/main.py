@@ -153,15 +153,13 @@ def option_parser():
     '''
     usage = """
         THIS IS CLIPPER FOR ECLIP VERSION 2.0.0
-        python peakfinder.py -b <bamfile> -s <hg18/hg19/mm9> OR 
-        python peakfinder.py -b <bamfile> --customBED <BEDfile> --customMRNA 
-        <mRNA lengths> --customPREMRNA <premRNA lengths>"""
+        clipper -b YOUR_BAM_FILE.bam -o YOUR_OUT_FILE.bed -s hg19 """
     description = """CLIPper. Michael Lovci, Gabriel Pratt 2012, Hsuan-lin Her 2020.
                          CLIP peakfinder that uses fitted smoothing splines to 
                          define clusters of binding.  Computation is performed in
                          parallel using parallelPython. 
-                         Refer to: https://github.com/YeoLab/clipper/wiki for instructions. 
-                         Questions should be directed to michaeltlovci@gmail.com."""
+                         Refer to: https://github.com/YeoLab/clipper/ for instructions. 
+                         Questions should be directed to hsher@ucsd.edu"""
     parser = OptionParser(usage=usage, description=description)
 
     parser.add_option("--bam", "-b", dest="bam", help="A bam file to call peaks on", type="string", metavar="FILE.bam")
