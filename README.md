@@ -11,7 +11,7 @@ Please visit our wiki page to learn more about usage of clipper: https://github.
 cd clipper
 conda env create -f environment3.yml
 conda activate clipper3
-python setup.py install
+pip install .
 ```
 ## Command Line Usage
 
