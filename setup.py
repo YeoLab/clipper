@@ -16,7 +16,7 @@ long_description = "CLIPPER - clip peak enrichment"
 setup(
     name = "clipper",
     long_description = long_description,
-    version = "0.2.0",
+    version = "2.0.0",
     packages = find_packages(),
     cmdclass = {'build_ext' : build_ext},
     ext_modules = [readsToWiggle, peaks],
@@ -26,13 +26,13 @@ setup(
         },
 
     install_requires = ['setuptools', 
-                        'pysam >= 0.6',
-                        'numpy >= 1.5.1 ',
-                        'scipy >= 0.11.0',
-                        'matplotlib >= 1.1.0',
-                        'pybedtools >= 0.5',
-                        'scikit-learn >= 0.13.0',
-                        'HTSeq >= 0.6.1'
+                        'pysam >= 0.15.3',
+                        'numpy >= 1.18.5 ',
+                        'scipy >= 1.5.0',
+                        'matplotlib >= 3.2.2',
+                        'pybedtools >= 0.8.1',
+                        'scikit-learn >= 0.23.1',
+                        'HTSeq >= 0.11.3'
                         ],
       
     setup_requires = ["setuptools_git >= 0.3",],
