@@ -13,6 +13,10 @@ conda env create -f environment3.yml
 conda activate clipper3
 pip install .
 ```
+### Alternative installation
+1. Thanks @rekado for making clipper available at GNU Guix `guix install clipper`
+2. We notice installation might be failing in some platform. Dockerized clipper is in the `eclip` repository [here](https://github.com/YeoLab/eclip).
+
 ## Command Line Usage
 
 ```shell script
