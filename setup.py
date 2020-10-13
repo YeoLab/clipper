@@ -16,7 +16,7 @@ long_description = "CLIPPER - clip peak enrichment"
 setup(
     name = "clipper",
     long_description = long_description,
-    version = "2.0.0",
+    version = "2.1.0",
     packages = find_packages(),
     cmdclass = {'build_ext' : build_ext},
     ext_modules = [readsToWiggle, peaks],
