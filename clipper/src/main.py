@@ -48,9 +48,9 @@ def main(options):
     ########### PREPARE GENE LENGTH ################
     # if options.gtfFile:
     #    # TODO always False - no longer an option
-    #   bedtool = build_transcript_data_gtf(pybedtools.BedTool(options.gtfFile), options.premRNA)
+    #   bedtool = build_transcript_data_gtf(pybedtools.BedTool(options.gtfFile), options.premRNA, , data_dir=options.datadir)
     # else:
-    bedtool = build_transcript_data_gtf_as_structure(options.species, options.premRNA).saveas()
+    bedtool = build_transcript_data_gtf_as_structure(options.species, options.premRNA, data_dir=options.datadir).saveas()
 
     # gets a bedtool of all genes to call peaks on
     if options.gene:
@@ -70,7 +70,7 @@ def main(options):
     if len(bedtool) == 0:
         raise Warning('Bedtool length is 0; check gene id')
 
-    exons = get_exon_bed(options.species)
+    exons = get_exon_bed(options.species, data_dir=options.datadir)
 
     ############### PREPARE MULTIPROCESSING ##############################
 
@@ -209,6 +209,8 @@ def option_parser():
     # parser.add_option("--reverse_strand", dest="reverse_strand",default=False, action="store_true", help="adds option to reverse strand")
     parser.add_option("--timeout", dest="timeout", default=None, type=int,
                       help="adds timeout (in seconds) to genes that take too long (useful for debugging only, or if you don't care about higly expressed genes)")
+    parser.add_option("--datadir", dest="datadir", default=None, type=str,
+                      help="folder that stores *AS.STRUCTURE.gff") #TODO find a default place to store
     return parser
 
 def override_options(options):
