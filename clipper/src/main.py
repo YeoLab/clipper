@@ -143,7 +143,7 @@ def main(options):
         pybedtools.BedTool(filtered_peak_bedtool_tsv, from_string=True).sort(stream=True).saveas(options.outfileF)
 
     if options.save_pickle is True:
-        with open(options.outfileF + ".pickle", 'w') as f:
+        with open(options.outfileF + ".pickle", 'wb') as f:
             # TODO Can't pickle save after filtering ? as we have a tsv now, not a peaks_dicts list !?
             pickle.dump(peaks_dicts, file=f)
 
