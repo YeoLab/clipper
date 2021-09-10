@@ -21,9 +21,9 @@ setup(
     cmdclass = {'build_ext' : build_ext},
     ext_modules = [readsToWiggle, peaks],
 
-    package_data = {
-        'clipper' : ['data/*', 'data/regions/*', 'test/data/*']
-        },
+    # package_data = {
+    #     'clipper' : ['data/*', 'data/regions/*', 'test/data/*']
+    #     },
 
     install_requires = ['setuptools', 
                         'pysam >= 0.15.3',
