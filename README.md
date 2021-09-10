@@ -26,6 +26,17 @@ clipper -h
 # minimal command
 clipper -b YOUR_BAM_FILE.bam -o YOUR_OUT_FILE.bed -s hg19
 ````
+## Output format
+The output bed file is a tab-delimited NarrowBed Format.
+The information for each column is as follows:
+1. chrom
+2. start
+3. stop
+4. name (GENEID_PEAKID_NREADS), NREADS= how many reads in peak
+5. pval
+6. strand
+7. thick_start
+8. thick_stop
 
 ## Run test
 ```shell script
