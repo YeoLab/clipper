@@ -925,7 +925,7 @@ def call_peaks(interval, gene_length, bam_file=None, max_gap=25,
 
     # fixes non-standard chrom file names (without the chr)
     if not interval.chrom.startswith("chr") and not interval.chrom.startswith("ERCC") and not interval.chrom.startswith(
-            "phiX"):
+            "phiX") not interval.chrom.startswith("Chr"):
         interval.chrom = "chr" + interval.chrom
 
     # fetch reads in the genomic region
