@@ -210,7 +210,7 @@ def option_parser():
     parser.add_option("--timeout", dest="timeout", default=None, type=int,
                       help="adds timeout (in seconds) to genes that take too long (useful for debugging only, or if you don't care about higly expressed genes)")
     parser.add_option("--datadir", dest="datadir", default=None, type=str,
-                      help="folder that stores *AS.STRUCTURE.gff") #TODO find a default place to store
+                      help="folder DATADIR that stores DATADIR/*AS.STRUCTURE.gff and the DATADIR/regions/*.bed.") #TODO find a default place to store
     return parser
 
 def override_options(options):
