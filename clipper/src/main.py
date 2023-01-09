@@ -137,8 +137,8 @@ def main(options):
     ############### WRITE TO FILE #####################################
 
     if type(filtered_peak_bedtool_tsv) == str:
-        # with open(outbedF + ".tsv", 'w') as tsvfile:
-        #    tsvfile.write(filtered_peak_bedtool_tsv)
+        with open(options.outfileF + ".tsv", 'w') as tsvfile:
+            tsvfile.write("Nothing here.")
         # filtered_peak_bedtool_dataframe.to_csv(tsvfile, sep = '\t')
         pybedtools.BedTool(filtered_peak_bedtool_tsv, from_string=True).sort(stream=True).saveas(options.outfileF)
 
@@ -152,7 +152,7 @@ def option_parser():
     :return: OptionParser object
     '''
     usage = """
-        THIS IS CLIPPER FOR ECLIP VERSION 2.0.0
+        THIS IS CLIPPER FOR ECLIP VERSION 2.1.2
         clipper -b YOUR_BAM_FILE.bam -o YOUR_OUT_FILE.bed -s hg19 """
     description = """CLIPper. Michael Lovci, Gabriel Pratt 2012, Hsuan-lin Her 2020.
                          CLIP peakfinder that uses fitted smoothing splines to 
