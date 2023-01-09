@@ -28,6 +28,8 @@ import pybedtools
 from clipper.src.peaks import shuffle, find_sections
 from clipper.src.readsToWiggle import readsToWiggle_pysam
 
+import warnings
+
 
 
 class Peak(namedtuple('Peak', ['chrom',
@@ -929,7 +931,12 @@ def call_peaks(interval, gene_length, bam_file=None, max_gap=25,
         interval.chrom = "chr" + interval.chrom
 
     # fetch reads in the genomic region
-    subset_reads = list(bam_fileobj.fetch(reference=str(interval.chrom), start=interval.start, end=interval.stop))
+    try:
+        subset_reads = list(bam_fileobj.fetch(reference=str(interval.chrom), start=interval.start, end=interval.stop))
+    except Exception as e:
+        subset_reads = []
+        wstring=f"unable to fetch read from region {interval.chrom} {interval.start} {interval.stop} due to: {e}"
+        warnings.warn(wstring)
     strand = str(interval.strand)
     if reverse_strand:
         if strand == "+":
