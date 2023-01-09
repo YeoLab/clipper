@@ -31,6 +31,7 @@
 build/
 clipper.egg-info/
 dist/
+.eggs/
 
 #other stuff 
 setuptools_git-1.0-py2.7.egg
