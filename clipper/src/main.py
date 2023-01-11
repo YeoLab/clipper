@@ -12,6 +12,7 @@ from __future__ import print_function
 ############################################################
 ####### This files calls the whole pipeline ################
 ############################################################
+import clipper
 from clipper.src.utils import check_for_index, build_transcript_data_gtf_as_structure, get_exon_bed
 from clipper.src.call_peak import call_peaks
 from clipper.src.filter_peak import count_transcriptome_reads, count_transcriptome_length, filter_peaks_dicts
@@ -209,7 +210,7 @@ def option_parser():
     # parser.add_option("--reverse_strand", dest="reverse_strand",default=False, action="store_true", help="adds option to reverse strand")
     parser.add_option("--timeout", dest="timeout", default=None, type=int,
                       help="adds timeout (in seconds) to genes that take too long (useful for debugging only, or if you don't care about higly expressed genes)")
-    parser.add_option("--datadir", dest="datadir", default=None, type=str,
+    parser.add_option("--datadir", dest="datadir", default=clipper.data_dir(), type=str,
                       help="folder DATADIR that stores DATADIR/*AS.STRUCTURE.gff and the DATADIR/regions/*.bed.") #TODO find a default place to store
     return parser
 
