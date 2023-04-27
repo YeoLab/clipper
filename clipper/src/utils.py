@@ -43,7 +43,7 @@ def check_for_index(bamfile):
 
 ####################### LENGTHS #####################################
 
-def build_transcript_data_gtf_as_structure(species, pre_mrna):
+def build_transcript_data_gtf_as_structure(species, pre_mrna, data_dir=''):
     """
     calculate effective length for each transcript from pre-created gtf file in clipper/data
     Returns Bedtool containing effective length
@@ -54,7 +54,8 @@ def build_transcript_data_gtf_as_structure(species, pre_mrna):
 
     """
     bedtool_intervals = []
-    x = clipper.data_file(species + ".AS.STRUCTURE.COMPILED.gff")
+    #x = clipper.data_file(species + ".AS.STRUCTURE.COMPILED.gff")
+    x=os.path.join(data_dir, species + ".AS.STRUCTURE.COMPILED.gff")
     gtf_file = pybedtools.BedTool(x)
     for gene in gtf_file:
         effective_length = gene.attrs['premrna_length'] if pre_mrna else gene.attrs['mrna_length']
@@ -70,9 +71,9 @@ def build_transcript_data_gtf_as_structure(species, pre_mrna):
 
     return pybedtools.BedTool(bedtool_intervals)
 
-def get_exon_bed(species):
+def get_exon_bed(species, data_dir=''):
     short_species = species.split("_")[0]
-    return os.path.join(clipper.data_dir(), "regions", "%s_%s.bed" % (short_species, "exons"))
+    return os.path.join(data_dir, "regions", "%s_%s.bed" % (short_species, "exons"))
 
 def write_peak_bedtool_string(cluster):
     """
@@ -180,7 +181,7 @@ def add_species(species, chrs, bed, mrna, premrna):
     return par
 
 
-def build_transcript_data(species, gene_bed, gene_mrna, gene_pre_mrna, pre_mrna):
+def build_transcript_data(species, gene_bed, gene_mrna, gene_pre_mrna, pre_mrna, data_dir = ''):
     """
 
     Generates transcript data structures to call peaks on
@@ -199,7 +200,7 @@ def build_transcript_data(species, gene_bed, gene_mrna, gene_pre_mrna, pre_mrna)
 
     # error checking
 
-    acceptable_species = get_acceptable_species()
+    acceptable_species = get_acceptable_species(data_dir)
     if (species is None and
             gene_bed is None and
             (gene_mrna is None or gene_pre_mrna is None)):
@@ -211,9 +212,12 @@ def build_transcript_data(species, gene_bed, gene_mrna, gene_pre_mrna, pre_mrna)
     # Now actually assign values
     if species is not None:
         try:
-            gene_bed = clipper.data_file(species + ".AS.STRUCTURE_genes.BED.gz")
-            gene_mrna = clipper.data_file(species + ".AS.STRUCTURE_mRNA.lengths")
-            gene_pre_mrna = clipper.data_file(species + ".AS.STRUCTURE_premRNA.lengths")
+            gene_bed = os.path.join(data_dir, species + ".AS.STRUCTURE_genes.BED.gz")
+            gene_mrna = os.path.join(data_dir, species + ".AS.STRUCTURE_mRNA.lengths")
+            gene_pre_mrna = os.path.join(data_dir, species + ".AS.STRUCTURE_premRNA.lengths")
+            #gene_bed = clipper.data_file(species + ".AS.STRUCTURE_genes.BED.gz")
+            #gene_mrna = clipper.data_file(species + ".AS.STRUCTURE_mRNA.lengths")
+            #gene_pre_mrna = clipper.data_file(species + ".AS.STRUCTURE_premRNA.lengths")
 
         except ValueError:
             raise ValueError(
@@ -323,7 +327,7 @@ def func_star(variables):
     return call_peaks(*variables)
 
 
-def get_acceptable_species():
+def get_acceptable_species(data_dir):
     """
 
     Finds all species in data directory
@@ -331,7 +335,7 @@ def get_acceptable_species():
 
     """
     acceptable_species = set([])
-    for fn in os.listdir(clipper.data_dir()):
+    for fn in os.listdir(data_dir):
         fn = fn.split(".")[0]
         if fn == "__init__":
             continue

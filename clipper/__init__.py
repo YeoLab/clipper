@@ -16,12 +16,12 @@ def test_dir():
     """
     return os.path.join(os.path.dirname(__file__), 'test', 'data')
 
-def data_file(fn):
-    fn = os.path.join(data_dir(), fn)
+# def data_file(fn):
+#     fn = os.path.join(data_dir(), fn)
 
-    if not os.path.exists(fn):
-        raise ValueError("%s does not exist" % (fn))
-    return fn
+#     if not os.path.exists(fn):
+#         raise ValueError("%s does not exist" % (fn))
+#     return fn
 
 def test_file(fn):
     fn = os.path.join(test_dir(), fn)
