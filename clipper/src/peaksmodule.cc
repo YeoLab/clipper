@@ -329,7 +329,7 @@ extern "C" PyObject *peaks_readsToWiggle_pysam(PyObject *self, PyObject *args) {
   jxns = PyDict_New();
   allreads = PySet_New(NULL);
 
-  while (item = PyIter_Next(iterator)) {
+  while ((item = PyIter_Next(iterator))) {
 
 
     //skips reads on the wrong strand
@@ -509,7 +509,7 @@ static struct PyModuleDef peaksmodule = {
 extern "C" PyMODINIT_FUNC PyInit_peaks(void)
 {
   PyImport_AddModule("peaks");
-  PyModule_Create(&peaksmodule);
+  return PyModule_Create(&peaksmodule);
 }
 
 int usage(char *program_name)
