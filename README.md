@@ -12,6 +12,7 @@ cd clipper
 conda env create -f environment3.yml
 conda activate clipper3
 pip install .
+python3 setup.py build_ext --inplace
 ```
 ### Alternative installation
 1. Thanks @rekado for making clipper available at GNU Guix `guix install clipper`

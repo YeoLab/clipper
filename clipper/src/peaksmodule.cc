@@ -509,7 +509,7 @@ static struct PyModuleDef peaksmodule = {
 extern "C" PyMODINIT_FUNC PyInit_peaks(void)
 {
   PyImport_AddModule("peaks");
-  PyModule_Create(&peaksmodule);
+  return PyModule_Create(&peaksmodule);
 }
 
 int usage(char *program_name)
